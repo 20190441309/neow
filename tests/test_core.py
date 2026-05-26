@@ -839,3 +839,62 @@ class TestExecutorSecurity:
         executor.register_tool("execute_command", lambda command, timeout=30: "ok")
         result = executor.execute("execute_command", {"command": "ls -la"})
         assert result == "ok"
+
+
+class TestWebCache:
+    """Tests for ConversationManager web cache."""
+
+    def test_web_cache_init(self):
+        from unittest.mock import MagicMock
+        manager = ConversationManager(MagicMock())
+        assert hasattr(manager, "web_cache")
+        assert manager.web_cache == {}
+
+    def test_add_web_content(self):
+        from unittest.mock import MagicMock
+        from neow.tools.web import WebContent
+        manager = ConversationManager(MagicMock())
+        content = WebContent(
+            url="https://example.com", title="Example",
+            text="Hello world", code_blocks=[("python", "print('hi')")],
+            content_type="webpage",
+        )
+        manager.add_web_content("https://example.com", content)
+        assert "https://example.com" in manager.web_cache
+        assert manager.web_cache["https://example.com"] is content
+
+    def test_web_content_in_context_prompt(self):
+        from unittest.mock import MagicMock
+        from neow.tools.web import WebContent
+        manager = ConversationManager(MagicMock())
+        manager.set_system_prompt("You are Neow.")
+        content = WebContent(
+            url="https://example.com", title="Example",
+            text="Hello world", code_blocks=[],
+            content_type="webpage",
+        )
+        manager.add_web_content("https://example.com", content)
+        prompt = manager._get_effective_system_prompt()
+        assert "https://example.com" in prompt
+        assert "Hello world" in prompt
+
+    def test_web_content_with_code_blocks_in_prompt(self):
+        from unittest.mock import MagicMock
+        from neow.tools.web import WebContent
+        manager = ConversationManager(MagicMock())
+        manager.set_system_prompt("You are Neow.")
+        content = WebContent(
+            url="https://example.com", title="Code",
+            text="See code", code_blocks=[("python", "x = 1")],
+            content_type="webpage",
+        )
+        manager.add_web_content("https://example.com", content)
+        prompt = manager._get_effective_system_prompt()
+        assert "x = 1" in prompt
+
+    def test_no_web_cache_empty_prompt(self):
+        from unittest.mock import MagicMock
+        manager = ConversationManager(MagicMock())
+        manager.set_system_prompt("You are Neow.")
+        prompt = manager._get_effective_system_prompt()
+        assert "Web Content" not in prompt

@@ -48,6 +48,7 @@ class ConversationManager:
         self.context_manager = context_manager
         self.token_tracker = token_tracker
         self._structure_injected = False
+        self.web_cache: Dict[str, Any] = {}  # url -> WebContent
         self.pending_lint_feedback: Optional[str] = None
 
     def set_system_prompt(self, prompt: str) -> None:
@@ -358,6 +359,16 @@ class ConversationManager:
         """
         return list(self.context_files.keys())
 
+    def add_web_content(self, url: str, content: Any) -> None:
+        """Cache fetched web content for context injection.
+
+        Args:
+            url: The source URL.
+            content: WebContent instance.
+        """
+        self.web_cache[url] = content
+        logger.info(f"Cached web content: {url} ({len(content.text)} chars)")
+
     def refresh_context_file(self, file_path: str) -> bool:
         """Re-read a context file to pick up external changes.
 
@@ -382,15 +393,32 @@ class ConversationManager:
         Returns:
             Formatted string with context file contents.
         """
-        if not self.context_files:
-            return ""
-        parts = ["\n## Context Files\n"]
-        parts.append("The following files have been explicitly added to the conversation context:\n")
-        for path, content in self.context_files.items():
-            parts.append(f"### {path}")
-            parts.append("```")
-            parts.append(content)
-            parts.append("```\n")
+        parts = []
+
+        # Context files
+        if self.context_files:
+            parts.append("\n## Context Files\n")
+            parts.append("The following files have been explicitly added to the conversation context:\n")
+            for path, content in self.context_files.items():
+                parts.append(f"### {path}")
+                parts.append("```")
+                parts.append(content)
+                parts.append("```\n")
+
+        # Web content
+        if self.web_cache:
+            parts.append("\n## Web Content\n")
+            parts.append("The following web pages have been fetched into context:\n")
+            for url, content in self.web_cache.items():
+                parts.append(f"### {content.title} ({url})")
+                parts.append(content.text)
+                if content.code_blocks:
+                    for lang, code in content.code_blocks:
+                        parts.append(f"```{lang}")
+                        parts.append(code)
+                        parts.append("```")
+                parts.append("")
+
         return "\n".join(parts)
 
     def _build_project_context(self, user_input: str = "") -> str:
