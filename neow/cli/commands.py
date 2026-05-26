@@ -83,7 +83,4 @@ def parse_command(user_input: str) -> ParsedCommand:
         return ParsedCommand(command=command, args=args)
 
     # Unknown /command — store raw for plugin dispatch
-    if user_input.startswith("/"):
-        return ParsedCommand(command=None, args=args, raw_command=command_str)
-
-    return ParsedCommand(command=None)
+    return ParsedCommand(command=None, args=args, raw_command=command_str)

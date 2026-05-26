@@ -1,27 +1,24 @@
 """Tests for plugin system."""
 
-import pytest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
+from unittest.mock import MagicMock
+
+from neow.core.plugin import EventBus
 
 
 class TestEventBus:
     """Tests for EventBus."""
 
     def test_init(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         assert bus._handlers == {}
 
     def test_on_registers_handler(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         handler = MagicMock()
         bus.on("session_start", handler)
         assert handler in bus._handlers["session_start"]
 
     def test_emit_calls_handlers(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         handler = MagicMock()
         bus.on("session_start", handler)
@@ -29,7 +26,6 @@ class TestEventBus:
         handler.assert_called_once()
 
     def test_emit_multiple_handlers(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         h1 = MagicMock()
         h2 = MagicMock()
@@ -40,13 +36,11 @@ class TestEventBus:
         h2.assert_called_once()
 
     def test_emit_no_handlers(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         # Should not raise
         bus.emit("session_start")
 
     def test_emit_handler_exception_does_not_propagate(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         bad_handler = MagicMock(side_effect=RuntimeError("boom"))
         good_handler = MagicMock()
@@ -57,7 +51,6 @@ class TestEventBus:
         good_handler.assert_called_once()
 
     def test_emit_passes_kwargs(self):
-        from neow.core.plugin import EventBus
         bus = EventBus()
         handler = MagicMock()
         bus.on("pre_prompt", handler)

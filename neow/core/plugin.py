@@ -1,7 +1,6 @@
 """Plugin system for Neow CLI."""
 
-from typing import Any, Callable, Dict, List, Optional
-from pathlib import Path
+from typing import Callable, Dict, List
 from neow.utils.logger import logger
 
 
