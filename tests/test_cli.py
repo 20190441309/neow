@@ -122,6 +122,55 @@ class TestModelSwitching:
         assert repl.conversation is mock_conversation
         assert repl.streaming is False
 
+    def test_model_command_switches_client(self):
+        import sys
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+
+        mock_conversation = MagicMock()
+        mock_conversation.model_client.model = "deepseek-chat"
+        mock_config = MagicMock()
+        mock_config.resolve_model_alias.return_value = "anthropic"
+
+        mock_new_client = MagicMock()
+        mock_new_client.validate_connection.return_value = True
+
+        repl = REPL(mock_conversation, config=mock_config, streaming=False)
+
+        # Create a mock for neow.cli.main.create_model_client via sys.modules
+        mock_main_module = MagicMock()
+        mock_main_module.create_model_client.return_value = mock_new_client
+        sys.modules["neow.cli.main"] = mock_main_module
+
+        try:
+            parsed = parse_command("/model anthropic")
+            repl._handle_command(parsed)
+        finally:
+            del sys.modules["neow.cli.main"]
+
+        assert mock_conversation.model_client is mock_new_client
+
+    def test_model_command_no_args_shows_info(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+
+        mock_conversation = MagicMock()
+        mock_conversation.model_client.model = "deepseek-chat"
+        mock_config = MagicMock()
+        mock_config.models = {"deepseek": {}, "anthropic": {}, "openai": {}}
+
+        repl = REPL(mock_conversation, config=mock_config, streaming=False)
+        parsed = parse_command("/model")
+
+        with patch("neow.cli.repl.print_info") as mock_print:
+            repl._handle_command(parsed)
+
+        calls_text = " ".join(str(c) for c in mock_print.call_args_list)
+        assert "deepseek-chat" in calls_text
+        assert "Available models" in calls_text
+
 
 class TestLintTestCommands:
     """Tests for lint and test command parsing."""

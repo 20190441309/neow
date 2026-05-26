@@ -119,10 +119,23 @@ class REPL:
             return True
         elif parsed.command == Command.MODEL:
             if parsed.args:
-                print_info(f"Switching to model: {parsed.args}")
-                # TODO: Implement model switching
+                model_name = self.config.resolve_model_alias(parsed.args.strip())
+                try:
+                    from neow.cli.main import create_model_client
+                    new_client = create_model_client(self.config, model_name)
+                    if new_client.validate_connection():
+                        self.conversation.model_client = new_client
+                        print_info(f"Switched to model: {model_name}")
+                    else:
+                        print_error(f"Failed to connect to {model_name}")
+                except Exception as e:
+                    print_error(f"Failed to switch model: {e}")
             else:
-                print_error("Please specify a model name")
+                current = self.conversation.model_client.model
+                available = list(self.config.models.keys())
+                print_info(f"Current model: {current}")
+                print_info(f"Available models: {', '.join(available)}")
+                print_info("Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai")
         elif parsed.command == Command.DIFF:
             try:
                 diff = git_diff()
