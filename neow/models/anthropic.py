@@ -9,6 +9,11 @@ from neow.models.base import BaseModelClient, ModelResponse
 from neow.utils.logger import logger
 
 
+def _sanitize_text(text: str) -> str:
+    """Remove surrogate characters that cause encoding errors."""
+    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+
+
 class AnthropicClient(BaseModelClient):
     """Anthropic Claude model client."""
 
@@ -38,15 +43,21 @@ class AnthropicClient(BaseModelClient):
         Returns:
             ModelResponse object.
         """
+        # Sanitize messages to remove surrogate characters
+        sanitized_messages = []
+        for msg in messages:
+            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_messages.append(sanitized_msg)
+
         # Prepare request kwargs
         kwargs = {
             "model": self.model,
             "max_tokens": 4096,
-            "messages": messages,
+            "messages": sanitized_messages,
         }
 
         if system_prompt:
-            kwargs["system"] = system_prompt
+            kwargs["system"] = _sanitize_text(system_prompt)
 
         if tools:
             kwargs["tools"] = tools

@@ -10,7 +10,6 @@ from neow.core.conversation import ConversationManager
 from neow.utils.formatter import (
     print_welcome,
     print_assistant_message,
-    print_tool_call,
     print_error,
     print_info,
 )
@@ -33,11 +32,18 @@ class REPL:
     def _setup_session(self) -> None:
         """Setup prompt session with history."""
         try:
-            history = FileHistory(".neow_history")
-            self.session = PromptSession(history=history)
+            # Try to create a simple prompt session without history first
+            # to test if prompt-toolkit works in this terminal
+            test_session = PromptSession()
+            # If successful, setup with history
+            try:
+                history = FileHistory(".neow_history")
+                self.session = PromptSession(history=history)
+            except Exception:
+                self.session = test_session
         except Exception as e:
-            logger.warning(f"Failed to setup history: {e}")
-            self.session = PromptSession()
+            logger.warning(f"Failed to setup prompt-toolkit: {e}")
+            self.session = None
 
     def start(self) -> None:
         """Start the REPL loop."""
@@ -46,7 +52,7 @@ class REPL:
         while True:
             try:
                 user_input = self._get_input()
-                if not user_input:
+                if not user_input or not user_input.strip():
                     continue
 
                 # Check for commands
@@ -116,15 +122,6 @@ class REPL:
         """
         try:
             response = self.conversation.get_response(user_input)
-
-            # Handle tool calls
-            if response.has_tool_calls:
-                for tool_call in response.tool_calls:
-                    print_tool_call(
-                        tool_call["function"]["name"],
-                        tool_call["function"]["arguments"],
-                    )
-                    # TODO: Execute tool and add result
 
             # Print response
             if response.content:

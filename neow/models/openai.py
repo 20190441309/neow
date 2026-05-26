@@ -8,6 +8,11 @@ from neow.models.base import BaseModelClient, ModelResponse
 from neow.utils.logger import logger
 
 
+def _sanitize_text(text: str) -> str:
+    """Remove surrogate characters that cause encoding errors."""
+    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+
+
 class OpenAIClient(BaseModelClient):
     """OpenAI model client."""
 
@@ -40,8 +45,10 @@ class OpenAIClient(BaseModelClient):
         # Prepare messages
         full_messages = []
         if system_prompt:
-            full_messages.append({"role": "system", "content": system_prompt})
-        full_messages.extend(messages)
+            full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
+        for msg in messages:
+            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            full_messages.append(sanitized_msg)
 
         # Prepare request kwargs
         kwargs = {

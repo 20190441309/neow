@@ -9,6 +9,7 @@ import click
 from neow.core.config import Config
 from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor
+from neow.core.prompts import get_system_prompt, get_tool_definitions
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
 from neow.models.openai import OpenAIClient
@@ -32,15 +33,17 @@ def create_model_client(config: Config, model_name: str):
     """
     model_config = config.get_model_config(model_name)
 
-    if model_name == "deepseek":
+    # Determine client type based on model name prefix
+    model_lower = model_name.lower()
+    if "deepseek" in model_lower:
         return DeepSeekClient(
             api_key=model_config["api_key"], model=model_config["model"]
         )
-    elif model_name == "anthropic":
+    elif "anthropic" in model_lower or "claude" in model_lower:
         return AnthropicClient(
             api_key=model_config["api_key"], model=model_config["model"]
         )
-    elif model_name == "openai":
+    elif "openai" in model_lower or "gpt" in model_lower:
         return OpenAIClient(
             api_key=model_config["api_key"], model=model_config["model"]
         )
@@ -88,12 +91,16 @@ def main(config: str, model: str, verbose: bool):
             print_error(f"Failed to connect to {model_name} API")
             sys.exit(1)
 
-        # Setup conversation manager
-        conversation = ConversationManager(model_client)
-
         # Setup tool executor
         executor = ToolExecutor()
         setup_tools(executor)
+
+        # Setup conversation manager
+        conversation = ConversationManager(model_client, executor)
+
+        # Set system prompt and tools
+        conversation.set_system_prompt(get_system_prompt())
+        conversation.set_tools(get_tool_definitions())
 
         # Start REPL
         repl = REPL(conversation)

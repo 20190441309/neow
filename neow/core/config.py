@@ -18,7 +18,7 @@ class Config:
     """Manages Neow configuration."""
 
     DEFAULT_CONFIG = {
-        "default_model": "deepseek-chat",
+        "default_model": "deepseek",
         "models": {
             "anthropic": {"api_key": "", "model": "claude-sonnet-4-6"},
             "openai": {"api_key": "", "model": "gpt-4o"},
@@ -123,6 +123,14 @@ class Config:
         Raises:
             ConfigError: If model not found.
         """
-        if model_name not in self._config["models"]:
-            raise ConfigError(f"Model '{model_name}' not found in configuration")
-        return self._config["models"][model_name]
+        # Try exact match first
+        if model_name in self._config["models"]:
+            return self._config["models"][model_name]
+
+        # Try prefix match (e.g., "deepseek-v4-flash" matches "deepseek")
+        model_lower = model_name.lower()
+        for key in self._config["models"]:
+            if model_lower.startswith(key.lower()) or key.lower() in model_lower:
+                return self._config["models"][key]
+
+        raise ConfigError(f"Model '{model_name}' not found in configuration")

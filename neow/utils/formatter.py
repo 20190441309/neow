@@ -1,12 +1,20 @@
 """Output formatting utilities for Neow CLI."""
 
+import sys
+import io
 from typing import Any, Dict
 
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
-console = Console()
+# Force UTF-8 output on Windows to avoid encoding issues
+if sys.platform == "win32":
+    # Wrap stdout with UTF-8 encoding
+    utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    console = Console(file=utf8_stdout, force_terminal=True)
+else:
+    console = Console()
 
 
 def print_user_message(message: str) -> None:
@@ -100,18 +108,14 @@ def print_info(message: str) -> None:
 
 def print_welcome() -> None:
     """Print welcome message."""
-    welcome_text = """
-# Neow CLI
-
-A lightweight, general-purpose AI CLI assistant.
-
-**Commands:**
-- `/help` - Show this help message
-- `/clear` - Clear conversation history
-- `/exit` - Exit the CLI
-- `/model <name>` - Switch AI model (deepseek, anthropic, openai)
-
-**Usage:**
-Type your message and press Enter to interact with the AI assistant.
-"""
-    print_markdown(welcome_text)
+    console.print("[bold cyan]Neow CLI[/bold cyan]")
+    console.print("A lightweight, general-purpose AI CLI assistant.")
+    console.print()
+    console.print("[bold]Commands:[/bold]")
+    console.print("  /help     - Show this help message")
+    console.print("  /clear    - Clear conversation history")
+    console.print("  /exit     - Exit the CLI")
+    console.print("  /model <name> - Switch AI model (deepseek, anthropic, openai)")
+    console.print()
+    console.print("[bold]Usage:[/bold]")
+    console.print("  Type your message and press Enter to interact with the AI assistant.")

@@ -15,10 +15,13 @@ from neow.core.executor import ToolExecutor, ToolError
 class TestConfig:
     """Tests for Config class."""
 
-    def test_default_config(self):
+    def test_default_config(self, tmp_path):
         """Test default configuration values."""
-        config = Config()
-        assert config.default_model == "deepseek-chat"
+        # Use empty config file to ensure defaults are used
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        assert config.default_model == "deepseek"
         assert "deepseek" in config.models
         assert "anthropic" in config.models
         assert "openai" in config.models

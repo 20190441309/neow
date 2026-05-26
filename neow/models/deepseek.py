@@ -8,6 +8,11 @@ from neow.models.base import BaseModelClient, ModelResponse
 from neow.utils.logger import logger
 
 
+def _sanitize_text(text: str) -> str:
+    """Remove surrogate characters that cause encoding errors."""
+    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+
+
 class DeepSeekClient(BaseModelClient):
     """DeepSeek model client using OpenAI-compatible API."""
 
@@ -22,6 +27,7 @@ class DeepSeekClient(BaseModelClient):
         self.client = openai.OpenAI(
             api_key=api_key, base_url="https://api.deepseek.com"
         )
+        self._last_reasoning_content = None
 
     def chat(
         self,
@@ -42,8 +48,10 @@ class DeepSeekClient(BaseModelClient):
         # Prepare messages
         full_messages = []
         if system_prompt:
-            full_messages.append({"role": "system", "content": system_prompt})
-        full_messages.extend(messages)
+            full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
+        for msg in messages:
+            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            full_messages.append(sanitized_msg)
 
         # Prepare request kwargs
         kwargs = {
@@ -55,8 +63,10 @@ class DeepSeekClient(BaseModelClient):
             kwargs["tools"] = tools
 
         try:
+            logger.debug(f"Sending request to DeepSeek API with {len(full_messages)} messages")
             response = self.client.chat.completions.create(**kwargs)  # type: ignore
             choice = response.choices[0]
+            logger.debug(f"Received response from DeepSeek API")
 
             # Parse tool calls
             tool_calls = []
@@ -80,6 +90,14 @@ class DeepSeekClient(BaseModelClient):
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens,
                 }
+
+            # Store reasoning_content for next request if present
+            if hasattr(choice.message, 'reasoning_content') and choice.message.reasoning_content:
+                self._last_reasoning_content = choice.message.reasoning_content
+                logger.debug(f"Stored reasoning_content: {len(choice.message.reasoning_content)} chars")
+            else:
+                self._last_reasoning_content = None
+                logger.debug("No reasoning_content in response")
 
             return ModelResponse(
                 content=choice.message.content or "", tool_calls=tool_calls, usage=usage

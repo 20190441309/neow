@@ -7,6 +7,11 @@ from neow.models.base import BaseModelClient, ModelResponse
 from neow.utils.logger import logger
 
 
+def _sanitize_text(text: str) -> str:
+    """Remove surrogate characters that cause encoding errors."""
+    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+
+
 class ConversationManager:
     """Manages conversation history and AI model interactions."""
 
@@ -73,23 +78,43 @@ class ConversationManager:
         # Add user message
         self.add_message("user", user_input)
 
+        # Sanitize messages to remove surrogate characters
+        sanitized_messages = []
+        for msg in self.messages:
+            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_messages.append(sanitized_msg)
+
         # Get response from model
         response = self.model_client.chat(
-            messages=self.messages,
+            messages=sanitized_messages,
             system_prompt=self.system_prompt if self.system_prompt else None,
             tools=self.tools if self.tools else None,
         )
 
         # Handle tool calls if present
         while response.has_tool_calls and self.tool_executor:
-            # Add assistant message with tool calls
-            self.messages.append(
-                {
-                    "role": "assistant",
-                    "content": response.content,
-                    "tool_calls": response.tool_calls,
+            # Format tool_calls with type field for API compatibility
+            formatted_tool_calls = []
+            for tc in response.tool_calls:
+                formatted_tc = {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": tc["function"],
                 }
-            )
+                formatted_tool_calls.append(formatted_tc)
+
+            # Add assistant message with tool calls
+            # Include reasoning_content if available (for DeepSeek thinking mode)
+            assistant_msg = {
+                "role": "assistant",
+                "content": response.content,
+                "tool_calls": formatted_tool_calls,
+            }
+            # Check if model client has stored reasoning_content
+            if hasattr(self.model_client, '_last_reasoning_content') and self.model_client._last_reasoning_content:
+                assistant_msg["reasoning_content"] = self.model_client._last_reasoning_content
+
+            self.messages.append(assistant_msg)
 
             # Execute each tool call
             for tool_call in response.tool_calls:
@@ -105,8 +130,19 @@ class ConversationManager:
                 self.add_tool_result(tool_call["id"], result)
 
             # Get next response from model
+            # Sanitize messages before sending
+            sanitized_messages = []
+            for msg in self.messages:
+                sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+                sanitized_messages.append(sanitized_msg)
+
+            # Debug: log messages being sent
+            logger.debug(f"Sending {len(sanitized_messages)} messages to model")
+            for i, msg in enumerate(sanitized_messages):
+                logger.debug(f"Message {i}: role={msg.get('role')}, keys={list(msg.keys())}")
+
             response = self.model_client.chat(
-                messages=self.messages,
+                messages=sanitized_messages,
                 system_prompt=self.system_prompt if self.system_prompt else None,
                 tools=self.tools if self.tools else None,
             )
@@ -127,8 +163,14 @@ class ConversationManager:
             tool_call_id: Tool call ID.
             result: Tool execution result.
         """
+        # Note: DeepSeek API requires 'type' field for tool messages
         self.messages.append(
-            {"role": "tool", "tool_call_id": tool_call_id, "content": result}
+            {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "content": _sanitize_text(str(result)),
+                "type": "tool_result",
+            }
         )
         logger.debug(f"Added tool result for {tool_call_id}")
 
