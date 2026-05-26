@@ -1,8 +1,10 @@
 """Tool executor for Neow CLI."""
 
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List, Optional
 
 from neow.utils.logger import logger
+
+FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file"}
 
 
 class ToolError(Exception):
@@ -17,6 +19,9 @@ class ToolExecutor:
     def __init__(self):
         """Initialize tool executor."""
         self.tools: Dict[str, Callable] = {}
+        self.on_file_change: Optional[Callable[[str, str], None]] = None
+        self.security_guard: Optional[Any] = None
+        self.allowed_commands: List[str] = []
         self._register_default_tools()
 
     def _register_default_tools(self) -> None:
@@ -42,9 +47,19 @@ class ToolExecutor:
             """Search code with pattern. Stub implementation."""
             raise NotImplementedError("search_code not yet implemented")
 
+        def create_file(file_path: str, content: str = "") -> str:
+            """Create file. Stub implementation."""
+            raise NotImplementedError("create_file not yet implemented")
+
+        def delete_file(file_path: str) -> str:
+            """Delete file. Stub implementation."""
+            raise NotImplementedError("delete_file not yet implemented")
+
         self.register_tool("read_file", read_file)
         self.register_tool("write_file", write_file)
         self.register_tool("edit_file", edit_file)
+        self.register_tool("create_file", create_file)
+        self.register_tool("delete_file", delete_file)
         self.register_tool("execute_command", execute_command)
         self.register_tool("search_code", search_code)
 
@@ -74,9 +89,35 @@ class ToolExecutor:
         if tool_name not in self.tools:
             raise ToolError(f"Tool '{tool_name}' not found")
 
+        # Security checks
+        if self.security_guard:
+            if tool_name == "execute_command":
+                check = self.security_guard.check_command(
+                    parameters.get("command", ""), self.allowed_commands
+                )
+                if not check.allowed:
+                    raise ToolError(f"Security: {check.reason}")
+            elif tool_name in FILE_MUTATING_TOOLS:
+                operation = tool_name.removesuffix("_file")
+                check = self.security_guard.check_file_access(
+                    parameters.get("file_path", ""), operation
+                )
+                if not check.allowed:
+                    raise ToolError(f"Security: {check.reason}")
+
         try:
             result = self.tools[tool_name](**parameters)
             logger.debug(f"Tool '{tool_name}' executed successfully")
+
+            # Fire callback for file-mutating tools
+            if tool_name in FILE_MUTATING_TOOLS and self.on_file_change:
+                file_path = parameters.get("file_path", "")
+                if file_path:
+                    try:
+                        self.on_file_change(tool_name, file_path)
+                    except Exception as e:
+                        logger.warning(f"File change callback failed: {e}")
+
             return str(result)
         except Exception as e:
             logger.error(f"Tool '{tool_name}' execution failed: {e}")

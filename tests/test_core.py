@@ -789,3 +789,39 @@ class TestConversationTokenTracking:
 
         assert tracker.session_input == 100
         assert tracker.session_output == 50
+
+
+class TestExecutorSecurity:
+    """Tests for security integration in ToolExecutor."""
+
+    def test_executor_blocks_non_whitelisted_command(self):
+        from neow.core.security import SecurityGuard
+        executor = ToolExecutor()
+        executor.security_guard = SecurityGuard()
+        executor.allowed_commands = ["ls", "cat"]
+
+        executor.register_tool("execute_command", lambda command, timeout=30: "ok")
+
+        with pytest.raises(ToolError, match="whitelist"):
+            executor.execute("execute_command", {"command": "curl http://evil.com"})
+
+    def test_executor_blocks_protected_file(self):
+        from neow.core.security import SecurityGuard
+        executor = ToolExecutor()
+        executor.security_guard = SecurityGuard()
+        executor.allowed_commands = []
+
+        executor.register_tool("write_file", lambda file_path, content: "ok")
+
+        with pytest.raises(ToolError, match="Protected"):
+            executor.execute("write_file", {"file_path": ".env", "content": "KEY=val"})
+
+    def test_executor_allows_safe_operations(self):
+        from neow.core.security import SecurityGuard
+        executor = ToolExecutor()
+        executor.security_guard = SecurityGuard()
+        executor.allowed_commands = ["ls", "cat", "python"]
+
+        executor.register_tool("execute_command", lambda command, timeout=30: "ok")
+        result = executor.execute("execute_command", {"command": "ls -la"})
+        assert result == "ok"

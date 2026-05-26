@@ -9,6 +9,7 @@ import click
 from neow.core.config import Config
 from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor
+from neow.core.security import SecurityGuard
 from neow.core.prompts import get_system_prompt, get_tool_definitions
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
@@ -102,6 +103,10 @@ def main(config: str, model: str, verbose: bool):
         # Setup tool executor
         executor = ToolExecutor()
         setup_tools(executor)
+
+        # Wire security guard
+        executor.security_guard = SecurityGuard()
+        executor.allowed_commands = cfg.tools.get("allowed_commands", [])
 
         # Wire git auto-commit callback
         if cfg.git.get("auto_commit", True):
