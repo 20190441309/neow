@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from neow.core.plugin import EventBus
+from neow.core.plugin import EventBus, PluginAPI
 
 
 class TestEventBus:
@@ -58,3 +58,55 @@ class TestEventBus:
         handler.assert_called_once()
         call_kwargs = handler.call_args[1]
         assert call_kwargs["prompt"] == "hello"
+
+
+class TestPluginAPI:
+    """Tests for PluginAPI."""
+
+    def test_init(self):
+        from neow.core.plugin import PluginAPI
+        executor = MagicMock()
+        bus = EventBus()
+        api = PluginAPI(executor, bus)
+        assert api._executor is executor
+        assert api._events is bus
+        assert api.plugin_commands == {}
+
+    def test_register_tool(self):
+        from neow.core.plugin import PluginAPI
+        executor = MagicMock()
+        bus = EventBus()
+        api = PluginAPI(executor, bus)
+
+        def my_tool(param: str) -> str:
+            return f"result: {param}"
+
+        api.register_tool("my_tool", my_tool, "A test tool")
+        executor.register_tool.assert_called_once_with("my_tool", my_tool)
+
+    def test_register_command(self):
+        from neow.core.plugin import PluginAPI
+        bus = EventBus()
+        api = PluginAPI(MagicMock(), bus)
+
+        handler = MagicMock()
+        api.register_command("/my-cmd", handler, "A test command")
+        assert "/my-cmd" in api.plugin_commands
+        assert api.plugin_commands["/my-cmd"] is handler
+
+    def test_register_multiple_commands(self):
+        from neow.core.plugin import PluginAPI
+        api = PluginAPI(MagicMock(), EventBus())
+        api.register_command("/cmd1", MagicMock())
+        api.register_command("/cmd2", MagicMock())
+        assert len(api.plugin_commands) == 2
+
+    def test_on_event(self):
+        from neow.core.plugin import PluginAPI
+        bus = EventBus()
+        api = PluginAPI(MagicMock(), bus)
+
+        handler = MagicMock()
+        api.on_event("session_start", handler)
+        bus.emit("session_start", conversation=MagicMock())
+        handler.assert_called_once()
