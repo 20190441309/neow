@@ -10,6 +10,7 @@ from neow.core.config import Config, ConfigError
 from neow.core.conversation import ConversationManager
 from neow.core.context import ContextManager
 from neow.core.executor import ToolExecutor, ToolError
+from neow.models.base import StreamChunk
 
 
 class TestConfig:
@@ -188,6 +189,170 @@ class TestContextManager:
         assert "test.py" in context
 
 
+class TestContextFiles:
+    """Tests for conversation context files."""
+
+    def test_add_context_file(self, tmp_path):
+        """Test adding a file to context."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("print('hello')")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        result = manager.add_context_file(str(test_file))
+        assert "Added to context" in result
+        assert str(test_file.resolve()) in manager.context_files
+
+    def test_add_context_file_not_found(self):
+        """Test adding non-existent file."""
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        with pytest.raises(FileNotFoundError):
+            manager.add_context_file("/nonexistent/file.txt")
+
+    def test_drop_context_file(self, tmp_path):
+        """Test dropping a file from context."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("content")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        manager.add_context_file(str(test_file))
+        result = manager.drop_context_file(str(test_file))
+        assert "Removed" in result
+        assert len(manager.context_files) == 0
+
+    def test_drop_context_file_not_in_context(self):
+        """Test dropping file never added."""
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        with pytest.raises(KeyError):
+            manager.drop_context_file("nonexistent.py")
+
+    def test_drop_context_file_by_name(self, tmp_path):
+        """Test dropping file by just filename."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("content")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        manager.add_context_file(str(test_file))
+        result = manager.drop_context_file("test.py")
+        assert "Removed" in result
+
+    def test_list_context_files(self, tmp_path):
+        """Test listing context files."""
+        f1 = tmp_path / "a.py"
+        f2 = tmp_path / "b.py"
+        f1.write_text("a")
+        f2.write_text("b")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        manager.add_context_file(str(f1))
+        manager.add_context_file(str(f2))
+        files = manager.list_context_files()
+        assert len(files) == 2
+
+    def test_list_context_files_empty(self):
+        """Test listing when no files in context."""
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        assert manager.list_context_files() == []
+
+    def test_context_files_in_system_prompt(self, tmp_path):
+        """Test context files appear in effective system prompt."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("print('hello')")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+        manager.set_system_prompt("You are Neow.")
+
+        manager.add_context_file(str(test_file))
+        prompt = manager._get_effective_system_prompt()
+        assert "print('hello')" in prompt
+        assert "Context Files" in prompt
+
+    def test_context_auto_refresh_on_edit(self, tmp_path):
+        """Test context auto-refreshes after file edit."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("original")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+        manager.add_context_file(str(test_file))
+
+        # Simulate file edit
+        test_file.write_text("modified")
+        abs_path = str(test_file.resolve())
+        manager.refresh_context_file(abs_path)
+        assert manager.context_files[abs_path] == "modified"
+
+    def test_context_auto_remove_on_delete(self, tmp_path):
+        """Test context removes file on delete."""
+        test_file = tmp_path / "test.py"
+        test_file.write_text("content")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+        manager.add_context_file(str(test_file))
+
+        abs_path = str(test_file.resolve())
+        assert abs_path in manager.context_files
+        # Simulate delete
+        del manager.context_files[abs_path]
+        assert abs_path not in manager.context_files
+
+
+class TestConfigExtensions:
+    """Tests for P1 config extensions."""
+
+    def test_lint_test_defaults(self, tmp_path):
+        """Test lint_test config defaults."""
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        lt = config.lint_test
+        assert lt["auto_lint"] is False
+        assert lt["auto_test"] is False
+        assert lt["lint_command"] is None
+        assert lt["test_command"] is None
+
+    def test_architect_defaults(self, tmp_path):
+        """Test architect config defaults."""
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        arch = config.architect
+        assert arch["planner"] == "anthropic"
+        assert arch["executor"] == "deepseek"
+
+    def test_resolve_model_alias_exact(self, tmp_path):
+        """Test resolving exact model name."""
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        assert config.resolve_model_alias("deepseek") == "deepseek"
+
+    def test_resolve_model_alias_short(self, tmp_path):
+        """Test resolving alias like 'sonnet' -> 'anthropic'."""
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        assert config.resolve_model_alias("sonnet") == "anthropic"
+        assert config.resolve_model_alias("claude") == "anthropic"
+        assert config.resolve_model_alias("deep") == "deepseek"
+        assert config.resolve_model_alias("gpt") == "openai"
+
+    def test_resolve_model_alias_unknown(self, tmp_path):
+        """Test resolving unknown alias returns it as-is."""
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        assert config.resolve_model_alias("unknown-model") == "unknown-model"
+
+
 class TestIntegration:
     """Integration tests."""
 
@@ -231,3 +396,38 @@ class TestIntegration:
         # Verify
         assert response.content == "The file contains: Hello"
         assert mock_client.chat.call_count == 2
+
+
+class TestConversationStreaming:
+    """Tests for streaming conversation."""
+
+    def test_get_response_stream_no_tools(self):
+        """Test streaming response without tool calls."""
+        mock_client = MagicMock()
+
+        def mock_stream(*args, **kwargs):
+            yield StreamChunk(content_delta="Hello ")
+            yield StreamChunk(content_delta="World")
+            yield StreamChunk(usage={"total_tokens": 10})
+
+        mock_client.chat_stream = mock_stream
+
+        manager = ConversationManager(mock_client)
+        chunks = list(manager.get_response_stream("Hi"))
+        content_chunks = [c for c in chunks if c.content_delta]
+        assert "".join(c.content_delta for c in content_chunks) == "Hello World"
+        assert manager.messages[-1]["content"] == "Hello World"
+
+    def test_get_response_stream_fallback(self):
+        """Test non-streaming still works."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "Hello!"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        manager = ConversationManager(mock_client)
+        response = manager.get_response("Hi")
+        assert response.content == "Hello!"

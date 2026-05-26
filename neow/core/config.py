@@ -17,6 +17,13 @@ class ConfigError(Exception):
 class Config:
     """Manages Neow configuration."""
 
+    MODEL_ALIASES = {
+        "sonnet": "anthropic",
+        "claude": "anthropic",
+        "deep": "deepseek",
+        "gpt": "openai",
+    }
+
     DEFAULT_CONFIG = {
         "default_model": "deepseek",
         "models": {
@@ -29,10 +36,28 @@ class Config:
                 "read_file",
                 "write_file",
                 "edit_file",
+                "create_file",
+                "delete_file",
                 "execute_command",
                 "search_code",
             ],
             "allowed_commands": ["ls", "cat", "grep", "find", "python", "npm"],
+        },
+        "git": {
+            "auto_commit": True,
+        },
+        "streaming": {
+            "enabled": True,
+        },
+        "lint_test": {
+            "auto_lint": False,
+            "auto_test": False,
+            "lint_command": None,
+            "test_command": None,
+        },
+        "architect": {
+            "planner": "anthropic",
+            "executor": "deepseek",
         },
     }
 
@@ -110,6 +135,35 @@ class Config:
     def tools(self) -> Dict[str, Any]:
         """Get tools configuration."""
         return self._config["tools"]
+
+    @property
+    def git(self) -> Dict[str, Any]:
+        """Get git configuration."""
+        return self._config.get("git", {"auto_commit": True})
+
+    @property
+    def streaming(self) -> Dict[str, Any]:
+        """Get streaming configuration."""
+        return self._config.get("streaming", {"enabled": True})
+
+    @property
+    def lint_test(self) -> Dict[str, Any]:
+        """Get lint/test configuration."""
+        return self._config.get("lint_test", {
+            "auto_lint": False, "auto_test": False,
+            "lint_command": None, "test_command": None,
+        })
+
+    @property
+    def architect(self) -> Dict[str, Any]:
+        """Get architect mode configuration."""
+        return self._config.get("architect", {
+            "planner": "anthropic", "executor": "deepseek",
+        })
+
+    def resolve_model_alias(self, alias: str) -> str:
+        """Resolve model alias to canonical name. Returns input if no alias found."""
+        return self.MODEL_ALIASES.get(alias.lower(), alias)
 
     def get_model_config(self, model_name: str) -> Dict[str, str]:
         """Get configuration for specific model.
