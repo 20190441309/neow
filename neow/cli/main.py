@@ -20,6 +20,7 @@ from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commi
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
 from neow.utils.formatter import print_error, print_info
+from neow.core.token_tracker import TokenTracker
 
 
 def create_model_client(config: Config, model_name: str):
@@ -133,7 +134,8 @@ def main(config: str, model: str, verbose: bool):
             executor.on_file_change = _on_file_change
 
         # Setup conversation manager
-        conversation = ConversationManager(model_client, executor)
+        token_tracker = TokenTracker(cfg)
+        conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
 
         # Set system prompt and tools
         conversation.set_system_prompt(get_system_prompt())

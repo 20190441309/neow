@@ -754,3 +754,38 @@ class TestTokenTracker:
         tracker.record({"prompt_tokens": 100, "completion_tokens": 50}, "unknown-model")
         cost = tracker.get_session_cost()
         assert cost == 0.0
+
+
+class TestConversationTokenTracking:
+    """Tests for token tracking in ConversationManager."""
+
+    def test_conversation_accepts_token_tracker(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_client = MagicMock()
+        mock_config = MagicMock()
+        mock_config.token = {"show_usage": True, "prices": {}}
+        tracker = TokenTracker(mock_config)
+        manager = ConversationManager(mock_client, token_tracker=tracker)
+        assert manager.token_tracker is tracker
+
+    def test_token_tracker_records_usage(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "ok"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        mock_client.chat.return_value = mock_response
+
+        mock_config = MagicMock()
+        mock_config.token = {"show_usage": True, "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}}}
+        tracker = TokenTracker(mock_config)
+        manager = ConversationManager(mock_client, token_tracker=tracker)
+        manager.set_system_prompt("test")
+        manager.get_response("Hello")
+
+        assert tracker.session_input == 100
+        assert tracker.session_output == 50

@@ -23,6 +23,7 @@ class ConversationManager:
         model_client: BaseModelClient,
         tool_executor: Optional[Any] = None,
         context_manager: Optional[Any] = None,
+        token_tracker: Optional[Any] = None,
     ):
         """Initialize conversation manager.
 
@@ -31,6 +32,7 @@ class ConversationManager:
             tool_executor: Optional tool executor for handling tool calls.
                 If not provided, a default ToolExecutor will be created.
             context_manager: Optional ContextManager for project context injection.
+            token_tracker: Optional TokenTracker for usage tracking.
         """
         self.model_client = model_client
         if tool_executor is None:
@@ -44,6 +46,7 @@ class ConversationManager:
         self.tools: List[Dict[str, Any]] = []
         self.context_files: Dict[str, str] = {}  # abs_path -> content
         self.context_manager = context_manager
+        self.token_tracker = token_tracker
         self._structure_injected = False
         self.pending_lint_feedback: Optional[str] = None
 
@@ -172,6 +175,10 @@ class ConversationManager:
         # Add assistant message
         self.add_message("assistant", response.content)
 
+        # Record token usage
+        if self.token_tracker and response.usage:
+            self.token_tracker.record(response.usage, getattr(self.model_client, 'model', 'unknown'))
+
         logger.info(
             f"Response generated ({response.usage.get('total_tokens', 0)} tokens)"
         )
@@ -261,6 +268,11 @@ class ConversationManager:
                 self.add_tool_result(tool_call["id"], result)
 
         self.add_message("assistant", response.content)
+
+        # Record token usage
+        if self.token_tracker and usage_final:
+            self.token_tracker.record(usage_final, getattr(self.model_client, 'model', 'unknown'))
+
         logger.info(f"Streamed response ({response.usage.get('total_tokens', 0)} tokens)")
 
     def add_tool_result(self, tool_call_id: str, result: str) -> None:
