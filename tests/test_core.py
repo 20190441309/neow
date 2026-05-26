@@ -10,6 +10,7 @@ import pytest
 
 from neow.core.config import Config, ConfigError
 from neow.core.conversation import ConversationManager
+from neow.core.context import ContextManager
 from neow.core.executor import ToolExecutor, ToolError
 
 
@@ -147,3 +148,47 @@ class TestConversationManager:
 
         assert response.content == "Hello!"
         assert len(manager.messages) == 2  # user + assistant
+
+
+class TestContextManager:
+    """Tests for ContextManager."""
+
+    def test_init(self, tmp_path):
+        """Test context manager initialization."""
+        manager = ContextManager(str(tmp_path))
+        assert manager.project_root == tmp_path
+
+    def test_get_project_structure(self, tmp_path):
+        """Test getting project structure."""
+        # Create test structure
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "main.py").write_text("print('hello')")
+        (tmp_path / "README.md").write_text("# Test")
+
+        manager = ContextManager(str(tmp_path))
+        structure = manager.get_project_structure()
+
+        assert "src" in structure
+        assert "README.md" in structure
+
+    def test_get_relevant_files(self, tmp_path):
+        """Test getting relevant files."""
+        # Create test files
+        (tmp_path / "main.py").write_text("def main(): pass")
+        (tmp_path / "utils.py").write_text("def helper(): pass")
+        (tmp_path / "README.md").write_text("# Documentation")
+
+        manager = ContextManager(str(tmp_path))
+        files = manager.get_relevant_files("main function")
+
+        assert len(files) > 0
+
+    def test_build_context(self, tmp_path):
+        """Test building context."""
+        # Create test file
+        (tmp_path / "test.py").write_text("def hello(): pass")
+
+        manager = ContextManager(str(tmp_path))
+        context = manager.build_context("tell me about test.py")
+
+        assert "test.py" in context
