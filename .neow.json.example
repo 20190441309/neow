@@ -1,0 +1,9 @@
+{
+  "default_model": "deepseek-chat",
+  "models": {
+    "deepseek": {
+      "api_key": "your-api-key-here",
+      "model": "deepseek-chat"
+    }
+  }
+}
