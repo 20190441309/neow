@@ -610,6 +610,21 @@ class TestArchitectOrchestrator:
         assert len(result) > 0
 
 
+class TestTokenConfig:
+    """Tests for token config defaults."""
+
+    def test_token_defaults(self, tmp_path):
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        token_cfg = config.token
+        assert token_cfg["show_usage"] is True
+        assert token_cfg["warn_at_tokens"] == 100000
+        assert "deepseek-chat" in token_cfg["prices"]
+        assert "input" in token_cfg["prices"]["deepseek-chat"]
+        assert "output" in token_cfg["prices"]["deepseek-chat"]
+
+
 class TestConversationStreaming:
     """Tests for streaming conversation."""
 

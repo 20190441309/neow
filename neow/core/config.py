@@ -59,6 +59,15 @@ class Config:
             "planner": "anthropic",
             "executor": "deepseek",
         },
+        "token": {
+            "show_usage": True,
+            "warn_at_tokens": 100000,
+            "prices": {
+                "deepseek-chat": {"input": 0.14, "output": 0.28},
+                "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
+                "gpt-4o": {"input": 2.5, "output": 10.0},
+            },
+        },
     }
 
     def __init__(self, config_path: Optional[Path] = None):
@@ -159,6 +168,15 @@ class Config:
         """Get architect mode configuration."""
         return self._config.get("architect", {
             "planner": "anthropic", "executor": "deepseek",
+        })
+
+    @property
+    def token(self) -> Dict[str, Any]:
+        """Get token usage configuration."""
+        return self._config.get("token", {
+            "show_usage": True,
+            "warn_at_tokens": 100000,
+            "prices": {},
         })
 
     def resolve_model_alias(self, alias: str) -> str:
