@@ -7,6 +7,7 @@ from typing import Optional
 
 class Command(Enum):
     """Available commands."""
+
     HELP = "help"
     CLEAR = "clear"
     EXIT = "exit"
@@ -16,6 +17,7 @@ class Command(Enum):
 @dataclass
 class ParsedCommand:
     """Parsed command result."""
+
     command: Optional[Command]
     args: Optional[str] = None
 

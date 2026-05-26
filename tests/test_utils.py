@@ -1,10 +1,8 @@
 """Tests for utility modules."""
 
 import logging
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-import pytest
+from unittest.mock import patch
 
 from neow.utils.logger import setup_logger
 
@@ -34,7 +32,7 @@ class TestLogger:
     def test_setup_logger_creates_parent_dirs(self, tmp_path):
         """Test logger creates parent directories for log file."""
         log_file = tmp_path / "subdir" / "test.log"
-        logger = setup_logger("test_dirs", log_file=log_file)
+        setup_logger("test_dirs", log_file=log_file)
         assert log_file.parent.exists()
 
     def test_logger_writes_to_file(self, tmp_path):

@@ -1,7 +1,7 @@
 """Conversation manager for Neow CLI."""
 
 import json
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from neow.models.base import BaseModelClient, ModelResponse
 from neow.utils.logger import logger
@@ -11,9 +11,7 @@ class ConversationManager:
     """Manages conversation history and AI model interactions."""
 
     def __init__(
-        self,
-        model_client: BaseModelClient,
-        tool_executor: Optional[Any] = None
+        self, model_client: BaseModelClient, tool_executor: Optional[Any] = None
     ):
         """Initialize conversation manager.
 
@@ -25,10 +23,11 @@ class ConversationManager:
         self.model_client = model_client
         if tool_executor is None:
             from neow.core.executor import ToolExecutor
+
             self.tool_executor = ToolExecutor()
         else:
             self.tool_executor = tool_executor
-        self.messages: List[Dict[str, str]] = []
+        self.messages: List[Dict[str, Any]] = []
         self.system_prompt: str = ""
         self.tools: List[Dict[str, Any]] = []
 
@@ -78,17 +77,19 @@ class ConversationManager:
         response = self.model_client.chat(
             messages=self.messages,
             system_prompt=self.system_prompt if self.system_prompt else None,
-            tools=self.tools if self.tools else None
+            tools=self.tools if self.tools else None,
         )
 
         # Handle tool calls if present
         while response.has_tool_calls and self.tool_executor:
             # Add assistant message with tool calls
-            self.messages.append({
-                "role": "assistant",
-                "content": response.content,
-                "tool_calls": response.tool_calls
-            })
+            self.messages.append(
+                {
+                    "role": "assistant",
+                    "content": response.content,
+                    "tool_calls": response.tool_calls,
+                }
+            )
 
             # Execute each tool call
             for tool_call in response.tool_calls:
@@ -107,7 +108,7 @@ class ConversationManager:
             response = self.model_client.chat(
                 messages=self.messages,
                 system_prompt=self.system_prompt if self.system_prompt else None,
-                tools=self.tools if self.tools else None
+                tools=self.tools if self.tools else None,
             )
 
         # Add assistant message
@@ -126,11 +127,9 @@ class ConversationManager:
             tool_call_id: Tool call ID.
             result: Tool execution result.
         """
-        self.messages.append({
-            "role": "tool",
-            "tool_call_id": tool_call_id,
-            "content": result
-        })
+        self.messages.append(
+            {"role": "tool", "tool_call_id": tool_call_id, "content": result}
+        )
         logger.debug(f"Added tool result for {tool_call_id}")
 
     def clear_history(self) -> None:
@@ -138,7 +137,7 @@ class ConversationManager:
         self.messages.clear()
         logger.debug("Conversation history cleared")
 
-    def get_history(self) -> List[Dict[str, str]]:
+    def get_history(self) -> List[Dict[str, Any]]:
         """Get conversation history.
 
         Returns:

@@ -1,18 +1,15 @@
 """Tests for core modules."""
 
 import json
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
+
+from unittest.mock import MagicMock
 
 from neow.core.config import Config, ConfigError
 from neow.core.conversation import ConversationManager
 from neow.core.context import ContextManager
 from neow.core.executor import ToolExecutor, ToolError
-from neow.tools.file_ops import read_file, write_file
 
 
 class TestConfig:
@@ -30,12 +27,7 @@ class TestConfig:
         """Test loading configuration from file."""
         config_data = {
             "default_model": "gpt-4o",
-            "models": {
-                "openai": {
-                    "api_key": "sk-test",
-                    "model": "gpt-4o"
-                }
-            }
+            "models": {"openai": {"api_key": "sk-test", "model": "gpt-4o"}},
         }
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps(config_data))
@@ -60,9 +52,7 @@ class TestConfig:
 
     def test_merge_configs(self, tmp_path):
         """Test merging file config with defaults."""
-        config_data = {
-            "default_model": "gpt-4o"
-        }
+        config_data = {"default_model": "gpt-4o"}
         config_file = tmp_path / "config.json"
         config_file.write_text(json.dumps(config_data))
 
@@ -212,8 +202,8 @@ class TestIntegration:
                 "id": "call_1",
                 "function": {
                     "name": "read_file",
-                    "arguments": '{"file_path": "test.txt"}'
-                }
+                    "arguments": '{"file_path": "test.txt"}',
+                },
             }
         ]
         mock_response1.usage = {"total_tokens": 10}

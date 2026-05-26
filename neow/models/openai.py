@@ -1,6 +1,5 @@
 """OpenAI model client."""
 
-import json
 from typing import Any, Dict, List, Optional
 
 import openai
@@ -26,7 +25,7 @@ class OpenAIClient(BaseModelClient):
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ModelResponse:
         """Send chat request to OpenAI.
 
@@ -54,20 +53,22 @@ class OpenAIClient(BaseModelClient):
             kwargs["tools"] = tools
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
+            response = self.client.chat.completions.create(**kwargs)  # type: ignore
             choice = response.choices[0]
 
             # Parse tool calls
             tool_calls = []
             if choice.message.tool_calls:
                 for tc in choice.message.tool_calls:
-                    tool_calls.append({
-                        "id": tc.id,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
+                    tool_calls.append(
+                        {
+                            "id": tc.id,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
                         }
-                    })
+                    )
 
             # Parse usage
             usage = {}
@@ -75,13 +76,11 @@ class OpenAIClient(BaseModelClient):
                 usage = {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
+                    "total_tokens": response.usage.total_tokens,
                 }
 
             return ModelResponse(
-                content=choice.message.content or "",
-                tool_calls=tool_calls,
-                usage=usage
+                content=choice.message.content or "", tool_calls=tool_calls, usage=usage
             )
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")

@@ -26,7 +26,7 @@ class AnthropicClient(BaseModelClient):
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ModelResponse:
         """Send chat request to Anthropic Claude.
 
@@ -52,7 +52,9 @@ class AnthropicClient(BaseModelClient):
             kwargs["tools"] = tools
 
         try:
-            response = self.client.messages.create(**kwargs)
+            response = self.client.messages.create(  # type: ignore[call-overload]
+                **kwargs
+            )
 
             # Parse content
             content = ""
@@ -62,13 +64,15 @@ class AnthropicClient(BaseModelClient):
                 if block.type == "text":
                     content += block.text
                 elif block.type == "tool_use":
-                    tool_calls.append({
-                        "id": block.id,
-                        "function": {
-                            "name": block.name,
-                            "arguments": json.dumps(block.input)
+                    tool_calls.append(
+                        {
+                            "id": block.id,
+                            "function": {
+                                "name": block.name,
+                                "arguments": json.dumps(block.input),
+                            },
                         }
-                    })
+                    )
 
             # Parse usage
             usage = {}
@@ -76,14 +80,11 @@ class AnthropicClient(BaseModelClient):
                 usage = {
                     "prompt_tokens": response.usage.input_tokens,
                     "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens + response.usage.output_tokens
+                    "total_tokens": response.usage.input_tokens
+                    + response.usage.output_tokens,
                 }
 
-            return ModelResponse(
-                content=content,
-                tool_calls=tool_calls,
-                usage=usage
-            )
+            return ModelResponse(content=content, tool_calls=tool_calls, usage=usage)
         except Exception as e:
             logger.error(f"Anthropic API error: {e}")
             raise
@@ -98,7 +99,7 @@ class AnthropicClient(BaseModelClient):
             self.client.messages.create(
                 model=self.model,
                 max_tokens=10,
-                messages=[{"role": "user", "content": "test"}]
+                messages=[{"role": "user", "content": "test"}],
             )
             return True
         except Exception as e:

@@ -2,21 +2,19 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from neow.utils.logger import logger
 
 
 class SearchError(Exception):
     """Code search error."""
+
     pass
 
 
 def search_code(
-    query: str,
-    directory: str,
-    file_pattern: str = "*",
-    max_results: int = 50
+    query: str, directory: str, file_pattern: str = "*", max_results: int = 50
 ) -> List[Dict[str, str]]:
     """Search for code patterns in files.
 
@@ -48,11 +46,13 @@ def search_code(
                 content = file_path.read_text(encoding="utf-8")
                 for line_num, line in enumerate(content.splitlines(), 1):
                     if pattern.search(line):
-                        results.append({
-                            "file": str(file_path),
-                            "line": str(line_num),
-                            "content": line.strip()
-                        })
+                        results.append(
+                            {
+                                "file": str(file_path),
+                                "line": str(line_num),
+                                "content": line.strip(),
+                            }
+                        )
 
                         if len(results) >= max_results:
                             logger.debug(f"Reached max results ({max_results})")
@@ -72,9 +72,7 @@ def search_code(
 
 
 def grep_code(
-    pattern: str,
-    directory: str,
-    file_pattern: str = "*"
+    pattern: str, directory: str, file_pattern: str = "*"
 ) -> List[Dict[str, str]]:
     """Search for code using grep-like syntax.
 

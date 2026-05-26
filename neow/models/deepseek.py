@@ -1,6 +1,5 @@
 """DeepSeek model client."""
 
-import json
 from typing import Any, Dict, List, Optional
 
 import openai
@@ -21,15 +20,14 @@ class DeepSeekClient(BaseModelClient):
         """
         super().__init__(api_key, model)
         self.client = openai.OpenAI(
-            api_key=api_key,
-            base_url="https://api.deepseek.com"
+            api_key=api_key, base_url="https://api.deepseek.com"
         )
 
     def chat(
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ModelResponse:
         """Send chat request to DeepSeek.
 
@@ -57,20 +55,22 @@ class DeepSeekClient(BaseModelClient):
             kwargs["tools"] = tools
 
         try:
-            response = self.client.chat.completions.create(**kwargs)
+            response = self.client.chat.completions.create(**kwargs)  # type: ignore
             choice = response.choices[0]
 
             # Parse tool calls
             tool_calls = []
             if choice.message.tool_calls:
                 for tc in choice.message.tool_calls:
-                    tool_calls.append({
-                        "id": tc.id,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": tc.function.arguments
+                    tool_calls.append(
+                        {
+                            "id": tc.id,
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
                         }
-                    })
+                    )
 
             # Parse usage
             usage = {}
@@ -78,13 +78,11 @@ class DeepSeekClient(BaseModelClient):
                 usage = {
                     "prompt_tokens": response.usage.prompt_tokens,
                     "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
+                    "total_tokens": response.usage.total_tokens,
                 }
 
             return ModelResponse(
-                content=choice.message.content or "",
-                tool_calls=tool_calls,
-                usage=usage
+                content=choice.message.content or "", tool_calls=tool_calls, usage=usage
             )
         except Exception as e:
             logger.error(f"DeepSeek API error: {e}")

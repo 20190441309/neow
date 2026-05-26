@@ -1,12 +1,13 @@
 """Tool executor for Neow CLI."""
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict
 
 from neow.utils.logger import logger
 
 
 class ToolError(Exception):
     """Tool execution error."""
+
     pass
 
 
@@ -20,6 +21,7 @@ class ToolExecutor:
 
     def _register_default_tools(self) -> None:
         """Register default tool stubs."""
+
         def read_file(path: str) -> str:
             """Read file contents. Stub implementation."""
             raise NotImplementedError("read_file not yet implemented")

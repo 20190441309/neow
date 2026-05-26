@@ -9,7 +9,6 @@ import click
 from neow.core.config import Config
 from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor
-from neow.core.context import ContextManager
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
 from neow.models.openai import OpenAIClient
@@ -35,18 +34,15 @@ def create_model_client(config: Config, model_name: str):
 
     if model_name == "deepseek":
         return DeepSeekClient(
-            api_key=model_config["api_key"],
-            model=model_config["model"]
+            api_key=model_config["api_key"], model=model_config["model"]
         )
     elif model_name == "anthropic":
         return AnthropicClient(
-            api_key=model_config["api_key"],
-            model=model_config["model"]
+            api_key=model_config["api_key"], model=model_config["model"]
         )
     elif model_name == "openai":
         return OpenAIClient(
-            api_key=model_config["api_key"],
-            model=model_config["model"]
+            api_key=model_config["api_key"], model=model_config["model"]
         )
     else:
         raise ValueError(f"Unknown model: {model_name}")
@@ -94,9 +90,6 @@ def main(config: str, model: str, verbose: bool):
 
         # Setup conversation manager
         conversation = ConversationManager(model_client)
-
-        # Setup context manager
-        context = ContextManager(".")
 
         # Setup tool executor
         executor = ToolExecutor()

@@ -8,14 +8,11 @@ from neow.utils.logger import logger
 
 class CommandError(Exception):
     """Command execution error."""
+
     pass
 
 
-def execute_command(
-    command: str,
-    timeout: int = 30,
-    cwd: Optional[str] = None
-) -> str:
+def execute_command(command: str, timeout: int = 30, cwd: Optional[str] = None) -> str:
     """Execute a shell command.
 
     Args:
@@ -38,11 +35,13 @@ def execute_command(
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=cwd
+            cwd=cwd,
         )
 
         if result.returncode != 0:
-            error_msg = result.stderr or f"Command failed with return code {result.returncode}"
+            error_msg = (
+                result.stderr or f"Command failed with return code {result.returncode}"
+            )
             logger.error(f"Command failed: {error_msg}")
             raise CommandError(error_msg)
 

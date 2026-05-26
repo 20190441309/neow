@@ -1,9 +1,7 @@
 """Context manager for Neow CLI."""
 
 from pathlib import Path
-from typing import Dict, List, Optional
-
-from neow.utils.logger import logger
+from typing import Any, Dict, List, Optional
 
 
 class ContextManager:
@@ -18,7 +16,7 @@ class ContextManager:
         self.project_root = Path(project_root)
         self.file_cache: Dict[str, str] = {}
 
-    def get_project_structure(self, max_depth: int = 3) -> Dict[str, any]:
+    def get_project_structure(self, max_depth: int = 3) -> Dict[str, Any]:
         """Get project directory structure.
 
         Args:
@@ -27,16 +25,12 @@ class ContextManager:
         Returns:
             Dictionary representing project structure.
         """
-        structure = {}
+        structure: Dict[str, Any] = {}
         self._build_structure(self.project_root, structure, max_depth, 0)
         return structure
 
     def _build_structure(
-        self,
-        path: Path,
-        structure: Dict,
-        max_depth: int,
-        current_depth: int
+        self, path: Path, structure: Dict, max_depth: int, current_depth: int
     ) -> None:
         """Recursively build directory structure."""
         if current_depth >= max_depth:
@@ -46,17 +40,18 @@ class ContextManager:
             for item in sorted(path.iterdir()):
                 # Skip hidden files and common non-essential directories
                 if item.name.startswith(".") or item.name in (
-                    "__pycache__", "node_modules", ".git", "venv", ".venv"
+                    "__pycache__",
+                    "node_modules",
+                    ".git",
+                    "venv",
+                    ".venv",
                 ):
                     continue
 
                 if item.is_dir():
                     structure[item.name] = {}
                     self._build_structure(
-                        item,
-                        structure[item.name],
-                        max_depth,
-                        current_depth + 1
+                        item, structure[item.name], max_depth, current_depth + 1
                     )
                 else:
                     structure[item.name] = None
@@ -64,9 +59,7 @@ class ContextManager:
             pass
 
     def get_relevant_files(
-        self,
-        query: str,
-        max_files: int = 10
+        self, query: str, max_files: int = 10
     ) -> List[Dict[str, str]]:
         """Get files relevant to a query.
 
@@ -97,10 +90,12 @@ class ContextManager:
             if any(word in name_lower for word in query_words):
                 content = self._read_file(file_path)
                 if content:
-                    relevant_files.append({
-                        "path": str(file_path.relative_to(self.project_root)),
-                        "content": content[:1000]  # Limit content size
-                    })
+                    relevant_files.append(
+                        {
+                            "path": str(file_path.relative_to(self.project_root)),
+                            "content": content[:1000],  # Limit content size
+                        }
+                    )
 
             if len(relevant_files) >= max_files:
                 break
@@ -153,11 +148,7 @@ class ContextManager:
 
         return "\n".join(context_parts)
 
-    def _format_structure(
-        self,
-        structure: Dict,
-        indent: int = 0
-    ) -> str:
+    def _format_structure(self, structure: Dict, indent: int = 0) -> str:
         """Format structure dictionary as string.
 
         Args:

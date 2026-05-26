@@ -11,7 +11,7 @@ class ModelResponse:
         self,
         content: str,
         tool_calls: Optional[List[Dict[str, Any]]] = None,
-        usage: Optional[Dict[str, int]] = None
+        usage: Optional[Dict[str, int]] = None,
     ):
         """Initialize model response.
 
@@ -48,7 +48,7 @@ class BaseModelClient(ABC):
         self,
         messages: List[Dict[str, str]],
         system_prompt: Optional[str] = None,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> ModelResponse:
         """Send chat request to AI model.
 

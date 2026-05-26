@@ -1,13 +1,13 @@
 """File operation tools for Neow CLI."""
 
 from pathlib import Path
-from typing import Optional
 
 from neow.utils.logger import logger
 
 
 class FileError(Exception):
     """File operation error."""
+
     pass
 
 

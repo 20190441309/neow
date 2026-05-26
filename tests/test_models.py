@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from typing import Any, Dict, List, Optional
 
 from neow.models.base import ModelResponse, BaseModelClient
 from neow.models.deepseek import DeepSeekClient
@@ -73,6 +72,7 @@ class TestBaseModelClient:
 
     def test_concrete_subclass_init(self):
         """Test that a concrete subclass can be instantiated."""
+
         class ConcreteClient(BaseModelClient):
             def chat(self, messages, system_prompt=None, tools=None):
                 return ModelResponse(content="test")
@@ -86,6 +86,7 @@ class TestBaseModelClient:
 
     def test_concrete_subclass_chat(self):
         """Test that a concrete subclass implements chat."""
+
         class ConcreteClient(BaseModelClient):
             def chat(self, messages, system_prompt=None, tools=None):
                 return ModelResponse(content="response")
@@ -101,6 +102,7 @@ class TestBaseModelClient:
 
     def test_concrete_subclass_validate_connection(self):
         """Test that a concrete subclass implements validate_connection."""
+
         class ConcreteClient(BaseModelClient):
             def chat(self, messages, system_prompt=None, tools=None):
                 return ModelResponse(content="test")
@@ -113,9 +115,11 @@ class TestBaseModelClient:
 
     def test_incomplete_subclass_raises(self):
         """Test that incomplete subclass raises TypeError."""
+
         class IncompleteClient(BaseModelClient):
             def chat(self, messages, system_prompt=None, tools=None):
                 return ModelResponse(content="test")
+
             # Missing validate_connection
 
         with pytest.raises(TypeError):
@@ -123,9 +127,11 @@ class TestBaseModelClient:
 
     def test_incomplete_subclass_missing_chat(self):
         """Test that subclass missing chat raises TypeError."""
+
         class IncompleteClient(BaseModelClient):
             def validate_connection(self):
                 return True
+
             # Missing chat
 
         with pytest.raises(TypeError):
@@ -197,11 +203,9 @@ class TestDeepSeekClient:
                     "description": "Read a file",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "file_path": {"type": "string"}
-                        }
-                    }
-                }
+                        "properties": {"file_path": {"type": "string"}},
+                    },
+                },
             }
         ]
         response = client.chat(messages, tools=tools)
@@ -294,10 +298,8 @@ class TestAnthropicClient:
                 "description": "Read a file",
                 "input_schema": {
                     "type": "object",
-                    "properties": {
-                        "file_path": {"type": "string"}
-                    }
-                }
+                    "properties": {"file_path": {"type": "string"}},
+                },
             }
         ]
         response = client.chat(messages, tools=tools)
@@ -369,7 +371,9 @@ class TestOpenAIClient:
         mock_tool_call = MagicMock()
         mock_tool_call.id = "call_456"
         mock_tool_call.function.name = "write_file"
-        mock_tool_call.function.arguments = '{"file_path": "test.py", "content": "print(1)"}'
+        mock_tool_call.function.arguments = (
+            '{"file_path": "test.py", "content": "print(1)"}'
+        )
 
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
@@ -395,10 +399,10 @@ class TestOpenAIClient:
                         "type": "object",
                         "properties": {
                             "file_path": {"type": "string"},
-                            "content": {"type": "string"}
-                        }
-                    }
-                }
+                            "content": {"type": "string"},
+                        },
+                    },
+                },
             }
         ]
         response = client.chat(messages, tools=tools)

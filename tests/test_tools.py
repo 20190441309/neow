@@ -1,17 +1,8 @@
 """Tests for tools."""
 
-import os
-import tempfile
-from pathlib import Path
-
 import pytest
 
-from neow.tools.file_ops import (
-    read_file,
-    write_file,
-    edit_file,
-    FileError
-)
+from neow.tools.file_ops import read_file, write_file, edit_file, FileError
 from neow.tools.command import execute_command, CommandError
 from neow.tools.search import search_code, SearchError
 
@@ -91,7 +82,7 @@ class TestCommand:
     def test_execute_command_timeout(self):
         """Test command timeout."""
         with pytest.raises(CommandError):
-            execute_command("python -c \"import time; time.sleep(10)\"", timeout=1)
+            execute_command('python -c "import time; time.sleep(10)"', timeout=1)
 
 
 class TestSearch:

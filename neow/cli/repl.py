@@ -9,10 +9,8 @@ from neow.cli.commands import Command, parse_command
 from neow.core.conversation import ConversationManager
 from neow.utils.formatter import (
     print_welcome,
-    print_user_message,
     print_assistant_message,
     print_tool_call,
-    print_tool_result,
     print_error,
     print_info,
 )
@@ -76,6 +74,8 @@ class REPL:
             User input string.
         """
         try:
+            if self.session is None:
+                return input("You: ")
             return self.session.prompt("You: ")
         except KeyboardInterrupt:
             return ""
@@ -122,7 +122,7 @@ class REPL:
                 for tool_call in response.tool_calls:
                     print_tool_call(
                         tool_call["function"]["name"],
-                        tool_call["function"]["arguments"]
+                        tool_call["function"]["arguments"],
                     )
                     # TODO: Execute tool and add result
 

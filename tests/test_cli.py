@@ -1,9 +1,5 @@
 """Tests for CLI modules."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from neow.cli.commands import parse_command, Command
 
 

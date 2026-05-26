@@ -10,6 +10,7 @@ import yaml
 
 class ConfigError(Exception):
     """Configuration error."""
+
     pass
 
 
@@ -19,18 +20,9 @@ class Config:
     DEFAULT_CONFIG = {
         "default_model": "deepseek-chat",
         "models": {
-            "anthropic": {
-                "api_key": "",
-                "model": "claude-sonnet-4-6"
-            },
-            "openai": {
-                "api_key": "",
-                "model": "gpt-4o"
-            },
-            "deepseek": {
-                "api_key": "",
-                "model": "deepseek-chat"
-            }
+            "anthropic": {"api_key": "", "model": "claude-sonnet-4-6"},
+            "openai": {"api_key": "", "model": "gpt-4o"},
+            "deepseek": {"api_key": "", "model": "deepseek-chat"},
         },
         "tools": {
             "enabled": [
@@ -38,17 +30,10 @@ class Config:
                 "write_file",
                 "edit_file",
                 "execute_command",
-                "search_code"
+                "search_code",
             ],
-            "allowed_commands": [
-                "ls",
-                "cat",
-                "grep",
-                "find",
-                "python",
-                "npm"
-            ]
-        }
+            "allowed_commands": ["ls", "cat", "grep", "find", "python", "npm"],
+        },
     }
 
     def __init__(self, config_path: Optional[Path] = None):
@@ -57,7 +42,7 @@ class Config:
         Args:
             config_path: Path to configuration file. If None, uses default location.
         """
-        self._config = self.DEFAULT_CONFIG.copy()
+        self._config: Dict[str, Any] = self.DEFAULT_CONFIG.copy()
         self._load_config(config_path)
         self._load_env_vars()
 
