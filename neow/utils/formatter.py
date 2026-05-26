@@ -1,0 +1,118 @@
+"""Output formatting utilities for Neow CLI."""
+
+from typing import Any, Dict
+
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.syntax import Syntax
+
+
+console = Console()
+
+
+def print_user_message(message: str) -> None:
+    """Print user message with formatting.
+
+    Args:
+        message: User message to print.
+    """
+    console.print(f"[bold blue]You:[/bold blue] {message}")
+
+
+def print_assistant_message(message: str) -> None:
+    """Print assistant message with formatting.
+
+    Args:
+        message: Assistant message to print.
+    """
+    console.print(f"[bold green]Assistant:[/bold green] {message}")
+
+
+def print_tool_call(tool_name: str, parameters: Dict[str, Any]) -> None:
+    """Print tool call with formatting.
+
+    Args:
+        tool_name: Name of the tool being called.
+        parameters: Tool call parameters.
+    """
+    console.print(f"[bold yellow]Tool Call:[/bold yellow] {tool_name}")
+    console.print(f"[dim]Parameters:[/dim] {parameters}")
+
+
+def print_tool_result(result: str, is_error: bool = False) -> None:
+    """Print tool result with formatting.
+
+    Args:
+        result: Tool execution result.
+        is_error: Whether the result is an error.
+    """
+    color = "red" if is_error else "green"
+    console.print(f"[bold {color}]Tool Result:[/bold {color}]")
+    console.print(result)
+
+
+def print_code(code: str, language: str = "python") -> None:
+    """Print code with syntax highlighting.
+
+    Args:
+        code: Code to print.
+        language: Programming language for syntax highlighting.
+    """
+    syntax = Syntax(code, language, theme="monokai", line_numbers=True)
+    console.print(syntax)
+
+
+def print_markdown(content: str) -> None:
+    """Print markdown content.
+
+    Args:
+        content: Markdown content to print.
+    """
+    md = Markdown(content)
+    console.print(md)
+
+
+def print_error(message: str) -> None:
+    """Print error message.
+
+    Args:
+        message: Error message to print.
+    """
+    console.print(f"[bold red]Error:[/bold red] {message}")
+
+
+def print_warning(message: str) -> None:
+    """Print warning message.
+
+    Args:
+        message: Warning message to print.
+    """
+    console.print(f"[bold yellow]Warning:[/bold yellow] {message}")
+
+
+def print_info(message: str) -> None:
+    """Print info message.
+
+    Args:
+        message: Info message to print.
+    """
+    console.print(f"[bold cyan]Info:[/bold cyan] {message}")
+
+
+def print_welcome() -> None:
+    """Print welcome message."""
+    welcome_text = """
+# Neow CLI
+
+A lightweight, general-purpose AI CLI assistant.
+
+**Commands:**
+- `/help` - Show this help message
+- `/clear` - Clear conversation history
+- `/exit` - Exit the CLI
+- `/model <name>` - Switch AI model (deepseek, anthropic, openai)
+
+**Usage:**
+Type your message and press Enter to interact with the AI assistant.
+"""
+    print_markdown(welcome_text)
