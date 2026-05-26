@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from neow.core.plugin import EventBus, PluginAPI
+from neow.core.plugin import EventBus, PluginAPI, PluginManager
 
 
 class TestEventBus:
@@ -110,3 +110,122 @@ class TestPluginAPI:
         api.on_event("session_start", handler)
         bus.emit("session_start", conversation=MagicMock())
         handler.assert_called_once()
+
+
+class TestPluginManager:
+    """Tests for PluginManager."""
+
+    def test_init(self, tmp_path):
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        api = PluginAPI(MagicMock(), EventBus())
+        manager = PluginManager(tmp_path / "plugins", api)
+        assert manager.plugins_dir == tmp_path / "plugins"
+
+    def test_discover_empty_dir(self, tmp_path):
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+        api = PluginAPI(MagicMock(), EventBus())
+        manager = PluginManager(plugins_dir, api)
+        loaded = manager.discover_and_load()
+        assert loaded == []
+
+    def test_discover_creates_dir(self, tmp_path):
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        plugins_dir = tmp_path / "nonexistent"
+        api = PluginAPI(MagicMock(), EventBus())
+        manager = PluginManager(plugins_dir, api)
+        assert plugins_dir.exists()
+
+    def test_is_valid_plugin(self, tmp_path):
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        api = PluginAPI(MagicMock(), EventBus())
+        manager = PluginManager(tmp_path, api)
+
+        # Valid: has __init__.py
+        plugin_dir = tmp_path / "my_plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "__init__.py").write_text("def register(api): pass\n")
+        assert manager._is_valid_plugin(plugin_dir) is True
+
+        # Invalid: no __init__.py
+        bad_dir = tmp_path / "bad_plugin"
+        bad_dir.mkdir()
+        assert manager._is_valid_plugin(bad_dir) is False
+
+    def test_load_valid_plugin(self, tmp_path):
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        executor = MagicMock()
+        bus = EventBus()
+        api = PluginAPI(executor, bus)
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+
+        plugin_dir = plugins_dir / "test_plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "__init__.py").write_text(
+            "def register(api):\n"
+            "    api.register_tool('test_tool', lambda: 'ok', 'test')\n"
+            "    api.register_command('/test-cmd', lambda args: None)\n"
+            "    api.on_event('session_start', lambda **kw: None)\n"
+        )
+
+        manager = PluginManager(plugins_dir, api)
+        loaded = manager.discover_and_load()
+
+        assert "test_plugin" in loaded
+        executor.register_tool.assert_called_once()
+        assert "/test-cmd" in api.plugin_commands
+
+    def test_load_plugin_without_register(self, tmp_path):
+        """Plugin without register() function is skipped."""
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        api = PluginAPI(MagicMock(), EventBus())
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+
+        plugin_dir = plugins_dir / "bad_plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "__init__.py").write_text("# no register function\n")
+
+        manager = PluginManager(plugins_dir, api)
+        loaded = manager.discover_and_load()
+        assert loaded == []
+
+    def test_load_plugin_exception_does_not_crash(self, tmp_path):
+        """Plugin that raises during register is skipped."""
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        api = PluginAPI(MagicMock(), EventBus())
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+
+        plugin_dir = plugins_dir / "crash_plugin"
+        plugin_dir.mkdir()
+        (plugin_dir / "__init__.py").write_text(
+            "def register(api):\n"
+            "    raise RuntimeError('plugin crash')\n"
+        )
+
+        manager = PluginManager(plugins_dir, api)
+        loaded = manager.discover_and_load()
+        assert loaded == []
+
+    def test_load_multiple_plugins(self, tmp_path):
+        from neow.core.plugin import PluginManager, PluginAPI, EventBus
+        executor = MagicMock()
+        api = PluginAPI(executor, EventBus())
+        plugins_dir = tmp_path / "plugins"
+        plugins_dir.mkdir()
+
+        for name in ["plugin_a", "plugin_b"]:
+            d = plugins_dir / name
+            d.mkdir()
+            (d / "__init__.py").write_text(
+                f"def register(api):\n    api.register_tool('{name}_tool', lambda: 'ok')\n"
+            )
+
+        manager = PluginManager(plugins_dir, api)
+        loaded = manager.discover_and_load()
+        assert len(loaded) == 2
+        assert "plugin_a" in loaded
+        assert "plugin_b" in loaded

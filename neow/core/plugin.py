@@ -1,5 +1,9 @@
 """Plugin system for Neow CLI."""
 
+import importlib
+import sys
+from pathlib import Path
+from types import ModuleType
 from typing import Any, Callable, Dict, List
 from neow.utils.logger import logger
 
@@ -81,3 +85,69 @@ class PluginAPI:
             handler: Event handler callable.
         """
         self._events.on(event, handler)
+
+
+class PluginManager:
+    """Discovers, loads, and manages plugins."""
+
+    def __init__(self, plugins_dir: Path, api: PluginAPI):
+        """Initialize plugin manager.
+
+        Args:
+            plugins_dir: Directory containing plugin packages.
+            api: PluginAPI instance to pass to plugins.
+        """
+        self.plugins_dir = Path(plugins_dir)
+        self.plugins_dir.mkdir(parents=True, exist_ok=True)
+        self.api = api
+        self.loaded_plugins: Dict[str, ModuleType] = {}
+
+    def discover_and_load(self) -> List[str]:
+        """Scan plugins_dir and load all valid plugins.
+
+        Returns:
+            List of successfully loaded plugin names.
+        """
+        loaded = []
+        if not self.plugins_dir.exists():
+            return loaded
+
+        for item in sorted(self.plugins_dir.iterdir()):
+            if item.is_dir() and self._is_valid_plugin(item):
+                if self._load_plugin(item):
+                    loaded.append(item.name)
+
+        if loaded:
+            logger.info(f"Loaded {len(loaded)} plugins: {', '.join(loaded)}")
+        return loaded
+
+    def _is_valid_plugin(self, plugin_dir: Path) -> bool:
+        """Check if directory is a valid plugin (has __init__.py)."""
+        return (plugin_dir / "__init__.py").exists()
+
+    def _load_plugin(self, plugin_dir: Path) -> bool:
+        """Load a single plugin package.
+
+        Imports the plugin, calls register(api), and records it.
+        Returns True on success, False on failure.
+        """
+        plugin_name = plugin_dir.name
+        try:
+            # Add parent to sys.path temporarily for import
+            parent = str(plugin_dir.parent)
+            if parent not in sys.path:
+                sys.path.insert(0, parent)
+
+            module = importlib.import_module(plugin_name)
+
+            if not hasattr(module, "register"):
+                logger.warning(f"Plugin '{plugin_name}' has no register() function, skipping")
+                return False
+
+            module.register(self.api)
+            self.loaded_plugins[plugin_name] = module
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to load plugin '{plugin_name}': {e}")
+            return False
