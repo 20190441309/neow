@@ -229,3 +229,86 @@ class TestPluginManager:
         assert len(loaded) == 2
         assert "plugin_a" in loaded
         assert "plugin_b" in loaded
+
+
+class TestPluginIntegration:
+    """Tests for plugin integration in REPL."""
+
+    def test_repl_accepts_plugin_api(self):
+        from unittest.mock import MagicMock
+        from neow.cli.repl import REPL
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        mock_plugin_api = MagicMock()
+        mock_plugin_api.plugin_commands = {}
+
+        repl = REPL(mock_conv, config=mock_config, streaming=False, plugin_api=mock_plugin_api)
+        assert repl.plugin_api is mock_plugin_api
+
+    def test_repl_handles_plugin_command(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        mock_handler = MagicMock()
+        mock_plugin_api = MagicMock()
+        mock_plugin_api.plugin_commands = {"/my-tool": mock_handler}
+
+        repl = REPL(mock_conv, config=mock_config, streaming=False, plugin_api=mock_plugin_api)
+
+        parsed = parse_command("/my-tool some args")
+        # raw_command should be set since /my-tool is not in built-in commands
+        repl._handle_command(parsed)
+        mock_handler.assert_called_once_with("some args")
+
+    def test_repl_emits_session_start(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.core.plugin import EventBus
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        bus = EventBus()
+        handler = MagicMock()
+        bus.on("session_start", handler)
+
+        mock_plugin_api = MagicMock()
+        mock_plugin_api.plugin_commands = {}
+
+        repl = REPL(mock_conv, config=mock_config, streaming=False,
+                    plugin_api=mock_plugin_api, event_bus=bus)
+
+        with patch.object(repl, "_get_input", side_effect=EOFError):
+            repl.start()
+
+        handler.assert_called_once()
+
+    def test_repl_emits_session_end(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+        from neow.core.plugin import EventBus
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        bus = EventBus()
+        handler = MagicMock()
+        bus.on("session_end", handler)
+
+        mock_plugin_api = MagicMock()
+        mock_plugin_api.plugin_commands = {}
+
+        repl = REPL(mock_conv, config=mock_config, streaming=False,
+                    plugin_api=mock_plugin_api, event_bus=bus)
+        repl.session_manager = None
+
+        parsed = parse_command("/exit")
+        repl._handle_command(parsed)
+        handler.assert_called_once()

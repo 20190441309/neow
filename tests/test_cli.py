@@ -408,3 +408,17 @@ class TestCLIEnhancements:
         # Should show file and message-file options
         assert "--file" in result.output or "-f" in result.output
         assert "--message-file" in result.output
+
+
+def test_repl_init_with_event_bus():
+    from unittest.mock import MagicMock
+    from neow.cli.repl import REPL
+    from neow.core.plugin import EventBus
+
+    bus = EventBus()
+    mock_conv = MagicMock()
+    mock_config = MagicMock()
+    mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+
+    repl = REPL(mock_conv, config=mock_config, streaming=False, event_bus=bus)
+    assert repl.event_bus is bus

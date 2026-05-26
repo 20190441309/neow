@@ -33,6 +33,8 @@ class REPL:
         streaming: bool = True,
         token_tracker=None,
         session_manager=None,
+        plugin_api=None,
+        event_bus=None,
     ):
         """Initialize REPL.
 
@@ -42,12 +44,16 @@ class REPL:
             streaming: Whether to use streaming output.
             token_tracker: Optional TokenTracker for cost display.
             session_manager: Optional SessionManager for session persistence.
+            plugin_api: Optional PluginAPI for plugin command dispatch.
+            event_bus: Optional EventBus for emitting lifecycle events.
         """
         self.conversation = conversation
         self.config = config
         self.streaming = streaming
         self.token_tracker = token_tracker
         self.session_manager = session_manager
+        self.plugin_api = plugin_api
+        self.event_bus = event_bus
         self.architect_mode = False
         self.session: Optional[PromptSession] = None
         self.web_fetcher = WebFetcher(config.web if config else {})
@@ -72,6 +78,8 @@ class REPL:
     def start(self) -> None:
         """Start the REPL loop."""
         print_welcome()
+        if self.event_bus:
+            self.event_bus.emit("session_start", conversation=self.conversation)
 
         while True:
             try:
@@ -127,6 +135,8 @@ class REPL:
             self.conversation.clear_history()
             print_info("Conversation history cleared")
         elif parsed.command == Command.EXIT:
+            if self.event_bus:
+                self.event_bus.emit("session_end", conversation=self.conversation)
             if self.session_manager:
                 try:
                     self.session_manager.save(self.conversation)
@@ -291,6 +301,13 @@ class REPL:
                 except Exception as e:
                     print_error(f"Failed to fetch URL: {e}")
 
+        # Plugin command dispatch for unknown /commands
+        if parsed.command is None and parsed.raw_command:
+            if self.plugin_api and parsed.raw_command in self.plugin_api.plugin_commands:
+                self.plugin_api.plugin_commands[parsed.raw_command](parsed.args)
+            else:
+                print_error(f"Unknown command: {parsed.raw_command}")
+
         return False
 
     def _process_input(self, user_input: str) -> None:
@@ -311,6 +328,9 @@ class REPL:
                     except Exception as e:
                         logger.warning(f"Auto-fetch failed for {url}: {e}")
 
+        if self.event_bus:
+            self.event_bus.emit("pre_prompt", prompt=user_input, conversation=self.conversation)
+
         try:
             if self.architect_mode:
                 self._process_architect(user_input)
@@ -323,6 +343,9 @@ class REPL:
         except Exception as e:
             print_error(f"Failed to get response: {e}")
             logger.error(f"Failed to get response: {e}")
+
+        if self.event_bus:
+            self.event_bus.emit("post_response", conversation=self.conversation)
 
         # Process pending lint/test feedback
         if self.conversation.pending_lint_feedback:

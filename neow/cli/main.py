@@ -23,6 +23,7 @@ from neow.utils.logger import setup_logger, logger
 from neow.utils.formatter import print_error, print_info
 from neow.core.token_tracker import TokenTracker
 from neow.core.session import SessionManager
+from neow.core.plugin import EventBus, PluginAPI, PluginManager
 
 
 def create_model_client(config: Config, model_name: str):
@@ -129,6 +130,7 @@ def main(prompt, file, message_file, config, model, verbose):
         # Wire git auto-commit callback
         if cfg.git.get("auto_commit", True):
             def _on_file_change(tool_name: str, file_path: str):
+                event_bus.emit("file_changed", tool_name=tool_name, file_path=file_path)
                 try:
                     auto_commit(file_path, action=tool_name)
                 except GitError as e:
@@ -186,8 +188,18 @@ def main(prompt, file, message_file, config, model, verbose):
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)
         session_manager = SessionManager(Path.home() / ".neow" / "sessions")
+
+        # Initialize plugin system
+        event_bus = EventBus()
+        plugin_api = PluginAPI(executor, event_bus)
+        plugin_manager = PluginManager(Path.home() / ".neow" / "plugins", plugin_api)
+        loaded_plugins = plugin_manager.discover_and_load()
+        if loaded_plugins:
+            print_info(f"Loaded plugins: {', '.join(loaded_plugins)}")
+
         repl = REPL(conversation, config=cfg, streaming=streaming_enabled,
-                    token_tracker=token_tracker, session_manager=session_manager)
+                    token_tracker=token_tracker, session_manager=session_manager,
+                    plugin_api=plugin_api, event_bus=event_bus)
         repl.start()
 
     except Exception as e:
