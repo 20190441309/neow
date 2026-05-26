@@ -13,6 +13,7 @@ from neow.tools.file_ops import (
     FileError
 )
 from neow.tools.command import execute_command, CommandError
+from neow.tools.search import search_code, SearchError
 
 
 class TestFileOps:
@@ -91,3 +92,38 @@ class TestCommand:
         """Test command timeout."""
         with pytest.raises(CommandError):
             execute_command("python -c \"import time; time.sleep(10)\"", timeout=1)
+
+
+class TestSearch:
+    """Tests for code search tools."""
+
+    def test_search_code(self, tmp_path):
+        """Test searching code in files."""
+        # Create test files
+        (tmp_path / "test1.py").write_text("def hello():\n    print('hello')")
+        (tmp_path / "test2.py").write_text("def world():\n    print('world')")
+
+        results = search_code("hello", str(tmp_path))
+        assert len(results) > 0
+        assert any("hello" in r["content"] for r in results)
+
+    def test_search_code_with_pattern(self, tmp_path):
+        """Test searching code with file pattern."""
+        (tmp_path / "test.py").write_text("def hello(): pass")
+        (tmp_path / "test.txt").write_text("hello world")
+
+        results = search_code("hello", str(tmp_path), file_pattern="*.py")
+        assert len(results) == 1
+        assert results[0]["file"].endswith(".py")
+
+    def test_search_code_no_results(self, tmp_path):
+        """Test searching with no results."""
+        (tmp_path / "test.py").write_text("def hello(): pass")
+
+        results = search_code("nonexistent", str(tmp_path))
+        assert len(results) == 0
+
+    def test_search_code_invalid_directory(self):
+        """Test searching in invalid directory."""
+        with pytest.raises(SearchError):
+            search_code("test", "/nonexistent/directory")
