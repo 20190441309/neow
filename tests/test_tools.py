@@ -12,6 +12,7 @@ from neow.tools.file_ops import (
     edit_file,
     FileError
 )
+from neow.tools.command import execute_command, CommandError
 
 
 class TestFileOps:
@@ -66,3 +67,27 @@ class TestFileOps:
 
         with pytest.raises(FileError):
             edit_file(str(test_file), "NotFound", "Replacement")
+
+
+class TestCommand:
+    """Tests for command execution tools."""
+
+    def test_execute_command_success(self):
+        """Test executing a successful command."""
+        result = execute_command("echo hello")
+        assert "hello" in result
+
+    def test_execute_command_with_output(self):
+        """Test executing command with output."""
+        result = execute_command("python -c \"print('test')\"")
+        assert "test" in result
+
+    def test_execute_command_failure(self):
+        """Test executing a failing command."""
+        with pytest.raises(CommandError):
+            execute_command("nonexistent_command")
+
+    def test_execute_command_timeout(self):
+        """Test command timeout."""
+        with pytest.raises(CommandError):
+            execute_command("python -c \"import time; time.sleep(10)\"", timeout=1)
