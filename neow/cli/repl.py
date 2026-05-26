@@ -38,6 +38,7 @@ class REPL:
         self.conversation = conversation
         self.config = config
         self.streaming = streaming
+        self.architect_mode = False
         self.session: Optional[PromptSession] = None
         self._setup_session()
 
@@ -225,6 +226,13 @@ class REPL:
                     self._process_input(
                         f"Please fix the following test failures:\n{result.output}"
                     )
+        elif parsed.command == Command.ARCHITECT:
+            self.architect_mode = True
+            print_info("Architect mode enabled. Tasks will be planned and dispatched to sub-agents.")
+            print_info("Use /code to return to normal coding mode.")
+        elif parsed.command == Command.CODE:
+            self.architect_mode = False
+            print_info("Normal coding mode restored.")
 
         return False
 
@@ -235,7 +243,9 @@ class REPL:
             user_input: User input string.
         """
         try:
-            if self.streaming:
+            if self.architect_mode:
+                self._process_architect(user_input)
+            elif self.streaming:
                 self._process_input_stream(user_input)
             else:
                 response = self.conversation.get_response(user_input)
@@ -272,3 +282,26 @@ class REPL:
         except Exception as e:
             sys.stdout.write("\n")
             raise
+
+    def _process_architect(self, user_input: str) -> None:
+        """Process input through architect orchestrator.
+
+        Args:
+            user_input: User input string.
+        """
+        from neow.core.architect import ArchitectOrchestrator
+        from neow.cli.main import create_model_client
+
+        try:
+            arch_config = self.config.architect
+            planner_client = create_model_client(self.config, arch_config["planner"])
+            executor_client = create_model_client(self.config, arch_config["executor"])
+
+            orch = ArchitectOrchestrator(
+                planner_client, executor_client, self.conversation.tool_executor
+            )
+            result = orch.run(user_input)
+            print_assistant_message(result)
+        except Exception as e:
+            print_error(f"Architect mode error: {e}")
+            logger.error(f"Architect mode error: {e}")

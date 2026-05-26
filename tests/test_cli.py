@@ -211,3 +211,64 @@ class TestLintTestCommands:
         assert manager.pending_lint_feedback is None
         manager.pending_lint_feedback = "lint error output"
         assert manager.pending_lint_feedback == "lint error output"
+
+
+class TestArchitectMode:
+    def test_architect_mode_flag(self):
+        from unittest.mock import MagicMock
+        from neow.cli.repl import REPL
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.lint_test = {"auto_lint": False, "auto_test": False}
+        repl = REPL(mock_conv, mock_config, streaming=False)
+        assert repl.architect_mode is False
+
+    def test_architect_command_toggles_mode(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.lint_test = {"auto_lint": False, "auto_test": False}
+        repl = REPL(mock_conv, mock_config, streaming=False)
+
+        with patch('neow.cli.repl.print_info'):
+            parsed = parse_command("/architect")
+            repl._handle_command(parsed)
+            assert repl.architect_mode is True
+
+            parsed = parse_command("/code")
+            repl._handle_command(parsed)
+            assert repl.architect_mode is False
+
+    def test_process_input_routes_to_architect(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+
+        mock_conv = MagicMock()
+        mock_conv.pending_lint_feedback = None
+        mock_config = MagicMock()
+        mock_config.lint_test = {"auto_lint": False, "auto_test": False}
+        repl = REPL(mock_conv, mock_config, streaming=False)
+        repl.architect_mode = True
+
+        with patch.object(repl, '_process_architect') as mock_arch:
+            repl._process_input("build a REST API")
+            mock_arch.assert_called_once_with("build a REST API")
+
+    def test_process_input_routes_to_streaming(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+
+        mock_conv = MagicMock()
+        mock_conv.pending_lint_feedback = None
+        mock_config = MagicMock()
+        mock_config.lint_test = {"auto_lint": False, "auto_test": False}
+        repl = REPL(mock_conv, mock_config, streaming=True)
+        repl.architect_mode = False
+
+        with patch.object(repl, '_process_input_stream') as mock_stream:
+            repl._process_input("hello")
+            mock_stream.assert_called_once_with("hello")
