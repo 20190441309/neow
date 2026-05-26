@@ -353,6 +353,121 @@ class TestConfigExtensions:
         assert config.resolve_model_alias("unknown-model") == "unknown-model"
 
 
+class TestContextInjection:
+    """Tests for ContextManager integration into ConversationManager."""
+
+    def test_conversation_accepts_context_manager(self, tmp_path):
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        mock_ctx = MagicMock()
+        mock_ctx.get_project_structure.return_value = {"src": {}}
+        mock_ctx.get_relevant_files.return_value = []
+        manager = ConversationManager(mock_client, context_manager=mock_ctx)
+        assert manager.context_manager is mock_ctx
+
+    def test_project_structure_injected_on_first_call(self, tmp_path):
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "ok"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        mock_ctx = MagicMock()
+        mock_ctx.get_project_structure.return_value = {"src": {"main.py": None}, "README.md": None}
+        mock_ctx.get_relevant_files.return_value = []
+
+        manager = ConversationManager(mock_client, context_manager=mock_ctx)
+        manager.set_system_prompt("You are Neow.")
+        manager.get_response("Hello")
+
+        mock_ctx.get_project_structure.assert_called_once()
+        call_args = mock_client.chat.call_args
+        prompt = call_args.kwargs.get("system_prompt") or call_args[1].get("system_prompt", "")
+        assert "Project Structure" in prompt or "src" in prompt
+
+    def test_relevant_files_injected_per_query(self, tmp_path):
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "ok"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        mock_ctx = MagicMock()
+        mock_ctx.get_project_structure.return_value = {}
+        mock_ctx.get_relevant_files.return_value = [
+            {"path": "main.py", "content": "def main(): pass"}
+        ]
+
+        manager = ConversationManager(mock_client, context_manager=mock_ctx)
+        manager.set_system_prompt("You are Neow.")
+        manager.get_response("Tell me about main")
+
+        mock_ctx.get_relevant_files.assert_called_once_with("Tell me about main")
+
+    def test_no_context_manager_preserves_behavior(self):
+        from unittest.mock import MagicMock
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "ok"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        manager = ConversationManager(mock_client)
+        manager.set_system_prompt("You are Neow.")
+        response = manager.get_response("Hello")
+        assert response.content == "ok"
+
+
+class TestFormatProjectContext:
+    """Tests for format_project_context and _format_structure helpers."""
+
+    def test_format_structure_flat(self):
+        from neow.core.prompts import _format_structure
+        result = _format_structure({"README.md": None, "setup.py": None})
+        assert "README.md" in result
+        assert "setup.py" in result
+
+    def test_format_structure_nested(self):
+        from neow.core.prompts import _format_structure
+        structure = {"src": {"main.py": None}, "tests": {"test_main.py": None}}
+        result = _format_structure(structure)
+        assert "src/" in result
+        assert "main.py" in result
+        assert "tests/" in result
+        assert "test_main.py" in result
+
+    def test_format_project_context_structure_only(self):
+        from neow.core.prompts import format_project_context
+        structure = {"src": {"main.py": None}}
+        result = format_project_context(structure, [])
+        assert "Project Structure" in result
+        assert "src/" in result
+
+    def test_format_project_context_with_relevant_files(self):
+        from neow.core.prompts import format_project_context
+        relevant = [{"path": "main.py", "content": "def main(): pass"}]
+        result = format_project_context({}, relevant)
+        assert "Relevant Files" in result
+        assert "main.py" in result
+        assert "def main(): pass" in result
+
+    def test_format_project_context_structure_and_files(self):
+        from neow.core.prompts import format_project_context
+        structure = {"src": {}}
+        relevant = [{"path": "app.py", "content": "x = 1"}]
+        result = format_project_context(structure, relevant)
+        assert "Project Structure" in result
+        assert "Relevant Files" in result
+
+
 class TestIntegration:
     """Integration tests."""
 
@@ -396,6 +511,47 @@ class TestIntegration:
         # Verify
         assert response.content == "The file contains: Hello"
         assert mock_client.chat.call_count == 2
+
+
+class TestSubAgent:
+    def test_subagent_init(self):
+        from unittest.mock import MagicMock
+        from neow.core.sub_agent import SubAgent
+        mock_client = MagicMock()
+        agent = SubAgent(mock_client, tools=[], task_description="Fix the bug")
+        assert agent.conversation is not None
+        assert "Fix the bug" in agent.conversation.system_prompt
+
+    def test_subagent_execute(self):
+        from unittest.mock import MagicMock
+        from neow.core.sub_agent import SubAgent
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "Fixed the bug in main.py"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        agent = SubAgent(mock_client, tools=[], task_description="Fix the bug")
+        result = agent.execute("Look at main.py and fix the import error")
+        assert result == "Fixed the bug in main.py"
+
+    def test_subagent_isolated_context(self):
+        from unittest.mock import MagicMock
+        from neow.core.sub_agent import SubAgent
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "done"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        agent1 = SubAgent(mock_client, tools=[], task_description="Task 1")
+        agent2 = SubAgent(mock_client, tools=[], task_description="Task 2")
+        agent1.execute("do something")
+        assert len(agent2.conversation.messages) == 0
 
 
 class TestConversationStreaming:
