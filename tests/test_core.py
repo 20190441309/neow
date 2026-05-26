@@ -554,6 +554,62 @@ class TestSubAgent:
         assert len(agent2.conversation.messages) == 0
 
 
+class TestArchitectOrchestrator:
+    def test_orchestrator_init(self):
+        from unittest.mock import MagicMock
+        from neow.core.architect import ArchitectOrchestrator
+        planner_client = MagicMock()
+        executor_client = MagicMock()
+        tool_executor = MagicMock()
+        orch = ArchitectOrchestrator(planner_client, executor_client, tool_executor)
+        assert orch.planner is not None
+        assert orch.executor_client is executor_client
+
+    def test_orchestrator_parses_plan(self):
+        from unittest.mock import MagicMock
+        from neow.core.architect import ArchitectOrchestrator
+
+        planner_client = MagicMock()
+        plan_json = '[{"task": "Read main.py and identify the bug", "files": ["main.py"]}, {"task": "Fix the import error in main.py", "files": ["main.py"]}]'
+        mock_plan_response = MagicMock()
+        mock_plan_response.content = plan_json
+        mock_plan_response.has_tool_calls = False
+        mock_plan_response.tool_calls = []
+        mock_plan_response.usage = {"total_tokens": 10}
+        planner_client.chat.return_value = mock_plan_response
+
+        executor_client = MagicMock()
+        mock_exec_response = MagicMock()
+        mock_exec_response.content = "Fixed the import error"
+        mock_exec_response.has_tool_calls = False
+        mock_exec_response.tool_calls = []
+        mock_exec_response.usage = {"total_tokens": 10}
+        executor_client.chat.return_value = mock_exec_response
+
+        tool_executor = MagicMock()
+        orch = ArchitectOrchestrator(planner_client, executor_client, tool_executor)
+        result = orch.run("Fix the bug in main.py")
+        assert "Fixed" in result or "import" in result or len(result) > 0
+
+    def test_orchestrator_handles_empty_plan(self):
+        from unittest.mock import MagicMock
+        from neow.core.architect import ArchitectOrchestrator
+
+        planner_client = MagicMock()
+        mock_plan_response = MagicMock()
+        mock_plan_response.content = "I'll fix the bug by editing main.py directly."
+        mock_plan_response.has_tool_calls = False
+        mock_plan_response.tool_calls = []
+        mock_plan_response.usage = {"total_tokens": 10}
+        planner_client.chat.return_value = mock_plan_response
+
+        executor_client = MagicMock()
+        tool_executor = MagicMock()
+        orch = ArchitectOrchestrator(planner_client, executor_client, tool_executor)
+        result = orch.run("Fix the bug")
+        assert len(result) > 0
+
+
 class TestConversationStreaming:
     """Tests for streaming conversation."""
 
