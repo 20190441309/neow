@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from neow.models.base import ModelResponse, BaseModelClient
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
+from neow.models.openai import OpenAIClient
 
 
 class TestModelResponse:
@@ -324,4 +325,105 @@ class TestAnthropicClient:
         mock_anthropic.return_value = mock_client
 
         client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
+        assert client.validate_connection() is False
+
+
+class TestOpenAIClient:
+    """Tests for OpenAIClient."""
+
+    def test_init(self):
+        """Test client initialization."""
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
+        assert client.api_key == "sk-test"
+        assert client.model == "gpt-4o"
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_chat_without_tools(self, mock_openai):
+        """Test chat without tools."""
+        # Mock OpenAI response
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 10
+        mock_response.usage.completion_tokens = 5
+        mock_response.usage.total_tokens = 15
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
+        messages = [{"role": "user", "content": "Hello"}]
+        response = client.chat(messages)
+
+        assert isinstance(response, ModelResponse)
+        assert response.content == "Hello!"
+        assert response.has_tool_calls is False
+        assert response.usage["total_tokens"] == 15
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_chat_with_tools(self, mock_openai):
+        """Test chat with tools."""
+        # Mock OpenAI response with tool call
+        mock_tool_call = MagicMock()
+        mock_tool_call.id = "call_456"
+        mock_tool_call.function.name = "write_file"
+        mock_tool_call.function.arguments = '{"file_path": "test.py", "content": "print(1)"}'
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+        mock_response.usage.prompt_tokens = 20
+        mock_response.usage.completion_tokens = 10
+        mock_response.usage.total_tokens = 30
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
+        messages = [{"role": "user", "content": "Write test.py"}]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "write_file",
+                    "description": "Write a file",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "file_path": {"type": "string"},
+                            "content": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        ]
+        response = client.chat(messages, tools=tools)
+
+        assert response.has_tool_calls is True
+        assert len(response.tool_calls) == 1
+        assert response.tool_calls[0]["id"] == "call_456"
+        assert response.tool_calls[0]["function"]["name"] == "write_file"
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_validate_connection_success(self, mock_openai):
+        """Test successful connection validation."""
+        mock_client = MagicMock()
+        mock_client.models.list.return_value = []
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
+        assert client.validate_connection() is True
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_validate_connection_failure(self, mock_openai):
+        """Test failed connection validation."""
+        mock_client = MagicMock()
+        mock_client.models.list.side_effect = Exception("Connection failed")
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
         assert client.validate_connection() is False
