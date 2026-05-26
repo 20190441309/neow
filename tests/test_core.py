@@ -4,7 +4,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,6 +12,7 @@ from neow.core.config import Config, ConfigError
 from neow.core.conversation import ConversationManager
 from neow.core.context import ContextManager
 from neow.core.executor import ToolExecutor, ToolError
+from neow.tools.file_ops import read_file, write_file
 
 
 class TestConfig:
@@ -192,3 +193,48 @@ class TestContextManager:
         context = manager.build_context("tell me about test.py")
 
         assert "test.py" in context
+
+
+class TestIntegration:
+    """Integration tests."""
+
+    def test_conversation_with_tools(self):
+        """Test conversation with tool execution."""
+        # Mock model client
+        mock_client = MagicMock()
+
+        # First response: tool call
+        mock_response1 = MagicMock()
+        mock_response1.content = ""
+        mock_response1.has_tool_calls = True
+        mock_response1.tool_calls = [
+            {
+                "id": "call_1",
+                "function": {
+                    "name": "read_file",
+                    "arguments": '{"file_path": "test.txt"}'
+                }
+            }
+        ]
+        mock_response1.usage = {"total_tokens": 10}
+
+        # Second response: final answer
+        mock_response2 = MagicMock()
+        mock_response2.content = "The file contains: Hello"
+        mock_response2.has_tool_calls = False
+        mock_response2.tool_calls = []
+        mock_response2.usage = {"total_tokens": 20}
+
+        mock_client.chat.side_effect = [mock_response1, mock_response2]
+
+        # Create conversation manager with mock tool executor
+        mock_executor = MagicMock()
+        mock_executor.execute.return_value = "Hello"
+        conversation = ConversationManager(mock_client, tool_executor=mock_executor)
+
+        # Get response
+        response = conversation.get_response("Read test.txt")
+
+        # Verify
+        assert response.content == "The file contains: Hello"
+        assert mock_client.chat.call_count == 2
