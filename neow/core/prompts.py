@@ -1,5 +1,7 @@
 """System prompts for Neow CLI."""
 
+import subprocess
+
 # Main system prompt
 SYSTEM_PROMPT = """You are Neow, a lightweight AI coding assistant running in the user's terminal.
 
@@ -60,9 +62,19 @@ Write content to a file. Creates the file if it doesn't exist, overwrites if it 
 - Parameters: `file_path` (string), `content` (string)
 
 ### edit_file
-Replace specific text in a file.
-- Parameters: `file_path` (string), `old_text` (string), `new_text` (string)
-- The `old_text` must exactly match the text to be replaced
+Replace specific text in a file. Supports precision editing.
+- Parameters: `file_path` (string), `old_text` (string), `new_text` (string),
+  `first_only` (boolean, optional), `start_line` (integer, optional), `end_line` (integer, optional)
+- Use `first_only=true` when you want to replace only the first match
+- Use `start_line` and `end_line` to restrict the edit to a specific line range
+
+### create_file
+Create a new file. Fails if the file already exists (use write_file to overwrite).
+- Parameters: `file_path` (string), `content` (string, optional)
+
+### delete_file
+Delete a file permanently.
+- Parameters: `file_path` (string)
 
 ### execute_command
 Run a shell command.
@@ -71,6 +83,22 @@ Run a shell command.
 ### search_code
 Search for text patterns in the codebase.
 - Parameters: `query` (string), `directory` (string, optional), `file_pattern` (string, optional)
+
+### git_status
+Get the current git working tree status.
+- No parameters
+
+### git_diff
+Show git diff of uncommitted changes.
+- Parameters: `staged` (boolean, optional, default false) - If true, show staged changes
+
+### git_commit
+Stage all changes and commit with a message.
+- Parameters: `message` (string, required) - Commit message
+
+### git_log
+Show recent git commit history.
+- Parameters: `count` (integer, optional, default 10) - Number of commits to show
 
 ## Tool Usage Guidelines
 
@@ -118,6 +146,34 @@ SAFETY_PROMPT = """## Safety Reminders
 """
 
 
+def get_git_context() -> str:
+    """Get current git context for system prompt.
+
+    Returns:
+        Formatted git context string, or empty if not in a git repo.
+    """
+    try:
+        branch = subprocess.run(
+            ["git", "branch", "--show-current"],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        if branch.returncode != 0:
+            return ""
+        branch_name = branch.stdout.strip()
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True, text=True, encoding="utf-8",
+        )
+        status_lines = status.stdout.strip().splitlines() if status.stdout.strip() else []
+        count = len(status_lines)
+        status_summary = f"{count} file{'s' if count != 1 else ''} changed" if count else "clean"
+
+        return f"\n## Current Git Context\n- Branch: {branch_name}\n- Status: {status_summary}\n"
+    except Exception:
+        return ""
+
+
 def get_system_prompt(include_tools: bool = True) -> str:
     """Get the complete system prompt.
 
@@ -129,6 +185,10 @@ def get_system_prompt(include_tools: bool = True) -> str:
     """
     prompt = SYSTEM_PROMPT
 
+    git_ctx = get_git_context()
+    if git_ctx:
+        prompt += git_ctx
+
     if include_tools:
         prompt += "\n" + TOOL_USAGE_PROMPT
 
@@ -136,6 +196,50 @@ def get_system_prompt(include_tools: bool = True) -> str:
     prompt += "\n" + SAFETY_PROMPT
 
     return prompt
+
+
+def format_project_context(structure: dict, relevant_files: list) -> str:
+    """Format project context for system prompt injection.
+
+    Args:
+        structure: Project directory structure dict.
+        relevant_files: List of dicts with 'path' and 'content' keys.
+
+    Returns:
+        Formatted project context string.
+    """
+    parts = ["\n## Project Structure\n"]
+    parts.append(_format_structure(structure, indent=0))
+    if relevant_files:
+        parts.append("\n## Relevant Files\n")
+        for f in relevant_files:
+            parts.append(f"### {f['path']}")
+            parts.append("```")
+            parts.append(f["content"])
+            parts.append("```\n")
+    return "\n".join(parts)
+
+
+def _format_structure(structure: dict, indent: int = 0) -> str:
+    """Format structure dict as tree string.
+
+    Args:
+        structure: Nested dict representing directory structure.
+        indent: Current indentation level.
+
+    Returns:
+        Tree-formatted string.
+    """
+    lines = []
+    prefix = " " * indent
+    for key, value in structure.items():
+        if isinstance(value, dict):
+            lines.append(f"{prefix}{key}/")
+            if value:
+                lines.append(_format_structure(value, indent + 2))
+        else:
+            lines.append(f"{prefix}{key}")
+    return "\n".join(lines)
 
 
 def get_tool_definitions() -> list:
@@ -187,7 +291,7 @@ def get_tool_definitions() -> list:
             "type": "function",
             "function": {
                 "name": "edit_file",
-                "description": "Replace specific text in a file. The old_text must exactly match the text to be replaced.",
+                "description": "Replace specific text in a file. Supports line-range targeting and first-only replacement.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -203,8 +307,58 @@ def get_tool_definitions() -> list:
                             "type": "string",
                             "description": "Text to replace with",
                         },
+                        "first_only": {
+                            "type": "boolean",
+                            "description": "If true, only replace the first occurrence (default: false, replaces all)",
+                        },
+                        "start_line": {
+                            "type": "integer",
+                            "description": "Start line number (1-indexed, inclusive). Restricts edit to a line range.",
+                        },
+                        "end_line": {
+                            "type": "integer",
+                            "description": "End line number (1-indexed, inclusive). Restricts edit to a line range.",
+                        },
                     },
                     "required": ["file_path", "old_text", "new_text"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_file",
+                "description": "Create a new file. Fails if the file already exists (use write_file to overwrite).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file to create",
+                        },
+                        "content": {
+                            "type": "string",
+                            "description": "Initial file content (default: empty)",
+                        },
+                    },
+                    "required": ["file_path"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_file",
+                "description": "Delete a file permanently.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file to delete",
+                        },
+                    },
+                    "required": ["file_path"],
                 },
             },
         },
@@ -251,6 +405,66 @@ def get_tool_definitions() -> list:
                         },
                     },
                     "required": ["query"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "git_status",
+                "description": "Get the current git working tree status",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "git_diff",
+                "description": "Show git diff of uncommitted changes",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "staged": {
+                            "type": "boolean",
+                            "description": "If true, show staged changes (default: false)",
+                        },
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "git_commit",
+                "description": "Stage all changes and commit with a message",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "message": {
+                            "type": "string",
+                            "description": "Commit message",
+                        },
+                    },
+                    "required": ["message"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "git_log",
+                "description": "Show recent git commit history",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "count": {
+                            "type": "integer",
+                            "description": "Number of commits to show (default: 10)",
+                        },
+                    },
                 },
             },
         },

@@ -1,10 +1,13 @@
 """Conversation manager for Neow CLI."""
 
 import json
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional
 
-from neow.models.base import BaseModelClient, ModelResponse
+from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils.logger import logger
+
+FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file"}
 
 
 def _sanitize_text(text: str) -> str:
@@ -16,7 +19,10 @@ class ConversationManager:
     """Manages conversation history and AI model interactions."""
 
     def __init__(
-        self, model_client: BaseModelClient, tool_executor: Optional[Any] = None
+        self,
+        model_client: BaseModelClient,
+        tool_executor: Optional[Any] = None,
+        context_manager: Optional[Any] = None,
     ):
         """Initialize conversation manager.
 
@@ -24,6 +30,7 @@ class ConversationManager:
             model_client: AI model client instance.
             tool_executor: Optional tool executor for handling tool calls.
                 If not provided, a default ToolExecutor will be created.
+            context_manager: Optional ContextManager for project context injection.
         """
         self.model_client = model_client
         if tool_executor is None:
@@ -35,6 +42,9 @@ class ConversationManager:
         self.messages: List[Dict[str, Any]] = []
         self.system_prompt: str = ""
         self.tools: List[Dict[str, Any]] = []
+        self.context_files: Dict[str, str] = {}  # abs_path -> content
+        self.context_manager = context_manager
+        self._structure_injected = False
 
     def set_system_prompt(self, prompt: str) -> None:
         """Set system prompt.
@@ -87,7 +97,7 @@ class ConversationManager:
         # Get response from model
         response = self.model_client.chat(
             messages=sanitized_messages,
-            system_prompt=self.system_prompt if self.system_prompt else None,
+            system_prompt=self._get_effective_system_prompt(user_input),
             tools=self.tools if self.tools else None,
         )
 
@@ -126,6 +136,17 @@ class ConversationManager:
                 except Exception as e:
                     result = f"Error: {e}"
 
+                # Auto-refresh context files after file mutations
+                if tool_name in FILE_MUTATING_TOOLS:
+                    edited_path = arguments.get("file_path", "")
+                    if edited_path:
+                        abs_path = str(Path(edited_path).resolve())
+                        if abs_path in self.context_files:
+                            if tool_name == "delete_file":
+                                del self.context_files[abs_path]
+                            else:
+                                self.refresh_context_file(abs_path)
+
                 # Add tool result to messages
                 self.add_tool_result(tool_call["id"], result)
 
@@ -143,7 +164,7 @@ class ConversationManager:
 
             response = self.model_client.chat(
                 messages=sanitized_messages,
-                system_prompt=self.system_prompt if self.system_prompt else None,
+                system_prompt=self._get_effective_system_prompt(user_input),
                 tools=self.tools if self.tools else None,
             )
 
@@ -155,6 +176,91 @@ class ConversationManager:
         )
 
         return response
+
+    def get_response_stream(self, user_input: str) -> Generator[StreamChunk, None, None]:
+        """Get streaming AI response for user input.
+
+        Args:
+            user_input: User input text.
+
+        Yields:
+            StreamChunk objects.
+        """
+        self.add_message("user", user_input)
+
+        while True:
+            sanitized_messages = []
+            for msg in self.messages:
+                sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+                sanitized_messages.append(sanitized_msg)
+
+            content_buffer = ""
+            tool_calls_final = None
+            usage_final = {}
+
+            for chunk in self.model_client.chat_stream(
+                messages=sanitized_messages,
+                system_prompt=self._get_effective_system_prompt(user_input),
+                tools=self.tools if self.tools else None,
+            ):
+                if chunk.content_delta:
+                    content_buffer += chunk.content_delta
+                if chunk.tool_call_delta:
+                    tool_calls_final = chunk.tool_call_delta.get("tool_calls")
+                if chunk.usage:
+                    usage_final = chunk.usage
+                yield chunk
+
+            response = ModelResponse(
+                content=content_buffer,
+                tool_calls=tool_calls_final or [],
+                usage=usage_final,
+            )
+
+            if not response.has_tool_calls or not self.tool_executor:
+                break
+
+            # Execute tools silently
+            formatted_tool_calls = []
+            for tc in response.tool_calls:
+                formatted_tool_calls.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": tc["function"],
+                })
+
+            assistant_msg = {
+                "role": "assistant",
+                "content": response.content,
+                "tool_calls": formatted_tool_calls,
+            }
+            if hasattr(self.model_client, '_last_reasoning_content') and self.model_client._last_reasoning_content:
+                assistant_msg["reasoning_content"] = self.model_client._last_reasoning_content
+            self.messages.append(assistant_msg)
+
+            for tool_call in response.tool_calls:
+                tool_name = tool_call["function"]["name"]
+                arguments = json.loads(tool_call["function"]["arguments"])
+                try:
+                    result = self.tool_executor.execute(tool_name, arguments)
+                except Exception as e:
+                    result = f"Error: {e}"
+
+                # Auto-refresh context files after file mutations
+                if tool_name in FILE_MUTATING_TOOLS:
+                    edited_path = arguments.get("file_path", "")
+                    if edited_path:
+                        abs_path = str(Path(edited_path).resolve())
+                        if abs_path in self.context_files:
+                            if tool_name == "delete_file":
+                                del self.context_files[abs_path]
+                            else:
+                                self.refresh_context_file(abs_path)
+
+                self.add_tool_result(tool_call["id"], result)
+
+        self.add_message("assistant", response.content)
+        logger.info(f"Streamed response ({response.usage.get('total_tokens', 0)} tokens)")
 
     def add_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add tool result to conversation history.
@@ -186,3 +292,132 @@ class ConversationManager:
             List of message dictionaries.
         """
         return self.messages.copy()
+
+    def add_context_file(self, file_path: str) -> str:
+        """Add a file to the conversation context.
+
+        Args:
+            file_path: Path to the file.
+
+        Returns:
+            Confirmation message.
+
+        Raises:
+            FileNotFoundError: If file doesn't exist.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        content = path.read_text(encoding="utf-8")
+        abs_path = str(path.resolve())
+        self.context_files[abs_path] = content
+        logger.info(f"Added context file: {file_path} ({len(content)} chars)")
+        return f"Added to context: {file_path} ({len(content)} chars)"
+
+    def drop_context_file(self, file_path: str) -> str:
+        """Remove a file from the conversation context.
+
+        Args:
+            file_path: Path or name of the file.
+
+        Returns:
+            Confirmation message.
+
+        Raises:
+            KeyError: If file not in context.
+        """
+        abs_path = str(Path(file_path).resolve())
+        if abs_path in self.context_files:
+            del self.context_files[abs_path]
+            return f"Removed from context: {file_path}"
+        # Try matching by filename
+        for key in list(self.context_files.keys()):
+            if key.endswith(file_path) or Path(key).name == file_path:
+                del self.context_files[key]
+                return f"Removed from context: {file_path}"
+        raise KeyError(f"File not in context: {file_path}")
+
+    def list_context_files(self) -> List[str]:
+        """List files in the conversation context.
+
+        Returns:
+            List of file paths.
+        """
+        return list(self.context_files.keys())
+
+    def refresh_context_file(self, file_path: str) -> bool:
+        """Re-read a context file to pick up external changes.
+
+        Args:
+            file_path: Path to the file.
+
+        Returns:
+            True if refreshed, False if not in context.
+        """
+        abs_path = str(Path(file_path).resolve())
+        if abs_path in self.context_files:
+            try:
+                self.context_files[abs_path] = Path(abs_path).read_text(encoding="utf-8")
+                return True
+            except (FileNotFoundError, UnicodeDecodeError):
+                return False
+        return False
+
+    def _build_context_prompt(self) -> str:
+        """Build context files portion of system prompt.
+
+        Returns:
+            Formatted string with context file contents.
+        """
+        if not self.context_files:
+            return ""
+        parts = ["\n## Context Files\n"]
+        parts.append("The following files have been explicitly added to the conversation context:\n")
+        for path, content in self.context_files.items():
+            parts.append(f"### {path}")
+            parts.append("```")
+            parts.append(content)
+            parts.append("```\n")
+        return "\n".join(parts)
+
+    def _build_project_context(self, user_input: str = "") -> str:
+        """Build project context portion of system prompt.
+
+        Args:
+            user_input: The user's input for matching relevant files.
+
+        Returns:
+            Formatted project context string, or empty string.
+        """
+        if not self.context_manager:
+            return ""
+        from neow.core.prompts import format_project_context
+
+        parts = []
+        if not self._structure_injected:
+            structure = self.context_manager.get_project_structure(max_depth=2)
+            parts.append(format_project_context(structure, []))
+            self._structure_injected = True
+        if user_input:
+            relevant = self.context_manager.get_relevant_files(user_input)
+            if relevant:
+                parts.append(format_project_context({}, relevant))
+        return "\n".join(parts)
+
+    def _get_effective_system_prompt(self, user_input: str = "") -> Optional[str]:
+        """Get system prompt including context files and project context.
+
+        Args:
+            user_input: The user's input for matching relevant files.
+
+        Returns:
+            Combined system prompt, or None if empty.
+        """
+        prompt = self.system_prompt
+        context_prompt = self._build_context_prompt()
+        if context_prompt:
+            prompt += context_prompt
+        project_context = self._build_project_context(user_input)
+        if project_context:
+            prompt += project_context
+        return prompt if prompt else None
