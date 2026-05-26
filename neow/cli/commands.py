@@ -12,6 +12,16 @@ class Command(Enum):
     CLEAR = "clear"
     EXIT = "exit"
     MODEL = "model"
+    DIFF = "diff"
+    COMMIT = "commit"
+    UNDO = "undo"
+    ADD = "add"
+    DROP = "drop"
+    LS = "ls"
+    LINT = "lint"
+    TEST = "test"
+    ARCHITECT = "architect"
+    CODE = "code"
 
 
 @dataclass
@@ -45,6 +55,16 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/clear": Command.CLEAR,
         "/exit": Command.EXIT,
         "/model": Command.MODEL,
+        "/diff": Command.DIFF,
+        "/commit": Command.COMMIT,
+        "/undo": Command.UNDO,
+        "/add": Command.ADD,
+        "/drop": Command.DROP,
+        "/ls": Command.LS,
+        "/lint": Command.LINT,
+        "/test": Command.TEST,
+        "/architect": Command.ARCHITECT,
+        "/code": Command.CODE,
     }
 
     command = command_map.get(command_str)

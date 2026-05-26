@@ -1,5 +1,6 @@
 """REPL (Read-Eval-Print Loop) for Neow CLI."""
 
+import sys
 from typing import Optional
 
 from prompt_toolkit import PromptSession
@@ -7,6 +8,7 @@ from prompt_toolkit.history import FileHistory
 
 from neow.cli.commands import Command, parse_command
 from neow.core.conversation import ConversationManager
+from neow.tools.git import git_diff, git_commit, git_undo, GitError
 from neow.utils.formatter import (
     print_welcome,
     print_assistant_message,
@@ -14,18 +16,28 @@ from neow.utils.formatter import (
     print_info,
 )
 from neow.utils.logger import logger
+from neow.core.config import Config
 
 
 class REPL:
     """Interactive REPL for Neow CLI."""
 
-    def __init__(self, conversation: ConversationManager):
+    def __init__(
+        self,
+        conversation: ConversationManager,
+        config: Optional[Config] = None,
+        streaming: bool = True,
+    ):
         """Initialize REPL.
 
         Args:
             conversation: ConversationManager instance.
+            config: Optional Config instance for lint/test toggles.
+            streaming: Whether to use streaming output.
         """
         self.conversation = conversation
+        self.config = config
+        self.streaming = streaming
         self.session: Optional[PromptSession] = None
         self._setup_session()
 
@@ -111,6 +123,95 @@ class REPL:
                 # TODO: Implement model switching
             else:
                 print_error("Please specify a model name")
+        elif parsed.command == Command.DIFF:
+            try:
+                diff = git_diff()
+                if diff:
+                    print_info(diff)
+                else:
+                    print_info("No uncommitted changes")
+            except GitError as e:
+                print_error(str(e))
+        elif parsed.command == Command.COMMIT:
+            try:
+                if parsed.args:
+                    result = git_commit(parsed.args)
+                    print_info(result)
+                else:
+                    self._process_input(
+                        "Please generate a concise commit message for the current changes "
+                        "and use the git_commit tool to commit them."
+                    )
+            except GitError as e:
+                print_error(str(e))
+        elif parsed.command == Command.UNDO:
+            try:
+                result = git_undo()
+                print_info(result)
+            except GitError as e:
+                print_error(str(e))
+        elif parsed.command == Command.ADD:
+            if parsed.args:
+                try:
+                    result = self.conversation.add_context_file(parsed.args.strip())
+                    print_info(result)
+                except FileNotFoundError as e:
+                    print_error(str(e))
+            else:
+                print_error("Usage: /add <file_path>")
+        elif parsed.command == Command.DROP:
+            if parsed.args:
+                try:
+                    result = self.conversation.drop_context_file(parsed.args.strip())
+                    print_info(result)
+                except KeyError as e:
+                    print_error(str(e))
+            else:
+                print_error("Usage: /drop <file_path>")
+        elif parsed.command == Command.LS:
+            files = self.conversation.list_context_files()
+            if files:
+                print_info("Context files:")
+                for f in files:
+                    print_info(f"  {f}")
+            else:
+                print_info("No files in context")
+        elif parsed.command == Command.LINT:
+            from neow.tools.lint_test import run_lint
+            from pathlib import Path
+
+            if parsed.args == "on":
+                self.config._config["lint_test"]["auto_lint"] = True
+                print_info("Auto-lint enabled")
+            elif parsed.args == "off":
+                self.config._config["lint_test"]["auto_lint"] = False
+                print_info("Auto-lint disabled")
+            else:
+                result = run_lint(Path.cwd())
+                if result.output:
+                    print_info(result.output)
+                if not result.success:
+                    self._process_input(
+                        f"Please fix the following lint errors:\n{result.output}"
+                    )
+        elif parsed.command == Command.TEST:
+            from neow.tools.lint_test import run_tests
+            from pathlib import Path
+
+            if parsed.args == "on":
+                self.config._config["lint_test"]["auto_test"] = True
+                print_info("Auto-test enabled")
+            elif parsed.args == "off":
+                self.config._config["lint_test"]["auto_test"] = False
+                print_info("Auto-test disabled")
+            else:
+                result = run_tests(Path.cwd())
+                if result.output:
+                    print_info(result.output)
+                if not result.success:
+                    self._process_input(
+                        f"Please fix the following test failures:\n{result.output}"
+                    )
 
         return False
 
@@ -121,12 +222,40 @@ class REPL:
             user_input: User input string.
         """
         try:
-            response = self.conversation.get_response(user_input)
-
-            # Print response
-            if response.content:
-                print_assistant_message(response.content)
-
+            if self.streaming:
+                self._process_input_stream(user_input)
+            else:
+                response = self.conversation.get_response(user_input)
+                if response.content:
+                    print_assistant_message(response.content)
         except Exception as e:
             print_error(f"Failed to get response: {e}")
             logger.error(f"Failed to get response: {e}")
+
+        # Process pending lint/test feedback
+        if self.conversation.pending_lint_feedback:
+            feedback = self.conversation.pending_lint_feedback
+            self.conversation.pending_lint_feedback = None
+            print_info("Auto-fixing lint/test errors...")
+            self._process_input(feedback)
+
+    def _process_input_stream(self, user_input: str) -> None:
+        """Process user input with streaming output.
+
+        Args:
+            user_input: User input string.
+        """
+        try:
+            sys.stdout.write("\033[1;32mAssistant:\033[0m ")
+            sys.stdout.flush()
+
+            for chunk in self.conversation.get_response_stream(user_input):
+                if chunk.content_delta:
+                    sys.stdout.write(chunk.content_delta)
+                    sys.stdout.flush()
+
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+        except Exception as e:
+            sys.stdout.write("\n")
+            raise

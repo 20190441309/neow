@@ -13,9 +13,10 @@ from neow.core.prompts import get_system_prompt, get_tool_definitions
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
 from neow.models.openai import OpenAIClient
-from neow.tools.file_ops import read_file, write_file, edit_file
+from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file
 from neow.tools.command import execute_command
 from neow.tools.search import search_code
+from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
 from neow.utils.formatter import print_error, print_info
@@ -60,8 +61,14 @@ def setup_tools(executor: ToolExecutor) -> None:
     executor.register_tool("read_file", read_file)
     executor.register_tool("write_file", write_file)
     executor.register_tool("edit_file", edit_file)
+    executor.register_tool("create_file", create_file)
+    executor.register_tool("delete_file", delete_file)
     executor.register_tool("execute_command", execute_command)
     executor.register_tool("search_code", search_code)
+    executor.register_tool("git_status", git_status)
+    executor.register_tool("git_diff", git_diff)
+    executor.register_tool("git_commit", git_commit)
+    executor.register_tool("git_log", git_log)
 
 
 @click.command()
@@ -95,6 +102,36 @@ def main(config: str, model: str, verbose: bool):
         executor = ToolExecutor()
         setup_tools(executor)
 
+        # Wire git auto-commit callback
+        if cfg.git.get("auto_commit", True):
+            def _on_file_change(tool_name: str, file_path: str):
+                try:
+                    auto_commit(file_path, action=tool_name)
+                except GitError as e:
+                    logger.warning(f"Auto-commit failed: {e}")
+
+                # Auto-lint
+                if cfg.lint_test.get("auto_lint"):
+                    from neow.tools.lint_test import run_lint
+                    from pathlib import Path as P
+                    lint_result = run_lint(P.cwd())
+                    if not lint_result.success:
+                        conversation.pending_lint_feedback = (
+                            f"Lint errors after editing {file_path}:\n{lint_result.output}"
+                        )
+
+                # Auto-test
+                if cfg.lint_test.get("auto_test"):
+                    from neow.tools.lint_test import run_tests
+                    from pathlib import Path as P
+                    test_result = run_tests(P.cwd())
+                    if not test_result.success:
+                        conversation.pending_lint_feedback = (
+                            f"Test failures after editing {file_path}:\n{test_result.output}"
+                        )
+
+            executor.on_file_change = _on_file_change
+
         # Setup conversation manager
         conversation = ConversationManager(model_client, executor)
 
@@ -103,7 +140,8 @@ def main(config: str, model: str, verbose: bool):
         conversation.set_tools(get_tool_definitions())
 
         # Start REPL
-        repl = REPL(conversation)
+        streaming_enabled = cfg.streaming.get("enabled", True)
+        repl = REPL(conversation, config=cfg, streaming=streaming_enabled)
         repl.start()
 
     except Exception as e:

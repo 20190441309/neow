@@ -45,6 +45,7 @@ class ConversationManager:
         self.context_files: Dict[str, str] = {}  # abs_path -> content
         self.context_manager = context_manager
         self._structure_injected = False
+        self.pending_lint_feedback: Optional[str] = None
 
     def set_system_prompt(self, prompt: str) -> None:
         """Set system prompt.
