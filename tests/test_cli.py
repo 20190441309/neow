@@ -272,3 +272,35 @@ class TestArchitectMode:
         with patch.object(repl, '_process_input_stream') as mock_stream:
             repl._process_input("hello")
             mock_stream.assert_called_once_with("hello")
+
+
+class TestSessionCommands:
+    """Tests for /save /load /history /cost commands."""
+
+    def test_parse_save_command(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/save my-session")
+        assert parsed.command == Command.SAVE
+        assert parsed.args == "my-session"
+
+    def test_parse_save_no_args(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/save")
+        assert parsed.command == Command.SAVE
+        assert parsed.args is None
+
+    def test_parse_load_command(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/load my-session")
+        assert parsed.command == Command.LOAD
+        assert parsed.args == "my-session"
+
+    def test_parse_history_command(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/history")
+        assert parsed.command == Command.HISTORY
+
+    def test_parse_cost_command(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/cost")
+        assert parsed.command == Command.COST

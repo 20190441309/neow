@@ -22,6 +22,10 @@ class Command(Enum):
     TEST = "test"
     ARCHITECT = "architect"
     CODE = "code"
+    SAVE = "save"
+    LOAD = "load"
+    HISTORY = "history"
+    COST = "cost"
 
 
 @dataclass
@@ -65,6 +69,10 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/test": Command.TEST,
         "/architect": Command.ARCHITECT,
         "/code": Command.CODE,
+        "/save": Command.SAVE,
+        "/load": Command.LOAD,
+        "/history": Command.HISTORY,
+        "/cost": Command.COST,
     }
 
     command = command_map.get(command_str)

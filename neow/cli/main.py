@@ -22,6 +22,7 @@ from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
 from neow.utils.formatter import print_error, print_info
 from neow.core.token_tracker import TokenTracker
+from neow.core.session import SessionManager
 
 
 def create_model_client(config: Config, model_name: str):
@@ -148,7 +149,9 @@ def main(config: str, model: str, verbose: bool):
 
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)
-        repl = REPL(conversation, config=cfg, streaming=streaming_enabled)
+        session_manager = SessionManager(Path.home() / ".neow" / "sessions")
+        repl = REPL(conversation, config=cfg, streaming=streaming_enabled,
+                    token_tracker=token_tracker, session_manager=session_manager)
         repl.start()
 
     except Exception as e:

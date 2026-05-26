@@ -27,6 +27,8 @@ class REPL:
         conversation: ConversationManager,
         config: Optional[Config] = None,
         streaming: bool = True,
+        token_tracker=None,
+        session_manager=None,
     ):
         """Initialize REPL.
 
@@ -34,10 +36,14 @@ class REPL:
             conversation: ConversationManager instance.
             config: Optional Config instance for lint/test toggles.
             streaming: Whether to use streaming output.
+            token_tracker: Optional TokenTracker for cost display.
+            session_manager: Optional SessionManager for session persistence.
         """
         self.conversation = conversation
         self.config = config
         self.streaming = streaming
+        self.token_tracker = token_tracker
+        self.session_manager = session_manager
         self.architect_mode = False
         self.session: Optional[PromptSession] = None
         self._setup_session()
@@ -116,6 +122,11 @@ class REPL:
             self.conversation.clear_history()
             print_info("Conversation history cleared")
         elif parsed.command == Command.EXIT:
+            if self.session_manager:
+                try:
+                    self.session_manager.save(self.conversation)
+                except Exception as e:
+                    logger.warning(f"Auto-save failed: {e}")
             print_info("Goodbye!")
             return True
         elif parsed.command == Command.MODEL:
@@ -233,6 +244,36 @@ class REPL:
         elif parsed.command == Command.CODE:
             self.architect_mode = False
             print_info("Normal coding mode restored.")
+        elif parsed.command == Command.SAVE:
+            if self.session_manager:
+                name = self.session_manager.save(self.conversation, parsed.args)
+                print_info(f"Session saved: {name}")
+            else:
+                print_error("Session manager not available")
+        elif parsed.command == Command.LOAD:
+            if self.session_manager and parsed.args:
+                if self.session_manager.restore(parsed.args, self.conversation):
+                    print_info(f"Session loaded: {parsed.args}")
+                else:
+                    print_error(f"Session not found: {parsed.args}")
+            else:
+                print_error("Usage: /load <session_name>")
+        elif parsed.command == Command.HISTORY:
+            if self.session_manager:
+                sessions = self.session_manager.list_sessions()
+                if sessions:
+                    print_info("Sessions:")
+                    for s in sessions:
+                        print_info(f"  {s['name']} ({s['message_count']} msgs, {s['model']}, {s['created_at'][:16]})")
+                else:
+                    print_info("No saved sessions")
+            else:
+                print_error("Session manager not available")
+        elif parsed.command == Command.COST:
+            if self.token_tracker:
+                print_info(self.token_tracker.get_session_summary())
+            else:
+                print_error("Token tracker not available")
 
         return False
 
