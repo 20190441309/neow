@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from neow.core.config import Config, ConfigError
+from neow.core.executor import ToolExecutor, ToolError
 
 
 class TestConfig:
@@ -65,3 +66,35 @@ class TestConfig:
         assert config.default_model == "gpt-4o"
         # Should still have default models
         assert "deepseek" in config.models
+
+
+class TestToolExecutor:
+    """Tests for ToolExecutor."""
+
+    def test_init(self):
+        """Test executor initialization."""
+        executor = ToolExecutor()
+        assert "read_file" in executor.tools
+        assert "write_file" in executor.tools
+        assert "edit_file" in executor.tools
+        assert "execute_command" in executor.tools
+        assert "search_code" in executor.tools
+
+    def test_execute_unknown_tool(self):
+        """Test executing unknown tool."""
+        executor = ToolExecutor()
+        with pytest.raises(ToolError):
+            executor.execute("unknown_tool", {})
+
+    def test_register_custom_tool(self):
+        """Test registering custom tool."""
+        executor = ToolExecutor()
+
+        def custom_tool(param: str) -> str:
+            return f"Custom: {param}"
+
+        executor.register_tool("custom", custom_tool)
+        assert "custom" in executor.tools
+
+        result = executor.execute("custom", {"param": "test"})
+        assert result == "Custom: test"
