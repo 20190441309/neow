@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from neow.models.base import ModelResponse, BaseModelClient
 from neow.models.deepseek import DeepSeekClient
+from neow.models.anthropic import AnthropicClient
 
 
 class TestModelResponse:
@@ -227,4 +228,100 @@ class TestDeepSeekClient:
         mock_openai.return_value = mock_client
 
         client = DeepSeekClient(api_key="sk-test", model="deepseek-chat")
+        assert client.validate_connection() is False
+
+
+class TestAnthropicClient:
+    """Tests for AnthropicClient."""
+
+    def test_init(self):
+        """Test client initialization."""
+        client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
+        assert client.api_key == "sk-ant-test"
+        assert client.model == "claude-sonnet-4-6"
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_chat_without_tools(self, mock_anthropic):
+        """Test chat without tools."""
+        # Mock Anthropic response
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock()]
+        mock_response.content[0].text = "Hello!"
+        mock_response.content[0].type = "text"
+        mock_response.stop_reason = "end_turn"
+        mock_response.usage.input_tokens = 10
+        mock_response.usage.output_tokens = 5
+
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
+        messages = [{"role": "user", "content": "Hello"}]
+        response = client.chat(messages)
+
+        assert isinstance(response, ModelResponse)
+        assert response.content == "Hello!"
+        assert response.has_tool_calls is False
+        assert response.usage["total_tokens"] == 15
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_chat_with_tools(self, mock_anthropic):
+        """Test chat with tools."""
+        # Mock Anthropic response with tool use
+        mock_tool_use = MagicMock()
+        mock_tool_use.type = "tool_use"
+        mock_tool_use.id = "toolu_123"
+        mock_tool_use.name = "read_file"
+        mock_tool_use.input = {"file_path": "test.py"}
+
+        mock_response = MagicMock()
+        mock_response.content = [mock_tool_use]
+        mock_response.stop_reason = "tool_use"
+        mock_response.usage.input_tokens = 20
+        mock_response.usage.output_tokens = 10
+
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
+        messages = [{"role": "user", "content": "Read test.py"}]
+        tools = [
+            {
+                "name": "read_file",
+                "description": "Read a file",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {"type": "string"}
+                    }
+                }
+            }
+        ]
+        response = client.chat(messages, tools=tools)
+
+        assert response.has_tool_calls is True
+        assert len(response.tool_calls) == 1
+        assert response.tool_calls[0]["id"] == "toolu_123"
+        assert response.tool_calls[0]["function"]["name"] == "read_file"
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_validate_connection_success(self, mock_anthropic):
+        """Test successful connection validation."""
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = MagicMock()
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
+        assert client.validate_connection() is True
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_validate_connection_failure(self, mock_anthropic):
+        """Test failed connection validation."""
+        mock_client = MagicMock()
+        mock_client.messages.create.side_effect = Exception("Connection failed")
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
         assert client.validate_connection() is False
