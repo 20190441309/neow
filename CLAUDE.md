@@ -90,34 +90,34 @@ Aider 的灵魂功能，也是 Neow 最大的短板。
 ### 9. 会话持久化
 退出后对话丢失。
 
-- [ ] 会话自动保存到 `~/.neow/sessions/`
-- [ ] `/save [name]` — 命名保存当前会话
-- [ ] `/load <name>` — 恢复历史会话
-- [ ] `/history` — 列出历史会话
+- [x] 会话自动保存到 `~/.neow/sessions/`
+- [x] `/save [name]` — 命名保存当前会话
+- [x] `/load <name>` — 恢复历史会话
+- [x] `/history` — 列出历史会话
 
 ### 10. Token 用量与成本展示
 usage 数据已解析但未展示。
 
-- [ ] 每次回复后显示 token 用量（input/output）
-- [ ] `/cost` — 显示本次会话累计消耗
-- [ ] 支持设置 token 上限告警
-- [ ] 不同模型的单价配置
+- [x] 每次回复后显示 token 用量（input/output）
+- [x] `/cost` — 显示本次会话累计消耗
+- [x] 支持设置 token 上限告警
+- [x] 不同模型的单价配置
 
 ### 11. 安全加固
 安全规则目前仅靠 prompt 约束。
 
-- [ ] `allowed_commands` 白名单真正生效
-- [ ] 危险命令（`rm -rf`, `drop table` 等需二次确认）
-- [ ] 文件写入前确认（可配置）
-- [ ] 敏感文件保护（`.env`, `id_rsa` 等默认不可读写）
+- [x] `allowed_commands` 白名单真正生效
+- [x] 危险命令（`rm -rf`, `drop table` 等需二次确认）
+- [x] 文件写入前确认（可配置）
+- [x] 敏感文件保护（`.env`, `id_rsa` 等默认不可读写）
 
 ### 12. 命令行增强
 补充常用 CLI 功能。
 
-- [ ] `neow <prompt>` — 非交互模式，直接执行一次对话
-- [ ] `neow --file <path>` — 指定文件自动加入上下文
-- [ ] `neow --message-file <path>` — 从文件读取 prompt
-- [ ] 支持 pipe 输入：`cat error.log | neow "分析这个错误"`
+- [x] `neow <prompt>` — 非交互模式，直接执行一次对话
+- [x] `neow --file <path>` — 指定文件自动加入上下文
+- [x] `neow --message-file <path>` — 从文件读取 prompt
+- [x] 支持 pipe 输入：`cat error.log | neow "分析这个错误"`
 
 ---
 
@@ -161,5 +161,5 @@ usage 数据已解析但未展示。
 |--------|------|-----------|------|
 | v0.2 | P0 全部（Git + Streaming + 上下文 + 编辑精度） | ~50% | ✅ 已完成 |
 | v0.3 | P1 全部（Context + Architect + Lint + 模型切换） | ~65% | ✅ 已完成 |
-| v0.4 | P2 全部（持久化 + Token + 安全 + CLI 增强） | ~80% | 待开始 |
+| v0.4 | P2 全部（持久化 + Token + 安全 + CLI 增强） | ~80% | ✅ 已完成 |
 | v0.5 | P3 全部（语音 + Web + 本地模型 + 插件） | ~90% | 待开始 |
