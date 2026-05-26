@@ -130,6 +130,7 @@ def print_welcome() -> None:
     console.print("  /load <name> - Load a saved session")
     console.print("  /history   - List saved sessions")
     console.print("  /cost      - Show token usage and cost")
+    console.print("  /web <url> - Fetch web page content into context")
     console.print()
     console.print("[bold]Usage:[/bold]")
     console.print("  Type your message and press Enter to interact with the AI assistant.")

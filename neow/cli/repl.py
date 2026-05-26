@@ -1,5 +1,6 @@
 """REPL (Read-Eval-Print Loop) for Neow CLI."""
 
+import re
 import sys
 from typing import Optional
 
@@ -9,6 +10,7 @@ from prompt_toolkit.history import FileHistory
 from neow.cli.commands import Command, parse_command
 from neow.core.conversation import ConversationManager
 from neow.tools.git import git_diff, git_commit, git_undo, GitError
+from neow.tools.web import WebFetcher
 from neow.utils.formatter import (
     print_welcome,
     print_assistant_message,
@@ -21,6 +23,8 @@ from neow.core.config import Config
 
 class REPL:
     """Interactive REPL for Neow CLI."""
+
+    URL_PATTERN = re.compile(r'https?://[^\s]+')
 
     def __init__(
         self,
@@ -46,6 +50,7 @@ class REPL:
         self.session_manager = session_manager
         self.architect_mode = False
         self.session: Optional[PromptSession] = None
+        self.web_fetcher = WebFetcher(config.web if config else {})
         self._setup_session()
 
     def _setup_session(self) -> None:
@@ -274,6 +279,17 @@ class REPL:
                 print_info(self.token_tracker.get_session_summary())
             else:
                 print_error("Token tracker not available")
+        elif parsed.command == Command.WEB:
+            if not parsed.args:
+                print_error("Usage: /web <url>")
+            else:
+                try:
+                    url = parsed.args.strip()
+                    content = self.web_fetcher.fetch(url)
+                    self.conversation.add_web_content(url, content)
+                    print_info(f"Fetched: {content.title} ({len(content.text)} chars)")
+                except Exception as e:
+                    print_error(f"Failed to fetch URL: {e}")
 
         return False
 
@@ -283,6 +299,18 @@ class REPL:
         Args:
             user_input: User input string.
         """
+        # Auto-detect URLs in input
+        if self.config and self.config.web.get("auto_detect", True):
+            urls = self.URL_PATTERN.findall(user_input)
+            for url in urls:
+                if url not in self.conversation.web_cache:
+                    try:
+                        content = self.web_fetcher.fetch(url)
+                        self.conversation.add_web_content(url, content)
+                        print_info(f"Auto-fetched: {content.title}")
+                    except Exception as e:
+                        logger.warning(f"Auto-fetch failed for {url}: {e}")
+
         try:
             if self.architect_mode:
                 self._process_architect(user_input)

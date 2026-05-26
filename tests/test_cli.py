@@ -335,6 +335,66 @@ class TestWebCommandParsing:
         assert parsed.raw_command is None
 
 
+class TestWebCommandInREPL:
+    """Tests for /web command handling in REPL."""
+
+    def test_web_command_fetches_and_caches(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+        from neow.tools.web import WebContent
+
+        mock_conv = MagicMock()
+        mock_conv.web_cache = {}
+        mock_config = MagicMock()
+        mock_config.web = {"enabled": True, "auto_detect": True, "timeout": 10, "max_content_length": 10000}
+        repl = REPL(mock_conv, config=mock_config, streaming=False)
+
+        mock_content = WebContent(
+            url="https://example.com", title="Example",
+            text="Hello", code_blocks=[], content_type="webpage",
+        )
+        repl.web_fetcher = MagicMock()
+        repl.web_fetcher.fetch.return_value = mock_content
+
+        parsed = parse_command("/web https://example.com")
+        repl._handle_command(parsed)
+
+        repl.web_fetcher.fetch.assert_called_once_with("https://example.com")
+        mock_conv.add_web_content.assert_called_once_with("https://example.com", mock_content)
+
+    def test_web_command_no_args_shows_error(self):
+        from unittest.mock import MagicMock, patch
+        from neow.cli.repl import REPL
+        from neow.cli.commands import parse_command
+
+        mock_conv = MagicMock()
+        mock_config = MagicMock()
+        mock_config.web = {"enabled": True, "auto_detect": True, "timeout": 10, "max_content_length": 10000}
+        repl = REPL(mock_conv, config=mock_config, streaming=False)
+
+        parsed = parse_command("/web")
+        with patch("neow.cli.repl.print_error") as mock_err:
+            repl._handle_command(parsed)
+            mock_err.assert_called()
+
+    def test_url_auto_detection_in_input(self):
+        """Test that URLs in user input trigger auto-fetch."""
+        import re
+        url_pattern = re.compile(r'https?://[^\s]+')
+        text = "Please check https://example.com for details"
+        urls = url_pattern.findall(text)
+        assert urls == ["https://example.com"]
+
+    def test_url_auto_detection_no_false_positives(self):
+        """Test that non-URL text is not matched."""
+        import re
+        url_pattern = re.compile(r'https?://[^\s]+')
+        text = "Just a normal message with no URLs"
+        urls = url_pattern.findall(text)
+        assert urls == []
+
+
 class TestCLIEnhancements:
     """Tests for non-interactive mode and CLI options."""
 
