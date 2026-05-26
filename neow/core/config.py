@@ -68,6 +68,12 @@ class Config:
                 "gpt-4o": {"input": 2.5, "output": 10.0},
             },
         },
+        "web": {
+            "enabled": True,
+            "auto_detect": True,
+            "max_content_length": 10000,
+            "timeout": 10,
+        },
     }
 
     def __init__(self, config_path: Optional[Path] = None):
@@ -177,6 +183,16 @@ class Config:
             "show_usage": True,
             "warn_at_tokens": 100000,
             "prices": {},
+        })
+
+    @property
+    def web(self) -> Dict[str, Any]:
+        """Get web context configuration."""
+        return self._config.get("web", {
+            "enabled": True,
+            "auto_detect": True,
+            "max_content_length": 10000,
+            "timeout": 10,
         })
 
     def resolve_model_alias(self, alias: str) -> str:

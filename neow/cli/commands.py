@@ -26,6 +26,7 @@ class Command(Enum):
     LOAD = "load"
     HISTORY = "history"
     COST = "cost"
+    WEB = "web"
 
 
 @dataclass
@@ -34,6 +35,7 @@ class ParsedCommand:
 
     command: Optional[Command]
     args: Optional[str] = None
+    raw_command: Optional[str] = None
 
 
 def parse_command(user_input: str) -> ParsedCommand:
@@ -73,10 +75,15 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/load": Command.LOAD,
         "/history": Command.HISTORY,
         "/cost": Command.COST,
+        "/web": Command.WEB,
     }
 
     command = command_map.get(command_str)
     if command:
         return ParsedCommand(command=command, args=args)
+
+    # Unknown /command — store raw for plugin dispatch
+    if user_input.startswith("/"):
+        return ParsedCommand(command=None, args=args, raw_command=command_str)
 
     return ParsedCommand(command=None)

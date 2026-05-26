@@ -468,6 +468,20 @@ class TestFormatProjectContext:
         assert "Relevant Files" in result
 
 
+class TestWebConfig:
+    """Tests for web config defaults."""
+
+    def test_web_defaults(self, tmp_path):
+        config_file = tmp_path / "empty.json"
+        config_file.write_text("{}")
+        config = Config(config_file)
+        web_cfg = config.web
+        assert web_cfg["enabled"] is True
+        assert web_cfg["auto_detect"] is True
+        assert web_cfg["max_content_length"] == 10000
+        assert web_cfg["timeout"] == 10
+
+
 class TestIntegration:
     """Integration tests."""
 

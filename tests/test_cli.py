@@ -306,6 +306,35 @@ class TestSessionCommands:
         assert parsed.command == Command.COST
 
 
+class TestWebCommandParsing:
+    """Tests for /web command and raw_command field."""
+
+    def test_parse_web_command(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/web https://example.com")
+        assert parsed.command == Command.WEB
+        assert parsed.args == "https://example.com"
+
+    def test_parse_web_no_args(self):
+        from neow.cli.commands import parse_command, Command
+        parsed = parse_command("/web")
+        assert parsed.command == Command.WEB
+        assert parsed.args is None
+
+    def test_unknown_slash_command_sets_raw_command(self):
+        from neow.cli.commands import parse_command
+        parsed = parse_command("/unknown-cmd some args")
+        assert parsed.command is None
+        assert parsed.raw_command == "/unknown-cmd"
+        assert parsed.args == "some args"
+
+    def test_non_slash_input_raw_command_none(self):
+        from neow.cli.commands import parse_command
+        parsed = parse_command("just text")
+        assert parsed.command is None
+        assert parsed.raw_command is None
+
+
 class TestCLIEnhancements:
     """Tests for non-interactive mode and CLI options."""
 
