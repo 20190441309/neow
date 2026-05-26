@@ -4,10 +4,12 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
 from neow.core.config import Config, ConfigError
+from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor, ToolError
 
 
@@ -98,3 +100,50 @@ class TestToolExecutor:
 
         result = executor.execute("custom", {"param": "test"})
         assert result == "Custom: test"
+
+
+class TestConversationManager:
+    """Tests for ConversationManager."""
+
+    def test_init(self):
+        """Test conversation manager initialization."""
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+        assert len(manager.messages) == 0
+        assert manager.system_prompt == ""
+
+    def test_add_message(self):
+        """Test adding messages."""
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        manager.add_message("user", "Hello")
+        assert len(manager.messages) == 1
+        assert manager.messages[0]["role"] == "user"
+        assert manager.messages[0]["content"] == "Hello"
+
+    def test_clear_history(self):
+        """Test clearing history."""
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        manager.add_message("user", "Hello")
+        manager.add_message("assistant", "Hi")
+        manager.clear_history()
+        assert len(manager.messages) == 0
+
+    def test_get_response(self):
+        """Test getting response."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "Hello!"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        manager = ConversationManager(mock_client)
+        response = manager.get_response("Hello")
+
+        assert response.content == "Hello!"
+        assert len(manager.messages) == 2  # user + assistant
