@@ -1,7 +1,6 @@
 """Plugin system for Neow CLI."""
 
-import importlib
-import sys
+import importlib.util
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Dict, List
@@ -129,16 +128,19 @@ class PluginManager:
         """Load a single plugin package.
 
         Imports the plugin, calls register(api), and records it.
+        Uses importlib.util.spec_from_file_location to avoid sys.path pollution.
         Returns True on success, False on failure.
         """
         plugin_name = plugin_dir.name
+        init_file = plugin_dir / "__init__.py"
         try:
-            # Add parent to sys.path temporarily for import
-            parent = str(plugin_dir.parent)
-            if parent not in sys.path:
-                sys.path.insert(0, parent)
+            spec = importlib.util.spec_from_file_location(plugin_name, init_file)
+            if spec is None or spec.loader is None:
+                logger.warning(f"Cannot load spec for plugin '{plugin_name}'")
+                return False
 
-            module = importlib.import_module(plugin_name)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
 
             if not hasattr(module, "register"):
                 logger.warning(f"Plugin '{plugin_name}' has no register() function, skipping")
@@ -149,5 +151,5 @@ class PluginManager:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load plugin '{plugin_name}': {e}")
+            logger.error(f"Failed to load plugin '{plugin_name}': {e}", exc_info=True)
             return False
