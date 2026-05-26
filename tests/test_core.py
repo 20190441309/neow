@@ -658,3 +658,99 @@ class TestConversationStreaming:
         manager = ConversationManager(mock_client)
         response = manager.get_response("Hi")
         assert response.content == "Hello!"
+
+
+class TestTokenTracker:
+    """Tests for TokenTracker."""
+
+    def test_init(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
+        tracker = TokenTracker(mock_config)
+        assert tracker.session_input == 0
+        assert tracker.session_output == 0
+
+    def test_record_usage(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
+        tracker = TokenTracker(mock_config)
+        tracker.record({"prompt_tokens": 100, "completion_tokens": 50}, "deepseek-chat")
+        assert tracker.session_input == 100
+        assert tracker.session_output == 50
+
+    def test_record_accumulates(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
+        tracker = TokenTracker(mock_config)
+        tracker.record({"prompt_tokens": 100, "completion_tokens": 50}, "deepseek-chat")
+        tracker.record({"prompt_tokens": 200, "completion_tokens": 80}, "deepseek-chat")
+        assert tracker.session_input == 300
+        assert tracker.session_output == 130
+
+    def test_calculate_cost(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
+        tracker = TokenTracker(mock_config)
+        tracker.record({"prompt_tokens": 1000000, "completion_tokens": 1000000}, "deepseek-chat")
+        cost = tracker.get_session_cost()
+        assert abs(cost - 0.42) < 0.01  # 0.14 + 0.28
+
+    def test_format_usage_line(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
+        tracker = TokenTracker(mock_config)
+        line = tracker.format_usage_line({"prompt_tokens": 100, "completion_tokens": 50}, "deepseek-chat")
+        assert "100" in line
+        assert "50" in line
+
+    def test_get_session_summary(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
+        tracker = TokenTracker(mock_config)
+        tracker.record({"prompt_tokens": 1000, "completion_tokens": 500}, "deepseek-chat")
+        summary = tracker.get_session_summary()
+        assert "1,000" in summary or "1000" in summary
+        assert "500" in summary
+
+    def test_unknown_model_cost(self):
+        from unittest.mock import MagicMock
+        from neow.core.token_tracker import TokenTracker
+        mock_config = MagicMock()
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {},
+        }
+        tracker = TokenTracker(mock_config)
+        tracker.record({"prompt_tokens": 100, "completion_tokens": 50}, "unknown-model")
+        cost = tracker.get_session_cost()
+        assert cost == 0.0
