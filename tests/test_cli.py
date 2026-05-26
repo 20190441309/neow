@@ -304,3 +304,18 @@ class TestSessionCommands:
         from neow.cli.commands import parse_command, Command
         parsed = parse_command("/cost")
         assert parsed.command == Command.COST
+
+
+class TestCLIEnhancements:
+    """Tests for non-interactive mode and CLI options."""
+
+    def test_help_shows_options(self):
+        """Test that Click --help shows new options."""
+        from click.testing import CliRunner
+        from neow.cli.main import main
+        runner = CliRunner()
+        result = runner.invoke(main, ["--help"])
+        assert result.exit_code == 0
+        # Should show file and message-file options
+        assert "--file" in result.output or "-f" in result.output
+        assert "--message-file" in result.output

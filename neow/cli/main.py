@@ -74,12 +74,29 @@ def setup_tools(executor: ToolExecutor) -> None:
     executor.register_tool("git_log", git_log)
 
 
-@click.command()
+@click.command(context_settings={"ignore_unknown_options": True})
+@click.argument("prompt", required=False, default=None)
+@click.option("--file", "-f", multiple=True, type=click.Path(exists=True),
+              help="Files to add to context")
+@click.option("--message-file", type=click.Path(exists=True),
+              help="Read prompt from file")
 @click.option("--config", "-c", type=click.Path(exists=True), help="Config file path")
 @click.option("--model", "-m", type=str, help="AI model to use")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
-def main(config: str, model: str, verbose: bool):
+def main(prompt, file, message_file, config, model, verbose):
     """Neow - A lightweight, general-purpose AI CLI assistant."""
+    # Detect pipe input
+    piped_input = ""
+    if not sys.stdin.isatty():
+        piped_input = sys.stdin.read().strip()
+
+    # Merge piped input into prompt
+    if piped_input:
+        if prompt:
+            prompt = f"{piped_input}\n\n{prompt}"
+        else:
+            prompt = piped_input
+
     # Setup logging
     log_level = logging.DEBUG if verbose else logging.INFO
     setup_logger(level=log_level)
@@ -146,6 +163,25 @@ def main(config: str, model: str, verbose: bool):
         # Set system prompt and tools
         conversation.set_system_prompt(get_system_prompt())
         conversation.set_tools(get_tool_definitions())
+
+        # Read message from file if specified
+        if message_file:
+            file_content = Path(message_file).read_text(encoding="utf-8")
+            prompt = f"{file_content}\n\n{prompt}" if prompt else file_content
+
+        # Add --file arguments to context
+        for f in file:
+            conversation.add_context_file(f)
+
+        # Non-interactive mode
+        if prompt:
+            response = conversation.get_response(prompt)
+            if response.content:
+                print(response.content)
+            # Auto-save
+            session_manager = SessionManager(Path.home() / ".neow" / "sessions")
+            session_manager.save(conversation)
+            sys.exit(0)
 
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)
