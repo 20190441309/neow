@@ -107,7 +107,7 @@ def format_user_panel(message: str) -> Panel:
     """
     return Panel(
         message,
-        title="[bold blue]You[/bold blue]",
+        title="[bold blue]>[/bold blue]",
         border_style="blue",
         padding=(0, 1),
     )

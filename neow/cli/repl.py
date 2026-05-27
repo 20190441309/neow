@@ -190,8 +190,8 @@ class REPL:
         """
         try:
             if self.session is None:
-                return input("> ")
-            return self.session.prompt("> ")
+                return input("")
+            return self.session.prompt("")
         except KeyboardInterrupt:
             return ""
         except EOFError:
@@ -442,53 +442,28 @@ class REPL:
             if first_chunk is None:
                 return
 
-            in_reasoning = False
             content_started = False
-
-            def _ensure_reasoning():
-                nonlocal in_reasoning
-                if not in_reasoning:
-                    in_reasoning = True
-                    sys.stdout.write("\033[2m")
-                    sys.stdout.flush()
-
-            def _end_reasoning():
-                nonlocal in_reasoning
-                if in_reasoning:
-                    in_reasoning = False
-                    sys.stdout.write("\033[0m")
-                    sys.stdout.flush()
 
             def _ensure_content_header():
                 nonlocal content_started
                 if not content_started:
                     content_started = True
-                    _end_reasoning()
                     sys.stdout.write("\n\033[1;32mNeow:\033[0m ")
                     sys.stdout.flush()
 
-            # Process first chunk
-            if first_chunk.reasoning_delta:
-                _ensure_reasoning()
-                sys.stdout.write(first_chunk.reasoning_delta)
-                sys.stdout.flush()
+            # Process first chunk (skip reasoning_delta — hidden by design)
             if first_chunk.content_delta:
                 _ensure_content_header()
                 sys.stdout.write(first_chunk.content_delta)
                 sys.stdout.flush()
 
-            # Process remaining chunks
+            # Process remaining chunks (skip reasoning_delta — hidden by design)
             for chunk in stream:
-                if chunk.reasoning_delta:
-                    _ensure_reasoning()
-                    sys.stdout.write(chunk.reasoning_delta)
-                    sys.stdout.flush()
                 if chunk.content_delta:
                     _ensure_content_header()
                     sys.stdout.write(chunk.content_delta)
                     sys.stdout.flush()
 
-            _end_reasoning()
             sys.stdout.write("\n")
             sys.stdout.flush()
         except StopIteration:
