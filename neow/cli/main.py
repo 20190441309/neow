@@ -1,6 +1,13 @@
 """Main entry point for Neow CLI."""
 
 import logging
+import warnings
+
+# Suppress requests/urllib3 version mismatch warning before any imports trigger it
+warnings.filterwarnings(
+    "ignore",
+    message="urllib3 .* or chardet .* doesn't match a supported version",
+)
 import sys
 from pathlib import Path
 
