@@ -21,11 +21,11 @@ Create a `.neow.json` file in your project root or `~/.neow/config.json`:
 
 ```json
 {
-  "default_model": "deepseek-chat",
+  "default_model": "deepseek-v4-flash",
   "models": {
     "deepseek": {
       "api_key": "your-api-key-here",
-      "model": "deepseek-chat"
+      "model": "deepseek-v4-flash"
     }
   }
 }

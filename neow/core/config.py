@@ -29,7 +29,7 @@ class Config:
         "models": {
             "anthropic": {"api_key": "", "model": "claude-sonnet-4-6"},
             "openai": {"api_key": "", "model": "gpt-4o"},
-            "deepseek": {"api_key": "", "model": "deepseek-chat"},
+            "deepseek": {"api_key": "", "model": "deepseek-v4-flash"},
         },
         "tools": {
             "enabled": [
@@ -63,7 +63,7 @@ class Config:
             "show_usage": True,
             "warn_at_tokens": 100000,
             "prices": {
-                "deepseek-chat": {"input": 0.14, "output": 0.28},
+                "deepseek-v4-flash": {"input": 0.14, "output": 0.28},
                 "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
                 "gpt-4o": {"input": 2.5, "output": 10.0},
             },

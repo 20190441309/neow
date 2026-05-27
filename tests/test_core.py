@@ -634,9 +634,9 @@ class TestTokenConfig:
         token_cfg = config.token
         assert token_cfg["show_usage"] is True
         assert token_cfg["warn_at_tokens"] == 100000
-        assert "deepseek-chat" in token_cfg["prices"]
-        assert "input" in token_cfg["prices"]["deepseek-chat"]
-        assert "output" in token_cfg["prices"]["deepseek-chat"]
+        assert "deepseek-v4-flash" in token_cfg["prices"]
+        assert "input" in token_cfg["prices"]["deepseek-v4-flash"]
+        assert "output" in token_cfg["prices"]["deepseek-v4-flash"]
 
 
 class TestConversationStreaming:
