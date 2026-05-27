@@ -141,8 +141,8 @@ usage 数据已解析但未展示。
 ## 已知问题（需修复）
 
 - [x] `ContextManager` 代码已写好但从未接入主流程（已修复：已接入主流程）
-- [ ] `grep_code()` 已定义但未注册为工具
-- [ ] `allowed_commands` 配置已定义但未执行检查
+- [x] `grep_code()` 已定义但未注册为工具（已修复：已注册）
+- [x] `allowed_commands` 配置已定义但未执行检查（已修复：SecurityGuard 已执行检查）
 - [x] `edit_file` 替换所有匹配而非第一个（已修复：新增 first_only 参数）
 - [x] `/model` 命令仅打印消息，未真正切换（已修复：实现真实切换）
 

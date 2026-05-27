@@ -16,7 +16,7 @@ from neow.models.anthropic import AnthropicClient
 from neow.models.openai import OpenAIClient
 from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file
 from neow.tools.command import execute_command
-from neow.tools.search import search_code
+from neow.tools.search import search_code, grep_code
 from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
@@ -69,6 +69,7 @@ def setup_tools(executor: ToolExecutor) -> None:
     executor.register_tool("delete_file", delete_file)
     executor.register_tool("execute_command", execute_command)
     executor.register_tool("search_code", search_code)
+    executor.register_tool("grep_code", grep_code)
     executor.register_tool("git_status", git_status)
     executor.register_tool("git_diff", git_diff)
     executor.register_tool("git_commit", git_commit)
