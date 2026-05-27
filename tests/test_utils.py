@@ -55,57 +55,67 @@ class TestFormatter:
     def test_print_user_message(self, mock_console):
         """Test user message formatting."""
         from neow.utils.formatter import print_user_message
+        from rich.panel import Panel
 
         print_user_message("Hello")
         mock_console.print.assert_called_once()
         args = mock_console.print.call_args[0][0]
-        assert "You:" in args
-        assert "Hello" in args
+        assert isinstance(args, Panel)
 
     @patch("neow.utils.formatter.console")
     def test_print_assistant_message(self, mock_console):
         """Test assistant message formatting."""
         from neow.utils.formatter import print_assistant_message
+        from rich.panel import Panel
 
         print_assistant_message("Hi there")
         mock_console.print.assert_called_once()
         args = mock_console.print.call_args[0][0]
-        assert "Assistant:" in args
-        assert "Hi there" in args
+        assert isinstance(args, Panel)
 
     @patch("neow.utils.formatter.console")
     def test_print_tool_call(self, mock_console):
         """Test tool call formatting."""
         from neow.utils.formatter import print_tool_call
+        from rich.panel import Panel
 
         print_tool_call("search", {"query": "test"})
-        assert mock_console.print.call_count == 2
+        assert mock_console.print.call_count == 1
+        args = mock_console.print.call_args[0][0]
+        assert isinstance(args, Panel)
 
     @patch("neow.utils.formatter.console")
     def test_print_tool_result_success(self, mock_console):
         """Test tool result formatting for success."""
         from neow.utils.formatter import print_tool_result
+        from rich.panel import Panel
 
         print_tool_result("result data")
-        assert mock_console.print.call_count == 2
+        assert mock_console.print.call_count == 1
+        args = mock_console.print.call_args[0][0]
+        assert isinstance(args, Panel)
 
     @patch("neow.utils.formatter.console")
     def test_print_tool_result_error(self, mock_console):
         """Test tool result formatting for error."""
         from neow.utils.formatter import print_tool_result
+        from rich.panel import Panel
 
         print_tool_result("error occurred", is_error=True)
-        assert mock_console.print.call_count == 2
+        assert mock_console.print.call_count == 1
+        args = mock_console.print.call_args[0][0]
+        assert isinstance(args, Panel)
 
     @patch("neow.utils.formatter.console")
     def test_print_error(self, mock_console):
         """Test error message formatting."""
         from neow.utils.formatter import print_error
+        from rich.panel import Panel
 
         print_error("Something went wrong")
         mock_console.print.assert_called_once()
         args = mock_console.print.call_args[0][0]
-        assert "Error:" in args
+        assert isinstance(args, Panel)
 
     @patch("neow.utils.formatter.console")
     def test_print_warning(self, mock_console):

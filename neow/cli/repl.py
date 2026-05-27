@@ -12,10 +12,14 @@ from neow.core.conversation import ConversationManager
 from neow.tools.git import git_diff, git_commit, git_undo, GitError
 from neow.tools.web import WebFetcher
 from neow.utils.formatter import (
+    console,
     print_welcome,
+    print_user_message,
     print_assistant_message,
+    print_diff,
     print_error,
     print_info,
+    print_status_bar,
 )
 from neow.utils.logger import logger
 from neow.core.config import Config
@@ -75,9 +79,42 @@ class REPL:
             logger.warning(f"Failed to setup prompt-toolkit: {e}")
             self.session = None
 
+    def _show_status_bar(self) -> None:
+        """Display status bar with model, token, and cost info."""
+        model_name = getattr(self.conversation.model_client, "model", "unknown")
+        tokens_used = 0
+        tokens_max = 128000
+        cost = 0.0
+        branch = ""
+
+        if self.token_tracker:
+            tokens_used = (
+                self.token_tracker.session_input + self.token_tracker.session_output
+            )
+            cost = self.token_tracker.get_session_cost()
+
+        # Get branch info
+        try:
+            from neow.tools.git import git_status
+
+            status = git_status()
+            if "On branch" in status:
+                branch = status.split("On branch ")[-1].split("\n")[0].strip()
+        except Exception:
+            pass
+
+        print_status_bar(
+            model_name,
+            tokens_used,
+            tokens_max,
+            cost,
+            f"branch:{branch}" if branch else "",
+        )
+
     def start(self) -> None:
         """Start the REPL loop."""
         print_welcome()
+        self._show_status_bar()
         if self.event_bus:
             self.event_bus.emit("session_start", conversation=self.conversation)
 
@@ -86,6 +123,9 @@ class REPL:
                 user_input = self._get_input()
                 if not user_input or not user_input.strip():
                     continue
+
+                # Show user message in panel
+                print_user_message(user_input)
 
                 # Check for commands
                 parsed = parse_command(user_input)
@@ -96,6 +136,9 @@ class REPL:
 
                 # Process with AI
                 self._process_input(user_input)
+
+                # Show status bar after each response
+                self._show_status_bar()
 
             except KeyboardInterrupt:
                 print_info("\nUse /exit to quit")
@@ -167,7 +210,7 @@ class REPL:
             try:
                 diff = git_diff()
                 if diff:
-                    print_info(diff)
+                    print_diff(diff)
                 else:
                     print_info("No uncommitted changes")
             except GitError as e:
@@ -355,22 +398,40 @@ class REPL:
             self._process_input(feedback)
 
     def _process_input_stream(self, user_input: str) -> None:
-        """Process user input with streaming output.
+        """Process user input with streaming output + spinner.
 
         Args:
             user_input: User input string.
         """
         try:
+            stream = self.conversation.get_response_stream(user_input)
+
+            # Show spinner while waiting for first chunk
+            with console.status("[bold green]Thinking...[/bold green]", spinner="dots"):
+                first_chunk = next(stream, None)
+
+            if first_chunk is None:
+                return
+
+            # Print assistant header
             sys.stdout.write("\033[1;32mAssistant:\033[0m ")
             sys.stdout.flush()
 
-            for chunk in self.conversation.get_response_stream(user_input):
+            # Print first chunk
+            if first_chunk.content_delta:
+                sys.stdout.write(first_chunk.content_delta)
+                sys.stdout.flush()
+
+            # Print remaining chunks
+            for chunk in stream:
                 if chunk.content_delta:
                     sys.stdout.write(chunk.content_delta)
                     sys.stdout.flush()
 
             sys.stdout.write("\n")
             sys.stdout.flush()
+        except StopIteration:
+            pass
         except Exception as e:
             sys.stdout.write("\n")
             raise
