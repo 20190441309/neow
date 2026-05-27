@@ -125,7 +125,7 @@ def format_assistant_panel(message: str) -> Panel:
     content = Markdown(message) if _looks_like_markdown(message) else message
     return Panel(
         content,
-        title="[bold green]Assistant[/bold green]",
+        title="[bold green]Neow[/bold green]",
         border_style="green",
         padding=(0, 1),
     )
@@ -359,9 +359,13 @@ def print_info(message: str) -> None:
     console.print(f"[bold cyan]Info:[/bold cyan] {message}")
 
 
-def print_welcome() -> None:
-    """Print welcome message with logo and command table."""
-    print_logo()
+def print_welcome(model: str = "") -> None:
+    """Print welcome message with logo and command table.
+
+    Args:
+        model: Current model name to display in logo line.
+    """
+    print_logo(model=model)
 
     table = Table(
         show_header=True, header_style="bold", box=None, padding=(0, 2)

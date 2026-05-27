@@ -25,6 +25,17 @@ from neow.utils.logger import logger
 from neow.core.config import Config
 
 
+def _format_toolbar_text(
+    model: str, tokens_used: int, cost: float, branch: str
+) -> str:
+    """Format status bar text for prompt_toolkit bottom toolbar."""
+    parts = [f" {model}", f"ctx: {tokens_used:,}", f"cost: ${cost:.4f}"]
+    if branch:
+        parts.append(branch)
+    parts.append("/help")
+    return " | ".join(parts)
+
+
 class REPL:
     """Interactive REPL for Neow CLI."""
 
@@ -64,20 +75,46 @@ class REPL:
         self._setup_session()
 
     def _setup_session(self) -> None:
-        """Setup prompt session with history."""
+        """Setup prompt session with history and bottom status bar."""
         try:
-            # Try to create a simple prompt session without history first
-            # to test if prompt-toolkit works in this terminal
             test_session = PromptSession()
-            # If successful, setup with history
             try:
                 history = FileHistory(".neow_history")
-                self.session = PromptSession(history=history)
+                self.session = PromptSession(
+                    history=history,
+                    bottom_toolbar=self._bottom_toolbar,
+                )
             except Exception:
                 self.session = test_session
         except Exception as e:
             logger.warning(f"Failed to setup prompt-toolkit: {e}")
             self.session = None
+
+    def _bottom_toolbar(self) -> str:
+        """Return status bar text for prompt_toolkit bottom toolbar."""
+        model_name = getattr(self.conversation.model_client, "model", "unknown")
+        tokens_used = 0
+        cost = 0.0
+        branch = ""
+
+        if self.token_tracker:
+            tokens_used = (
+                self.token_tracker.session_input + self.token_tracker.session_output
+            )
+            cost = self.token_tracker.get_session_cost()
+
+        try:
+            from neow.tools.git import git_status
+
+            status = git_status()
+            if "On branch" in status:
+                branch = status.split("On branch ")[-1].split("\n")[0].strip()
+        except Exception:
+            pass
+
+        return _format_toolbar_text(
+            model_name, tokens_used, cost, f"branch:{branch}" if branch else ""
+        )
 
     def _show_status_bar(self) -> None:
         """Display status bar with model, token, and cost info."""
@@ -113,8 +150,8 @@ class REPL:
 
     def start(self) -> None:
         """Start the REPL loop."""
-        print_welcome()
-        self._show_status_bar()
+        model_name = getattr(self.conversation.model_client, "model", "")
+        print_welcome(model=model_name)
         if self.event_bus:
             self.event_bus.emit("session_start", conversation=self.conversation)
 
@@ -137,9 +174,6 @@ class REPL:
                 # Process with AI
                 self._process_input(user_input)
 
-                # Show status bar after each response
-                self._show_status_bar()
-
             except KeyboardInterrupt:
                 print_info("\nUse /exit to quit")
             except EOFError:
@@ -156,8 +190,8 @@ class REPL:
         """
         try:
             if self.session is None:
-                return input("You: ")
-            return self.session.prompt("You: ")
+                return input("> ")
+            return self.session.prompt("> ")
         except KeyboardInterrupt:
             return ""
         except EOFError:
@@ -398,36 +432,63 @@ class REPL:
             self._process_input(feedback)
 
     def _process_input_stream(self, user_input: str) -> None:
-        """Process user input with streaming output + spinner.
-
-        Args:
-            user_input: User input string.
-        """
+        """Process user input with streaming output + spinner."""
         try:
             stream = self.conversation.get_response_stream(user_input)
 
-            # Show spinner while waiting for first chunk
             with console.status("[bold green]Thinking...[/bold green]", spinner="dots"):
                 first_chunk = next(stream, None)
 
             if first_chunk is None:
                 return
 
-            # Print assistant header
-            sys.stdout.write("\033[1;32mAssistant:\033[0m ")
-            sys.stdout.flush()
+            in_reasoning = False
+            content_started = False
 
-            # Print first chunk
+            def _ensure_reasoning():
+                nonlocal in_reasoning
+                if not in_reasoning:
+                    in_reasoning = True
+                    sys.stdout.write("\033[2m")
+                    sys.stdout.flush()
+
+            def _end_reasoning():
+                nonlocal in_reasoning
+                if in_reasoning:
+                    in_reasoning = False
+                    sys.stdout.write("\033[0m")
+                    sys.stdout.flush()
+
+            def _ensure_content_header():
+                nonlocal content_started
+                if not content_started:
+                    content_started = True
+                    _end_reasoning()
+                    sys.stdout.write("\n\033[1;32mNeow:\033[0m ")
+                    sys.stdout.flush()
+
+            # Process first chunk
+            if first_chunk.reasoning_delta:
+                _ensure_reasoning()
+                sys.stdout.write(first_chunk.reasoning_delta)
+                sys.stdout.flush()
             if first_chunk.content_delta:
+                _ensure_content_header()
                 sys.stdout.write(first_chunk.content_delta)
                 sys.stdout.flush()
 
-            # Print remaining chunks
+            # Process remaining chunks
             for chunk in stream:
+                if chunk.reasoning_delta:
+                    _ensure_reasoning()
+                    sys.stdout.write(chunk.reasoning_delta)
+                    sys.stdout.flush()
                 if chunk.content_delta:
+                    _ensure_content_header()
                     sys.stdout.write(chunk.content_delta)
                     sys.stdout.flush()
 
+            _end_reasoning()
             sys.stdout.write("\n")
             sys.stdout.flush()
         except StopIteration:

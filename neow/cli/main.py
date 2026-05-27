@@ -110,7 +110,6 @@ def main(prompt, file, message_file, config, model, verbose):
 
         # Determine model to use
         model_name = model or cfg.default_model
-        print_info(f"Using model: {model_name}")
 
         # Create model client
         model_client = create_model_client(cfg, model_name)

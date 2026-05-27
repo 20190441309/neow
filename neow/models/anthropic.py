@@ -1,11 +1,11 @@
 """Anthropic Claude model client."""
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 import anthropic
 
-from neow.models.base import BaseModelClient, ModelResponse
+from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils.logger import logger
 
 
@@ -98,6 +98,83 @@ class AnthropicClient(BaseModelClient):
             return ModelResponse(content=content, tool_calls=tool_calls, usage=usage)
         except Exception as e:
             logger.error(f"Anthropic API error: {e}")
+            raise
+
+    def chat_stream(
+        self,
+        messages: List[Dict[str, str]],
+        system_prompt: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Generator[StreamChunk, None, None]:
+        """Send streaming chat request to Anthropic.
+
+        Args:
+            messages: List of message dictionaries.
+            system_prompt: Optional system prompt.
+            tools: Optional list of tool definitions.
+
+        Yields:
+            StreamChunk objects.
+        """
+        sanitized_messages = []
+        for msg in messages:
+            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_messages.append(sanitized_msg)
+
+        kwargs = {
+            "model": self.model,
+            "max_tokens": 4096,
+            "messages": sanitized_messages,
+        }
+        if system_prompt:
+            kwargs["system"] = _sanitize_text(system_prompt)
+        if tools:
+            kwargs["tools"] = tools
+
+        try:
+            tool_inputs: Dict[str, Dict] = {}
+
+            with self.client.messages.stream(**kwargs) as stream:
+                for event in stream:
+                    if event.type == "content_block_start":
+                        if event.content_block.type == "tool_use":
+                            tool_inputs[event.content_block.id] = {
+                                "name": event.content_block.name,
+                                "input_buffer": "",
+                            }
+                    elif event.type == "content_block_delta":
+                        if event.delta.type == "text_delta":
+                            yield StreamChunk(content_delta=event.delta.text)
+                        elif event.delta.type == "input_json_delta":
+                            for tid in tool_inputs:
+                                tool_inputs[tid]["input_buffer"] += event.delta.partial_json
+                    elif event.type == "message_stop":
+                        final_tool_calls = []
+                        for tid, tinfo in tool_inputs.items():
+                            final_tool_calls.append({
+                                "id": tid,
+                                "function": {
+                                    "name": tinfo["name"],
+                                    "arguments": tinfo["input_buffer"],
+                                },
+                            })
+                        yield StreamChunk(
+                            finish_reason="tool_use" if final_tool_calls else "end_turn",
+                            tool_call_delta={"tool_calls": final_tool_calls} if final_tool_calls else None,
+                        )
+
+                final_message = stream.get_final_message()
+                if final_message and final_message.usage:
+                    yield StreamChunk(
+                        usage={
+                            "prompt_tokens": final_message.usage.input_tokens,
+                            "completion_tokens": final_message.usage.output_tokens,
+                            "total_tokens": final_message.usage.input_tokens + final_message.usage.output_tokens,
+                        }
+                    )
+
+        except Exception as e:
+            logger.error(f"Anthropic streaming error: {e}")
             raise
 
     def validate_connection(self) -> bool:

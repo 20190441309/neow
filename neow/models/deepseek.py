@@ -151,6 +151,7 @@ class DeepSeekClient(BaseModelClient):
                 # Reasoning content (DeepSeek specific)
                 if hasattr(delta, "reasoning_content") and delta.reasoning_content:
                     reasoning_content += delta.reasoning_content
+                    yield StreamChunk(reasoning_delta=delta.reasoning_content)
 
                 # Tool call deltas
                 if delta.tool_calls:

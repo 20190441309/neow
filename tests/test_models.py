@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from neow.models.base import ModelResponse, BaseModelClient
+from neow.models.base import ModelResponse, BaseModelClient, StreamChunk
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
 from neow.models.openai import OpenAIClient
@@ -431,3 +431,53 @@ class TestOpenAIClient:
 
         client = OpenAIClient(api_key="sk-test", model="gpt-4o")
         assert client.validate_connection() is False
+
+
+class TestStreamChunk:
+    """Tests for StreamChunk dataclass."""
+
+    def test_init_defaults(self):
+        """Test StreamChunk default values."""
+        chunk = StreamChunk()
+        assert chunk.content_delta == ""
+        assert chunk.reasoning_delta == ""
+        assert chunk.tool_call_delta is None
+        assert chunk.finish_reason is None
+        assert chunk.usage is None
+
+    def test_init_with_content(self):
+        """Test StreamChunk with content."""
+        chunk = StreamChunk(content_delta="Hello")
+        assert chunk.content_delta == "Hello"
+
+    def test_init_with_tool_calls(self):
+        """Test StreamChunk with tool calls."""
+        tc = {"tool_calls": [{"id": "1", "function": {"name": "test", "arguments": "{}"}}]}
+        chunk = StreamChunk(tool_call_delta=tc, finish_reason="tool_calls")
+        assert chunk.tool_call_delta == tc
+        assert chunk.finish_reason == "tool_calls"
+
+    def test_init_with_usage(self):
+        """Test StreamChunk with usage."""
+        usage = {"prompt_tokens": 10, "completion_tokens": 20}
+        chunk = StreamChunk(usage=usage)
+        assert chunk.usage == usage
+
+
+class TestBaseModelClientStreaming:
+    """Tests for default chat_stream fallback."""
+
+    def test_default_chat_stream_fallback(self):
+        """Test that default chat_stream wraps chat() as single chunk."""
+        # Create a concrete subclass that doesn't override chat_stream
+        class SimpleClient(BaseModelClient):
+            def chat(self, messages, system_prompt=None, tools=None):
+                return ModelResponse(content="Hello", usage={"total_tokens": 10})
+            def validate_connection(self):
+                return True
+
+        client = SimpleClient(api_key="sk-test", model="test")
+        chunks = list(client.chat_stream([{"role": "user", "content": "Hi"}]))
+        assert len(chunks) == 1
+        assert chunks[0].content_delta == "Hello"
+        assert chunks[0].usage == {"total_tokens": 10}
