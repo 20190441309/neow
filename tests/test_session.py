@@ -24,6 +24,7 @@ class TestSessionManager:
         mock_conv.system_prompt = "You are Neow."
         mock_conv.model_client = MagicMock()
         mock_conv.model_client.model = "deepseek-chat"
+        mock_conv.web_cache = {}
 
         name = manager.save(mock_conv, name="test-session")
         assert name == "test-session"
@@ -40,6 +41,7 @@ class TestSessionManager:
         mock_conv.system_prompt = ""
         mock_conv.model_client = MagicMock()
         mock_conv.model_client.model = "deepseek-chat"
+        mock_conv.web_cache = {}
 
         name = manager.save(mock_conv)
         assert name is not None
@@ -53,6 +55,7 @@ class TestSessionManager:
         mock_conv.system_prompt = "You are Neow."
         mock_conv.model_client = MagicMock()
         mock_conv.model_client.model = "deepseek-chat"
+        mock_conv.web_cache = {}
 
         manager.save(mock_conv, name="test-session")
         data = manager.load("test-session")
@@ -81,6 +84,7 @@ class TestSessionManager:
         mock_conv.system_prompt = ""
         mock_conv.model_client = MagicMock()
         mock_conv.model_client.model = "deepseek-chat"
+        mock_conv.web_cache = {}
 
         manager.save(mock_conv, name="session-1")
         manager.save(mock_conv, name="session-2")
@@ -98,6 +102,7 @@ class TestSessionManager:
         mock_conv.system_prompt = "You are Neow."
         mock_conv.model_client = MagicMock()
         mock_conv.model_client.model = "deepseek-chat"
+        mock_conv.web_cache = {}
 
         manager.save(mock_conv, name="test-session")
 
@@ -106,6 +111,8 @@ class TestSessionManager:
         mock_new_conv.messages = []
         mock_new_conv.context_files = {}
         mock_new_conv.system_prompt = ""
+        mock_new_conv.web_cache = {}
+        mock_new_conv._structure_injected = False
 
         manager.restore("test-session", mock_new_conv)
         assert len(mock_new_conv.messages) == 1

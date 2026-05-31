@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
+from rich.markup import escape
 from rich.panel import Panel
 from rich.align import Align
 from rich.text import Text
@@ -107,7 +108,7 @@ def format_user_panel(message: str) -> Panel:
     """
     return Panel(
         message,
-        title="[bold blue]>[/bold blue]",
+        title="[bold blue]You[/bold blue]",
         border_style="blue",
         padding=(0, 1),
     )
@@ -156,8 +157,8 @@ TOOL_ICONS = {
     "git_diff": "\U0001f4ca",
     "git_commit": "\U0001f4be",
     "git_log": "\U0001f4dc",
+    "hashline_edit": "🔗",
 }
-
 
 def format_tool_call_panel(tool_name: str, parameters: Dict[str, Any]) -> Panel:
     """Format tool call as a compact panel.
@@ -281,6 +282,88 @@ def print_status_bar(
 # (Handled via Rich Status context manager in repl.py)
 
 
+# ── Feature 3b: Approval Panel ──────────────────────────────────────
+
+
+def format_approval_panel(tool_name: str, parameters: Dict[str, Any], reason: str) -> Panel:
+    """Format an approval request as a visually distinct panel.
+
+    Args:
+        tool_name: Name of the tool requiring approval.
+        parameters: Tool parameters dict.
+        reason: Why approval is needed.
+
+    Returns:
+        Rich Panel object.
+    """
+    lines = [f"[bold]{escape(reason)}[/bold]"]
+    if tool_name == "execute_command":
+        lines.append(f"  [dim]Command:[/dim] {escape(str(parameters.get('command', '')))}")
+    elif "file_path" in parameters:
+        lines.append(f"  [dim]File:[/dim] {escape(str(parameters.get('file_path', '')))}")
+        if "content" in parameters:
+            content = str(parameters["content"])
+            preview = content[:80] + "..." if len(content) > 80 else content
+            lines.append(f"  [dim]Content:[/dim] {escape(preview)}")
+        elif "old_text" in parameters:
+            lines.append(f"  [dim]Replace:[/dim] {escape(str(parameters.get('old_text', ''))[:60])}")
+    lines.append("")
+    lines.append("[bold][Y][/bold] 允许   [bold][N][/bold] 拒绝   [dim](单键选择，无需回车)[/dim]")
+    return Panel(
+        "\n".join(lines),
+        title="[bold magenta]⚠ Approval Required[/bold magenta]",
+        border_style="magenta",
+        padding=(0, 1),
+    )
+
+def print_approval_request(tool_name: str, parameters: Dict[str, Any], reason: str) -> None:
+    """Print approval request with panel formatting."""
+    console.print(format_approval_panel(tool_name, parameters, reason))
+
+
+def format_reasoning_dropdown(reasoning: str) -> Panel:
+    """Format reasoning content as a collapsed dropdown panel.
+
+    Shows only a summary header, hinting that /think will expand it.
+
+    Args:
+        reasoning: The full reasoning/thinking text.
+
+    Returns:
+        Rich Panel object.
+    """
+    lines = reasoning.count("\n") + 1
+    chars = len(reasoning)
+
+    summary = (
+        f"[dim]Thought for {lines} lines ({chars:,} chars) · "
+        f"[bold]/think[/bold] to expand[/dim]"
+    )
+    return Panel(
+        summary,
+        title="[bold dim]💭 Thinking[/bold dim]",
+        border_style="dim",
+        padding=(0, 1),
+    )
+
+
+def format_reasoning_expanded(reasoning: str) -> Panel:
+    """Format reasoning content as an expanded panel.
+
+    Args:
+        reasoning: The full reasoning/thinking text.
+
+    Returns:
+        Rich Panel object.
+    """
+    return Panel(
+        reasoning,
+        title="[bold dim]💭 Thinking[/bold dim]",
+        border_style="dim",
+        padding=(0, 1),
+    )
+
+
 # ── Feature 6 & 8: Streaming + Markdown ──────────────────────────
 
 
@@ -341,7 +424,7 @@ def print_error(message: str) -> None:
     """Print error message."""
     console.print(
         Panel(
-            f"[bold red]{message}[/bold red]",
+            f"[bold red]{escape(message)}[/bold red]",
             title="[bold red]Error[/bold red]",
             border_style="red",
             padding=(0, 1),
@@ -351,7 +434,7 @@ def print_error(message: str) -> None:
 
 def print_warning(message: str) -> None:
     """Print warning message."""
-    console.print(f"[bold yellow]Warning:[/bold yellow] {message}")
+    console.print(f"[bold yellow]Warning:[/bold yellow] {escape(message)}")
 
 
 def print_info(message: str) -> None:

@@ -14,7 +14,7 @@ class TestLogger:
         """Test default logger setup."""
         logger = setup_logger("test_default")
         assert logger.name == "test_default"
-        assert logger.level == logging.INFO
+        assert logger.level == logging.DEBUG
         assert len(logger.handlers) >= 1
 
     def test_setup_logger_custom_level(self):

@@ -17,6 +17,7 @@ class TokenTracker:
         self.config = config
         self.session_input: int = 0
         self.session_output: int = 0
+        self._model_usage: Dict[str, Dict[str, int]] = {}
 
     def record(self, usage: Dict[str, int], model: str) -> None:
         """Record token usage from a single API response.
@@ -29,24 +30,31 @@ class TokenTracker:
         output_tokens = usage.get("completion_tokens", 0) or 0
         self.session_input += input_tokens
         self.session_output += output_tokens
+
+        if model not in self._model_usage:
+            self._model_usage[model] = {"input": 0, "output": 0}
+        self._model_usage[model]["input"] += input_tokens
+        self._model_usage[model]["output"] += output_tokens
+
         logger.debug(f"Token usage: {input_tokens} in / {output_tokens} out ({model})")
 
     def get_session_cost(self) -> float:
-        """Calculate total session cost in USD.
+        """Calculate total session cost in USD using per-model token counts.
 
         Returns:
             Cost in dollars.
         """
         prices = self.config.token.get("prices", {})
         total = 0.0
-        for model_name, model_prices in prices.items():
-            input_cost = (self.session_input / 1_000_000) * model_prices.get("input", 0)
-            output_cost = (self.session_output / 1_000_000) * model_prices.get("output", 0)
+        for model_name, model_usage in self._model_usage.items():
+            model_prices = prices.get(model_name, {})
+            input_cost = (model_usage["input"] / 1_000_000) * model_prices.get("input", 0)
+            output_cost = (model_usage["output"] / 1_000_000) * model_prices.get("output", 0)
             total += input_cost + output_cost
         return total
 
     def get_cost_for_model(self, model: str) -> float:
-        """Calculate cost using a specific model's prices.
+        """Calculate cost for a specific model using its per-model token counts.
 
         Args:
             model: Model name.
@@ -58,8 +66,9 @@ class TokenTracker:
         model_prices = prices.get(model, {})
         if not model_prices:
             return 0.0
-        input_cost = (self.session_input / 1_000_000) * model_prices.get("input", 0)
-        output_cost = (self.session_output / 1_000_000) * model_prices.get("output", 0)
+        usage = self._model_usage.get(model, {"input": 0, "output": 0})
+        input_cost = (usage["input"] / 1_000_000) * model_prices.get("input", 0)
+        output_cost = (usage["output"] / 1_000_000) * model_prices.get("output", 0)
         return input_cost + output_cost
 
     def format_usage_line(self, usage: Dict[str, int], model: str) -> str:
@@ -74,12 +83,7 @@ class TokenTracker:
         """
         input_t = usage.get("prompt_tokens", 0) or 0
         output_t = usage.get("completion_tokens", 0) or 0
-        prices = self.config.token.get("prices", {})
-        model_prices = prices.get(model, {})
-        cost = 0.0
-        if model_prices:
-            cost = (input_t / 1_000_000) * model_prices.get("input", 0) + \
-                   (output_t / 1_000_000) * model_prices.get("output", 0)
+        cost = self.get_cost_for_model(model)
         return f"(tokens: {input_t:,} in / {output_t:,} out | ${cost:.4f})"
 
     def get_session_summary(self) -> str:
@@ -97,6 +101,12 @@ class TokenTracker:
             f"  Total:  {total:,} tokens",
             f"  Cost:   ${cost:.4f}",
         ]
+        if len(self._model_usage) > 1:
+            lines.append("  Per-model breakdown:")
+            for model, mu in self._model_usage.items():
+                model_total = mu["input"] + mu["output"]
+                model_cost = self.get_cost_for_model(model)
+                lines.append(f"    {model}: {model_total:,} tokens (${model_cost:.4f})")
         return "\n".join(lines)
 
     def check_warn_threshold(self) -> str:
@@ -109,3 +119,14 @@ class TokenTracker:
         if warn_at and (self.session_input + self.session_output) > warn_at:
             return f"Token usage ({self.session_input + self.session_output:,}) exceeds warning threshold ({warn_at:,})"
         return ""
+
+    def check_max_tokens(self) -> bool:
+        """Check if session usage exceeds hard token limit.
+
+        Returns:
+            True if exceeded, False otherwise.
+        """
+        max_tokens = self.config.token.get("max_tokens", 0)
+        if max_tokens and (self.session_input + self.session_output) >= max_tokens:
+            return True
+        return False

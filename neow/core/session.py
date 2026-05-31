@@ -19,6 +19,7 @@ class SessionManager:
         """
         self.sessions_dir = Path(sessions_dir)
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
+        self._session_tree = None  # lazy init
 
     def save(self, conversation: Any, name: Optional[str] = None) -> str:
         """Save current conversation to a JSON file.
@@ -39,6 +40,7 @@ class SessionManager:
             "model": getattr(conversation.model_client, "model", "unknown"),
             "messages": conversation.messages,
             "context_files": conversation.context_files,
+            "web_cache": conversation.web_cache,
             "system_prompt": conversation.system_prompt,
         }
 
@@ -82,7 +84,23 @@ class SessionManager:
         conversation.messages.extend(data.get("messages", []))
         conversation.context_files.clear()
         conversation.context_files.update(data.get("context_files", {}))
+        conversation.web_cache.clear()
+        # Restore web cache — WebContent is a simple dataclass, reconstruct from dict
+        for url, wc_data in data.get("web_cache", {}).items():
+            if isinstance(wc_data, dict) and "url" in wc_data:
+                from neow.tools.web import WebContent
+                conversation.web_cache[url] = WebContent(
+                    url=wc_data.get("url", url),
+                    title=wc_data.get("title", ""),
+                    text=wc_data.get("text", ""),
+                    code_blocks=[tuple(b) for b in wc_data.get("code_blocks", [])],
+                    content_type=wc_data.get("content_type", "webpage"),
+                )
+            elif hasattr(wc_data, 'url'):
+                # Already a WebContent object (shouldn't happen from JSON but be safe)
+                conversation.web_cache[url] = wc_data
         conversation.system_prompt = data.get("system_prompt", "")
+        conversation._structure_injected = False
         logger.info(f"Session restored: {name}")
         return True
 
@@ -108,6 +126,46 @@ class SessionManager:
         sessions.sort(key=lambda s: s["created_at"], reverse=True)
         return sessions
 
+    def export_markdown(self, conversation: Any, name: Optional[str] = None) -> str:
+        """Export conversation as Markdown file.
+
+        Args:
+            conversation: ConversationManager instance.
+            name: Optional filename (without extension).
+
+        Returns:
+            Path to the exported file.
+        """
+        if not name:
+            name = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        model = getattr(conversation.model_client, "model", "unknown")
+        lines = [
+            f"# Neow Session: {name}",
+            f"",
+            f"**Model:** {model}",
+            f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"",
+            f"---",
+            f"",
+        ]
+
+        for msg in conversation.messages:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            if not content:
+                continue
+            if role == "user":
+                lines.append(f"## User\n\n{content}\n")
+            elif role == "assistant":
+                lines.append(f"## Assistant\n\n{content}\n")
+
+        md_content = "\n".join(lines)
+        export_path = self.sessions_dir / f"{name}.md"
+        export_path.write_text(md_content, encoding="utf-8")
+        logger.info(f"Session exported: {export_path}")
+        return str(export_path)
+
     def _find_session(self, name: str) -> Optional[Path]:
         """Find a session file by exact or fuzzy name match.
 
@@ -125,4 +183,19 @@ class SessionManager:
             if name in file_path.stem:
                 return file_path
 
+        return None
+
+    @property
+    def session_tree(self):
+        """Lazily initialized SessionTree instance."""
+        if self._session_tree is None:
+            from neow.core.session_tree import SessionTree
+            self._session_tree = SessionTree(self.sessions_dir)
+        return self._session_tree
+
+    def load_tree(self, name: str):
+        """Return SessionTree for a session, or None."""
+        path = self.session_tree.find_session(name)
+        if path:
+            return self.session_tree
         return None

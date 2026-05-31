@@ -1,9 +1,11 @@
 """System prompts for Neow CLI."""
-
+import platform
 import subprocess
-
 # Main system prompt
-SYSTEM_PROMPT = """You are Neow, a lightweight AI coding assistant running in the user's terminal.
+SYSTEM_PROMPT = f"""You are Neow, a lightweight AI coding assistant running in the user's terminal.
+**Platform**: {platform.system()} ({platform.machine()})
+**Shell**: Use {"PowerShell/CMD syntax" if platform.system() == "Windows" else "bash syntax"} for commands.
+{"**IMPORTANT**: Do NOT use Unix-only commands like `head`, `tail`, `grep`, `find`, `xargs`, `wc`, `sed`, `awk`. Use PowerShell equivalents or the available tools (read_file, search_code) instead." if platform.system() == "Windows" else ""}
 
 Your role is to help users with software engineering tasks:
 - Read, write, and edit code files
@@ -100,6 +102,12 @@ Stage all changes and commit with a message.
 Show recent git commit history.
 - Parameters: `count` (integer, optional, default 10) - Number of commits to show
 
+### hashline_edit
+Edit a file using hash-anchored line ranges. Safer than edit_file because it detects if the file was modified since it was last read.
+- Parameters: `file_path` (string), `expected_hash` (string), `edits` (string - JSON array)
+- Each edit: `{"start_line": int, "end_line": int, "new_content": str, "insert_before": bool, "insert_after": bool}`
+- Edits are applied from bottom to top so line numbers stay valid
+- The `expected_hash` comes from the `¶PATH#HASH` annotation returned by read_file
 ## Tool Usage Guidelines
 
 1. **Read before write**: Always read a file before modifying it to understand its current state
@@ -465,6 +473,39 @@ def get_tool_definitions() -> list:
                             "description": "Number of commits to show (default: 10)",
                         },
                     },
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "hashline_edit",
+                "description": (
+                    "Edit a file using hash-anchored line ranges. Safer than edit_file because "
+                    "it detects if the file was modified since it was last read. "
+                    "Edits are applied from bottom to top. Format: ¶PATH#HASH."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "file_path": {
+                            "type": "string",
+                            "description": "Path to the file to edit",
+                        },
+                        "expected_hash": {
+                            "type": "string",
+                            "description": "Expected content hash (8-char hex from ¶PATH#HASH). Fails if file changed.",
+                        },
+                        "edits": {
+                            "type": "string",
+                            "description": (
+                                "JSON array of edit operations. Each: "
+                                '{"start_line": int, "end_line": int, "new_content": str, '
+                                '"insert_before": bool, "insert_after": bool}'
+                            ),
+                        },
+                    },
+                    "required": ["file_path", "expected_hash", "edits"],
                 },
             },
         },

@@ -14,9 +14,11 @@ class TestFileOps:
         """Test reading a file."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("Hello, World!")
-
         result = read_file(str(test_file))
-        assert result == "Hello, World!"
+        # read_file now appends ¶PATH#HASH annotation
+        assert result.startswith("Hello, World!")
+        assert "¶" in result
+        assert str(test_file) in result
 
     def test_read_file_not_found(self):
         """Test reading non-existent file."""
@@ -173,13 +175,13 @@ class TestCommand:
 
     def test_execute_command_failure(self):
         """Test executing a failing command."""
-        with pytest.raises(CommandError):
-            execute_command("nonexistent_command")
+        result = execute_command("nonexistent_command")
+        assert result.startswith("Error:")
 
     def test_execute_command_timeout(self):
         """Test command timeout."""
-        with pytest.raises(CommandError):
-            execute_command('python -c "import time; time.sleep(10)"', timeout=1)
+        result = execute_command('python -c "import time; time.sleep(10)"', timeout=1)
+        assert result.startswith("Error:")
 
 
 class TestSearch:

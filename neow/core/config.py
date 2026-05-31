@@ -43,6 +43,10 @@ class Config:
             ],
             "allowed_commands": ["ls", "cat", "grep", "find", "python", "npm"],
         },
+        "approval": {
+            "mode": "write",
+            "overrides": {},
+        },
         "git": {
             "auto_commit": True,
         },
@@ -62,6 +66,7 @@ class Config:
         "token": {
             "show_usage": True,
             "warn_at_tokens": 100000,
+            "max_tokens": 500000,
             "prices": {
                 "deepseek-v4-flash": {"input": 0.14, "output": 0.28},
                 "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
@@ -116,7 +121,12 @@ class Config:
             raise ConfigError(f"Invalid config file: {e}")
 
     def _merge_config(self, base: Dict[str, Any], override: Dict[str, Any]) -> None:
-        """Merge override config into base config."""
+        """Merge override config into base config.
+
+        Only overrides keys that are explicitly provided in *override*.
+        Nested dicts are merged recursively so that providing a partial
+        sub-dict (e.g. only one model's api_key) preserves other siblings.
+        """
         for key, value in override.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
                 self._merge_config(base[key], value)
@@ -182,6 +192,7 @@ class Config:
         return self._config.get("token", {
             "show_usage": True,
             "warn_at_tokens": 100000,
+            "max_tokens": 500000,
             "prices": {},
         })
 
@@ -193,6 +204,14 @@ class Config:
             "auto_detect": True,
             "max_content_length": 10000,
             "timeout": 10,
+        })
+
+    @property
+    def approval(self) -> Dict[str, Any]:
+        """Get approval mode configuration."""
+        return self._config.get("approval", {
+            "mode": "write",
+            "overrides": {},
         })
 
     def resolve_model_alias(self, alias: str) -> str:

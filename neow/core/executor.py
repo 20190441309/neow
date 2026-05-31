@@ -4,7 +4,8 @@ from typing import Any, Callable, Dict, List, Optional
 
 from neow.utils.logger import logger
 
-FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file"}
+FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file", "hashline_edit"}
+APPROVAL_REQUIRED_TOOLS = {"write_file", "edit_file", "create_file", "delete_file", "hashline_edit", "execute_command"}
 
 
 class ToolError(Exception):
@@ -22,6 +23,8 @@ class ToolExecutor:
         self.on_file_change: Optional[Callable[[str, str], None]] = None
         self.security_guard: Optional[Any] = None
         self.allowed_commands: List[str] = []
+        self.approval_policy: Optional[Any] = None  # ApprovalPolicy
+        self.approval_callback: Optional[Callable[[str, Dict[str, Any], str], bool]] = None
         self._register_default_tools()
 
     def _register_default_tools(self) -> None:
@@ -62,6 +65,12 @@ class ToolExecutor:
         self.register_tool("delete_file", delete_file)
         self.register_tool("execute_command", execute_command)
         self.register_tool("search_code", search_code)
+
+        def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
+            """Hashline-anchored edit. Stub implementation."""
+            raise NotImplementedError("hashline_edit not yet implemented")
+
+        self.register_tool("hashline_edit", hashline_edit)
 
     def register_tool(self, name: str, func: Callable) -> None:
         """Register a tool.
@@ -105,6 +114,23 @@ class ToolExecutor:
                 if not check.allowed:
                     raise ToolError(f"Security: {check.reason}")
 
+        # Approval gate
+        if self.approval_policy:
+            is_dangerous = False
+            if self.security_guard and tool_name == "execute_command":
+                is_dangerous = self.security_guard.is_dangerous(parameters.get("command", ""))
+            approval = self.approval_policy.check_approval(
+                tool_name, parameters, is_dangerous=is_dangerous,
+            )
+            if approval.needs_approval:
+                if self.approval_callback:
+                    approved = self.approval_callback(tool_name, parameters, approval.reason)
+                    if not approved:
+                        raise ToolError(f"User denied: {tool_name}")
+                else:
+                    # No callback available (non-interactive or misconfigured) -- deny
+                    raise ToolError(f"Approval required but no callback: {approval.reason}")
+
         try:
             result = self.tools[tool_name](**parameters)
             logger.debug(f"Tool '{tool_name}' executed successfully")
@@ -120,7 +146,7 @@ class ToolExecutor:
 
             return str(result)
         except Exception as e:
-            logger.error(f"Tool '{tool_name}' execution failed: {e}")
+            logger.debug(f"Tool '{tool_name}' execution failed: {e}")
             raise ToolError(f"Tool execution failed: {e}")
 
     def get_tool_definitions(self) -> list:
@@ -129,5 +155,5 @@ class ToolExecutor:
         Returns:
             List of tool definitions.
         """
-        # This will be implemented when we add specific tools
-        return []
+        from neow.core.prompts import get_tool_definitions
+        return get_tool_definitions()

@@ -82,3 +82,14 @@ class TestSecurityGuard:
         guard = SecurityGuard()
         check = guard.check_file_access("main.py", "write")
         assert check.allowed is True
+
+    def test_empty_allowlist_permits_safe_commands(self):
+        guard = SecurityGuard()
+        check = guard.check_command("ls -la", [])
+        assert check.allowed is True
+
+    def test_empty_allowlist_still_blocks_dangerous(self):
+        guard = SecurityGuard()
+        check = guard.check_command("rm -rf /", [])
+        assert check.allowed is False
+        assert "dangerous" in check.reason.lower()

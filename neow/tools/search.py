@@ -37,9 +37,13 @@ def search_code(
 
         results = []
         pattern = re.compile(query, re.IGNORECASE)
+        SKIP_DIRS = {'.git', '__pycache__', 'node_modules', '.svn', '.hg', 'venv', '.venv', 'env', '.tox', 'dist', 'build', '.eggs', '.mypy_cache'}
 
         for file_path in search_dir.rglob(file_pattern):
             if not file_path.is_file():
+                continue
+            # Skip unwanted directories
+            if any(part in SKIP_DIRS for part in file_path.parts):
                 continue
 
             try:
@@ -69,19 +73,3 @@ def search_code(
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise SearchError(f"Search failed: {e}")
-
-
-def grep_code(
-    pattern: str, directory: str, file_pattern: str = "*"
-) -> List[Dict[str, str]]:
-    """Search for code using grep-like syntax.
-
-    Args:
-        pattern: Search pattern.
-        directory: Directory to search in.
-        file_pattern: File pattern to match.
-
-    Returns:
-        List of search results.
-    """
-    return search_code(pattern, directory, file_pattern)

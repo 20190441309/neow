@@ -123,6 +123,7 @@ class ArchitectOrchestrator:
                     model_client=self.executor_client,
                     tools=self._get_tool_definitions(),
                     task_description=task_desc,
+                    tool_executor=self.tool_executor,
                 )
                 future = executor.submit(agent.execute, f"{task_desc}\n{context}".strip())
                 future_to_task[future] = task_desc

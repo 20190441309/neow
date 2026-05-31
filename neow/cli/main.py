@@ -21,9 +21,9 @@ from neow.core.prompts import get_system_prompt, get_tool_definitions
 from neow.models.deepseek import DeepSeekClient
 from neow.models.anthropic import AnthropicClient
 from neow.models.openai import OpenAIClient
-from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file
+from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file, hashline_edit as hashline_edit_tool
 from neow.tools.command import execute_command
-from neow.tools.search import search_code, grep_code
+from neow.tools.search import search_code
 from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
@@ -76,11 +76,11 @@ def setup_tools(executor: ToolExecutor) -> None:
     executor.register_tool("delete_file", delete_file)
     executor.register_tool("execute_command", execute_command)
     executor.register_tool("search_code", search_code)
-    executor.register_tool("grep_code", grep_code)
     executor.register_tool("git_status", git_status)
     executor.register_tool("git_diff", git_diff)
     executor.register_tool("git_commit", git_commit)
     executor.register_tool("git_log", git_log)
+    executor.register_tool("hashline_edit", hashline_edit_tool)
 
 
 @click.command(context_settings={"ignore_unknown_options": True})
@@ -133,6 +133,27 @@ def main(prompt, file, message_file, config, model, verbose):
         # Wire security guard
         executor.security_guard = SecurityGuard()
         executor.allowed_commands = cfg.tools.get("allowed_commands", [])
+        # Wire approval policy
+        from neow.core.approval import ApprovalMode, ApprovalPolicy
+        approval_cfg = cfg.approval
+        approval_policy = ApprovalPolicy(
+            mode=ApprovalMode(approval_cfg.get("mode", "write")),
+            tool_overrides=approval_cfg.get("overrides", {}),
+        )
+        executor.approval_policy = approval_policy
+
+
+        # Setup conversation manager (must be created before on_file_change callback)
+        token_tracker = TokenTracker(cfg)
+        conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
+
+        # Initialize plugin system (must be created before on_file_change callback)
+        event_bus = EventBus()
+        plugin_api = PluginAPI(executor, event_bus)
+        plugin_manager = PluginManager(Path.home() / ".neow" / "plugins", plugin_api)
+        loaded_plugins = plugin_manager.discover_and_load()
+        if loaded_plugins:
+            print_info(f"Loaded plugins: {', '.join(loaded_plugins)}")
 
         # Wire git auto-commit callback
         if cfg.git.get("auto_commit", True):
@@ -146,8 +167,7 @@ def main(prompt, file, message_file, config, model, verbose):
                 # Auto-lint
                 if cfg.lint_test.get("auto_lint"):
                     from neow.tools.lint_test import run_lint
-                    from pathlib import Path as P
-                    lint_result = run_lint(P.cwd())
+                    lint_result = run_lint(Path.cwd())
                     if not lint_result.success:
                         conversation.pending_lint_feedback = (
                             f"Lint errors after editing {file_path}:\n{lint_result.output}"
@@ -156,18 +176,15 @@ def main(prompt, file, message_file, config, model, verbose):
                 # Auto-test
                 if cfg.lint_test.get("auto_test"):
                     from neow.tools.lint_test import run_tests
-                    from pathlib import Path as P
-                    test_result = run_tests(P.cwd())
+                    test_result = run_tests(Path.cwd())
                     if not test_result.success:
+                        existing = conversation.pending_lint_feedback or ""
                         conversation.pending_lint_feedback = (
-                            f"Test failures after editing {file_path}:\n{test_result.output}"
-                        )
+                            f"{existing}\nTest failures after editing {file_path}:\n{test_result.output}"
+                        ).strip()
 
             executor.on_file_change = _on_file_change
 
-        # Setup conversation manager
-        token_tracker = TokenTracker(cfg)
-        conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
 
         # Set system prompt and tools
         conversation.set_system_prompt(get_system_prompt())
@@ -196,17 +213,11 @@ def main(prompt, file, message_file, config, model, verbose):
         streaming_enabled = cfg.streaming.get("enabled", True)
         session_manager = SessionManager(Path.home() / ".neow" / "sessions")
 
-        # Initialize plugin system
-        event_bus = EventBus()
-        plugin_api = PluginAPI(executor, event_bus)
-        plugin_manager = PluginManager(Path.home() / ".neow" / "plugins", plugin_api)
-        loaded_plugins = plugin_manager.discover_and_load()
-        if loaded_plugins:
-            print_info(f"Loaded plugins: {', '.join(loaded_plugins)}")
-
         repl = REPL(conversation, config=cfg, streaming=streaming_enabled,
                     token_tracker=token_tracker, session_manager=session_manager,
                     plugin_api=plugin_api, event_bus=event_bus)
+        repl.approval_policy = approval_policy
+        executor.approval_callback = repl.prompt_user_approval
         repl.start()
 
     except Exception as e:

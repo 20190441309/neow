@@ -1,11 +1,11 @@
 """Tests for UI formatter functions."""
-
 from neow.utils.formatter import (
     make_logo,
     format_user_panel,
     format_assistant_panel,
     format_tool_call_panel,
     format_tool_result_panel,
+    format_approval_panel,
     format_diff,
     render_markdown,
     create_status_bar,
@@ -129,6 +129,44 @@ class TestToolResultPanel:
         output = buf.getvalue()
         # Truncated to 500 chars
         assert len(long_result) > 500
+
+
+class TestApprovalPanel:
+    def test_format_approval_panel_basic(self):
+        from rich.panel import Panel
+        result = format_approval_panel("write_file", {"file_path": "test.py"}, "Write operation")
+        assert isinstance(result, Panel)
+
+    def test_format_approval_panel_execute_command(self):
+        from rich.panel import Panel
+        result = format_approval_panel("execute_command", {"command": "rm -rf /"}, "Dangerous command")
+        assert isinstance(result, Panel)
+        from rich.console import Console
+        import io
+        buf = io.StringIO()
+        console = Console(file=buf, force_terminal=True, width=80)
+        console.print(result)
+        output = buf.getvalue()
+        assert "rm -rf /" in output
+
+    def test_format_approval_panel_file_with_content(self):
+        from rich.panel import Panel
+        long_content = "x" * 200
+        result = format_approval_panel("write_file", {"file_path": "a.py", "content": long_content}, "Write operation")
+        assert isinstance(result, Panel)
+        from rich.console import Console
+        import io
+        buf = io.StringIO()
+        console = Console(file=buf, force_terminal=True, width=80)
+        console.print(result)
+        output = buf.getvalue()
+        assert "a.py" in output
+        assert "..." in output  # long content truncated
+
+    def test_format_approval_panel_edit_with_old_text(self):
+        from rich.panel import Panel
+        result = format_approval_panel("edit_file", {"file_path": "b.py", "old_text": "def foo():"}, "Edit operation")
+        assert isinstance(result, Panel)
 
 
 class TestDiffFormatting:

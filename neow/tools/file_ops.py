@@ -3,8 +3,9 @@
 from pathlib import Path
 from typing import Optional
 
-from neow.utils.logger import logger
 
+from neow.utils.logger import logger
+from neow.tools.hashline_edit import compute_hash, format_hashline
 
 class FileError(Exception):
     """File operation error."""
@@ -30,8 +31,9 @@ def read_file(file_path: str) -> str:
             raise FileError(f"File not found: {file_path}")
 
         content = path.read_text(encoding="utf-8")
+        content_hash = compute_hash(content)
         logger.debug(f"Read file: {file_path}")
-        return content
+        return content + "\n" + format_hashline(file_path, content_hash)
     except FileError:
         raise
     except Exception as e:
@@ -199,3 +201,49 @@ def delete_file(file_path: str) -> str:
     except Exception as e:
         logger.error(f"Failed to delete file {file_path}: {e}")
         raise FileError(f"Failed to delete file: {e}")
+
+def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
+    """Perform hashline-anchored file edits.
+
+    Args:
+        file_path: Path to the file.
+        expected_hash: Expected hash of file content (8-char hex).
+        edits: JSON string of edit operations. Each edit is:
+            {"start_line": int, "end_line": int, "new_content": str,
+             "insert_before": bool, "insert_after": bool}
+
+    Returns:
+        Result message with new file hash.
+    """
+    import json
+    from neow.tools.hashline_edit import (
+        SnapshotStore, apply_batch_edits, HashlineEditError, stale_anchor_recovery
+    )
+
+    try:
+        edit_list = json.loads(edits)
+    except json.JSONDecodeError as e:
+        raise FileError(f"Invalid edits JSON: {e}")
+
+    store = SnapshotStore()
+    snapshot = store.snapshot(file_path)
+
+    if snapshot.hash != expected_hash:
+        # Attempt stale recovery for each edit
+        for edit in edit_list:
+            recovered, msg = stale_anchor_recovery(
+                file_path, expected_hash,
+                edit.get("start_line", 1), edit.get("end_line", edit.get("start_line", 1)),
+                edit.get("old_content_hint", "")
+            )
+            if not recovered:
+                raise FileError(
+                    f"Stale anchor: file has been modified since reading (expected {expected_hash}, "
+                    f"got {snapshot.hash}). {msg}"
+                )
+
+    try:
+        result_msg, _snapshots = apply_batch_edits(file_path, edit_list)
+        return result_msg
+    except HashlineEditError as e:
+        raise FileError(str(e))

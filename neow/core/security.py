@@ -53,16 +53,16 @@ class SecurityGuard:
         """
         base_cmd = command.strip().split()[0] if command.strip() else ""
 
-        if allowed_commands and base_cmd not in allowed_commands:
-            return SecurityCheck(
-                allowed=False,
-                reason=f"Command '{base_cmd}' not in whitelist: {allowed_commands}",
-            )
-
         if self.is_dangerous(command):
             return SecurityCheck(
                 allowed=False,
                 reason=f"Dangerous command detected: {command}",
+            )
+
+        if allowed_commands and base_cmd not in allowed_commands:
+            return SecurityCheck(
+                allowed=False,
+                reason=f"Command '{base_cmd}' not in whitelist: {allowed_commands}",
             )
 
         return SecurityCheck(allowed=True, reason="")

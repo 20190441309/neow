@@ -27,8 +27,13 @@ class Command(Enum):
     HISTORY = "history"
     COST = "cost"
     WEB = "web"
-
-
+    THINK = "think"
+    COMPACT = "compact"
+    EXPORT = "export"
+    IMAGE = "image"
+    APPROVAL = "approval"
+    TREE = "tree"
+    BRANCH = "branch"
 @dataclass
 class ParsedCommand:
     """Parsed command result."""
@@ -76,11 +81,17 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/history": Command.HISTORY,
         "/cost": Command.COST,
         "/web": Command.WEB,
+        "/think": Command.THINK,
+        "/compact": Command.COMPACT,
+        "/export": Command.EXPORT,
+        "/image": Command.IMAGE,
+        "/approval": Command.APPROVAL,
+        "/tree": Command.TREE,
+        "/branch": Command.BRANCH,
     }
 
     command = command_map.get(command_str)
     if command:
         return ParsedCommand(command=command, args=args)
 
-    # Unknown /command — store raw for plugin dispatch
     return ParsedCommand(command=None, args=args, raw_command=command_str)

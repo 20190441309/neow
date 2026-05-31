@@ -40,6 +40,11 @@ class StreamChunk:
     tool_call_delta: Optional[Dict[str, Any]] = None
     finish_reason: Optional[str] = None
     usage: Optional[Dict[str, int]] = None
+    progress: Optional[Dict[str, Any]] = None
+    """Progress notification during streaming.
+    Set when this chunk represents a progress update (not model output).
+    Types: 'tool_start', 'tool_end', 'reasoning_start', 'reasoning_end'.
+    """
 
 
 class BaseModelClient(ABC):

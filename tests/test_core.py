@@ -567,6 +567,36 @@ class TestSubAgent:
         agent1.execute("do something")
         assert len(agent2.conversation.messages) == 0
 
+    def test_subagent_yolo_approval(self):
+        """SubAgent should use yolo approval mode, not inherit from parent."""
+        from unittest.mock import MagicMock
+        from neow.core.sub_agent import SubAgent
+        from neow.core.executor import ToolExecutor
+        from neow.core.approval import ApprovalMode, ApprovalPolicy
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.content = "done"
+        mock_response.has_tool_calls = False
+        mock_response.tool_calls = []
+        mock_response.usage = {"total_tokens": 10}
+        mock_client.chat.return_value = mock_response
+
+        # Main executor with always-ask mode
+        main_executor = ToolExecutor()
+        main_executor.approval_policy = ApprovalPolicy(mode=ApprovalMode.ALWAYS_ASK)
+        main_executor.approval_callback = lambda *a: False  # would deny everything
+
+        agent = SubAgent(mock_client, tools=[], task_description="test", tool_executor=main_executor)
+
+        # The agent's executor should be in yolo mode
+        agent_executor = agent.conversation.tool_executor
+        assert agent_executor is not main_executor  # separate executor
+        assert agent_executor.approval_policy.mode == ApprovalMode.YOLO
+        assert agent_executor.approval_callback is None
+
+        # Main executor should still be always-ask
+        assert main_executor.approval_policy.mode == ApprovalMode.ALWAYS_ASK
 
 class TestArchitectOrchestrator:
     def test_orchestrator_init(self):
@@ -898,3 +928,146 @@ class TestWebCache:
         manager.set_system_prompt("You are Neow.")
         prompt = manager._get_effective_system_prompt()
         assert "Web Content" not in prompt
+
+
+class TestCompactIncremental:
+    """Tests for incremental compaction (Compaction V2)."""
+
+    def _make_manager_with_messages(self, msg_count=10, msg_len=500):
+        """Create a ConversationManager with mock client and N messages."""
+        mock_client = MagicMock()
+        mock_client.chat.return_value = MagicMock(
+            content="Summary of earlier conversation.",
+            has_tool_calls=False,
+            usage={"prompt_tokens": 100, "completion_tokens": 20},
+        )
+        manager = ConversationManager(mock_client)
+        for i in range(msg_count):
+            manager.messages.append({
+                "role": "user" if i % 2 == 0 else "assistant",
+                "content": "x" * msg_len + f" message {i}",
+            })
+        return manager
+
+    def test_too_few_messages(self):
+        manager = ConversationManager(MagicMock())
+        manager.messages.append({"role": "user", "content": "hi"})
+        manager.messages.append({"role": "assistant", "content": "hello"})
+        result = manager.compact_incremental()
+        assert "Too few" in result
+
+    def test_all_fits_within_keep_tokens(self):
+        """If all messages fit within keep_recent_tokens, nothing is compacted."""
+        # 4 messages * 50 chars = 200 chars = ~50 tokens -- well within 4000
+        manager = self._make_manager_with_messages(msg_count=4, msg_len=50)
+        result = manager.compact_incremental(keep_recent_tokens=4000)
+        assert "fits within" in result.lower() or "Too few" in result
+
+    def test_incremental_compact_preserves_recent(self):
+        """Old messages are summarized, recent ones are preserved intact."""
+        # 10 messages * 500 chars = 5000 chars = ~1250 tokens
+        # With keep_recent_tokens=200 (800 chars), recent ~1-2 messages preserved
+        manager = self._make_manager_with_messages(msg_count=10, msg_len=500)
+        result = manager.compact_incremental(keep_recent_tokens=200)
+
+        # Should have called chat for summarization
+        manager.model_client.chat.assert_called_once()
+
+        # Recent messages should be preserved at the end
+        # The last user message should still be in messages
+        last_user_msg = None
+        for msg in manager.messages:
+            if msg.get("role") == "user" and "message 8" in msg.get("content", ""):
+                last_user_msg = msg
+        # If keep_recent_tokens is small enough, the very last messages survive
+
+        # Summary pair should be present at the start of messages
+        assert manager.messages[0]["role"] == "user"
+        assert "compacted" in manager.messages[0]["content"].lower()
+        assert manager.messages[1]["role"] == "assistant"
+        assert len(manager.messages) > 2  # summary + at least 1 preserved
+
+    def test_compact_full_still_works(self):
+        """Original compact() should still work."""
+        manager = self._make_manager_with_messages(msg_count=6, msg_len=200)
+        manager.model_client.chat.return_value = MagicMock(
+            content="Summary.",
+            has_tool_calls=False,
+            usage={"prompt_tokens": 50, "completion_tokens": 10},
+        )
+        result = manager.compact()
+        assert "Compacted" in result
+        assert len(manager.messages) == 2  # summary pair only
+
+    def test_compact_incremental_keeps_more_messages(self):
+        """Incremental compact should keep more messages than full compact."""
+        manager_full = self._make_manager_with_messages(msg_count=8, msg_len=300)
+        manager_incr = self._make_manager_with_messages(msg_count=8, msg_len=300)
+
+        manager_full.model_client.chat.return_value = MagicMock(
+            content="Summary.",
+            has_tool_calls=False,
+            usage={"prompt_tokens": 50, "completion_tokens": 10},
+        )
+        manager_incr.model_client.chat.return_value = MagicMock(
+            content="Summary.",
+            has_tool_calls=False,
+            usage={"prompt_tokens": 50, "completion_tokens": 10},
+        )
+
+        manager_full.compact()
+        manager_incr.compact_incremental(keep_recent_tokens=800)
+
+        # Incremental should preserve more messages than full
+        assert len(manager_incr.messages) > len(manager_full.messages)
+
+    def test_split_turn_preservation(self):
+        """Compact should not split in the middle of a tool-call turn."""
+        mock_client = MagicMock()
+        mock_client.chat.return_value = MagicMock(
+            content="Summary of old context.",
+            has_tool_calls=False,
+            usage={"prompt_tokens": 100, "completion_tokens": 20},
+        )
+        manager = ConversationManager(mock_client)
+
+        # Build messages with tool calls in the middle
+        manager.messages.append({"role": "user", "content": "x" * 1000})  # 0: old
+        manager.messages.append({"role": "assistant", "content": "", "tool_calls": [  # 1: tool call
+            {"id": "tc1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}
+        ]})
+        manager.messages.append({"role": "tool", "content": "file content", "tool_call_id": "tc1"})  # 2: tool result
+        manager.messages.append({"role": "assistant", "content": "x" * 1000 + " recent"})  # 3: recent
+
+        # With keep_recent_tokens=200 (~800 chars), the split would land around index 2
+        # The tool result (role=tool) should push split back to include index 0
+        result = manager.compact_incremental(keep_recent_tokens=200)
+
+        # If compaction happened, tool results should not be orphaned
+        for i, msg in enumerate(manager.messages):
+            if msg.get("role") == "tool":
+                # Every tool result must have a preceding assistant with tool_calls
+                has_preceding_call = False
+                for j in range(i - 1, -1, -1):
+                    if manager.messages[j].get("role") == "assistant" and manager.messages[j].get("tool_calls"):
+                        has_preceding_call = True
+                        break
+                assert has_preceding_call, f"Tool result at index {i} has no preceding tool_calls"
+
+    def test_compact_with_handoff(self):
+        """Handoff compact should reset the conversation and return a summary."""
+        mock_client = MagicMock()
+        mock_client.chat.return_value = MagicMock(
+            content="## Handoff Summary\n- Fixed bug in auth.py\n- TODO: add tests",
+            has_tool_calls=False,
+            usage={"prompt_tokens": 100, "completion_tokens": 30},
+        )
+        manager = ConversationManager(mock_client)
+        manager.messages.append({"role": "user", "content": "Fix the auth bug"})
+        manager.messages.append({"role": "assistant", "content": "I fixed it in auth.py"})
+
+        handoff = manager.compact_with_handoff()
+
+        assert "Handoff" in handoff or "auth" in handoff.lower()
+        assert len(manager.messages) == 0  # conversation fully reset
+        mock_client.chat.assert_called_once()

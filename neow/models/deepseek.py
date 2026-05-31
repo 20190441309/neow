@@ -5,12 +5,8 @@ from typing import Any, Dict, Generator, List, Optional
 import openai
 
 from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
+from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
-
-
-def _sanitize_text(text: str) -> str:
-    """Remove surrogate characters that cause encoding errors."""
-    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
 
 
 class DeepSeekClient(BaseModelClient):
@@ -148,10 +144,15 @@ class DeepSeekClient(BaseModelClient):
                 if delta.content:
                     yield StreamChunk(content_delta=delta.content)
 
-                # Reasoning content (DeepSeek specific)
+                # Reasoning content (DeepSeek specific — may be in model_extra or as attr)
+                rc = None
                 if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    reasoning_content += delta.reasoning_content
-                    yield StreamChunk(reasoning_delta=delta.reasoning_content)
+                    rc = delta.reasoning_content
+                elif hasattr(delta, "model_extra") and isinstance(delta.model_extra, dict):
+                    rc = delta.model_extra.get("reasoning_content")
+                if rc:
+                    reasoning_content += rc
+                    yield StreamChunk(reasoning_delta=rc)
 
                 # Tool call deltas
                 if delta.tool_calls:

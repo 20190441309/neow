@@ -72,3 +72,11 @@ venv.bak/
 # Neow specific
 ~/.neow/
 .neow.json
+.neow_history
+.claude/
+
+# Third-party code (not part of this project)
+aider/
+
+# Development planning docs (internal)
+docs/superpowers/

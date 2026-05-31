@@ -5,12 +5,8 @@ from typing import Any, Dict, Generator, List, Optional
 import openai
 
 from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
+from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
-
-
-def _sanitize_text(text: str) -> str:
-    """Remove surrogate characters that cause encoding errors."""
-    return text.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
 
 
 class OpenAIClient(BaseModelClient):

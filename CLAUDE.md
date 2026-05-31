@@ -16,7 +16,7 @@ Aider 的灵魂功能，也是 Neow 最大的短板。
 - [x] 自动 commit — 每次文件编辑后自动创建原子提交
 - [x] `/undo` — 回退上一次 AI 的commit
 - [x] 分支感知 — 了解当前分支，在 system prompt 中注入分支信息
-- [ ] Repo Map — 用 tree-sitter 生成项目结构摘要，注入上下文（P1）
+- [ ] ~~Repo Map — 用 tree-sitter 生成项目结构摘要，注入上下文~~ **暂缓：tree-sitter 依赖在 Windows 兼容性差，当前 ContextManager + search/grep 工具已够用，等有大型 monorepo 需求再做**
 
 ### 2. Streaming 流式输出 ✅
 当前响应是等全部生成完才显示，体验差。
@@ -55,8 +55,8 @@ Aider 的灵魂功能，也是 Neow 最大的短板。
 - [x] 在 `main.py` 中初始化 ContextManager
 - [x] 会话开始时自动注入项目结构摘要
 - [x] 用户提问时自动匹配相关文件
-- [ ] 引入 tree-sitter 做 AST 级别的代码理解
-- [ ] 生成 Repo Map（函数/类/方法索引）
+- [ ] ~~引入 tree-sitter 做 AST 级别的代码理解~~ **暂缓**（同上）
+- [ ] ~~生成 Repo Map（函数/类/方法索引）~~ **暂缓**（同上）
 
 ### 6. Architect 模式 ✅
 规划与执行分离，复杂任务效果更好。
@@ -145,6 +145,15 @@ usage 数据已解析但未展示。
 - [x] `allowed_commands` 配置已定义但未执行检查（已修复：SecurityGuard 已执行检查）
 - [x] `edit_file` 替换所有匹配而非第一个（已修复：新增 first_only 参数）
 - [x] `/model` 命令仅打印消息，未真正切换（已修复：实现真实切换）
+- [x] `event_bus`/`conversation` 在闭包中引用但创建在回调之后（已修复：重排 main.py 初始化顺序）
+- [x] 非交互模式跳过 plugin/event_bus 初始化（已修复：plugin 系统移至统一初始化区）
+- [x] `pending_lint_feedback` 重复赋值 + auto_lint/auto_test 反馈互相覆盖（已修复：累加合并）
+- [x] `ToolExecutor.get_tool_definitions()` 永远返回空列表（已修复：委托给 prompts.get_tool_definitions）
+- [x] DeepSeek `_last_reasoning_content` 泄漏到消息历史（已修复：不再注入 reasoning_content 到 API 消息）
+- [x] Session restore 不恢复 `web_cache`（已修复：保存/恢复 web_cache + 重置 _structure_injected）
+- [x] `compact()` 未防止 summarizer 返回 tool_calls（已修复：添加 guard + warning）
+- [x] `search_code` 未排除 `.git`/`__pycache__`/`node_modules`（已修复：SKIP_DIRS 过滤）
+- [x] `_sanitize_text` 在 4 个文件中重复定义（已修复：提取到 `neow.utils.sanitize_text`）
 
 ---
 
@@ -156,3 +165,47 @@ usage 数据已解析但未展示。
 | v0.3 | P1 全部（Context + Architect + Lint + 模型切换） | ~65% | ✅ 已完成 |
 | v0.4 | P2 全部（持久化 + Token + 安全 + CLI 增强） | ~80% | ✅ 已完成 |
 | v0.5 | P3 全部（Web + 插件） | ~90% | ✅ 已完成 |
+| v0.6 | P4 全部（Approval Mode + Compaction v2 + Session Tree + Hashline Edit） | ~95% | ✅ 已完成 |
+
+---
+
+## P4 - 借鉴 OhMyPi 的核心能力（v0.6）
+
+### 15. Approval Mode ✅
+对标 OhMyPi 的工具审批系统，让用户精确控制 AI 的自动执行边界。
+
+- [x] 三级模式：`always-ask`（每次确认）、`write`（写入需确认）、`yolo`（全自动）
+- [x] 工具声明 approval tier（read/write/exec）
+- [x] 用户按工具名覆盖策略（`tools.approval.<tool>: allow|deny|prompt`）
+- [x] 危险操作强制 prompt（`rm -rf`、`git push --force` 等）
+- [x] `/approval` REPL 命令：查看/切换模式
+- [x] SubAgent 自动使用 yolo 模式（独立 executor + yolo policy）
+
+### 16. Compaction v2 ✅
+升级 `/compact` 为增量式、自动触发的上下文管理。
+
+- [x] 保留最近 N tokens 消息，只总结旧消息（`compact_incremental`）
+- [x] 自动触发：80% token 阈值触发 auto-compact
+- [x] `/compact --keep-tokens N` 命令
+- [x] `/compact incremental` 命令
+- [x] idle 维护：空闲 >30s 且 token >50% 时自动 compact
+- [x] split-turn 处理：不完整 tool-call turn 的上下文保留
+- [x] Handoff 策略：`/compact handoff` 生成交接摘要并重置会话
+
+### 17. Session Tree ✅
+从线性 session 升级为树形，支持分支/导航/回退。
+
+- [x] JSONL append-only 格式（替代 JSON 全量写入）
+- [x] `id`/`parentId` 树结构 + `leafId` 指针
+- [x] `/tree` 命令：可视化导航到任意历史节点
+- [x] `/branch` 命令：从任意用户消息分叉新 session
+- [x] Branch summary：放弃分支时自动生成摘要
+
+### 18. Hashline Edit ✅
+基于文件哈希锚定的精确编辑，防止过时编辑。
+
+- [x] `¶PATH#HASH` 格式的编辑指令
+- [x] 行号锚定编辑（insert before/after, replace, delete）
+- [x] Stale-anchor recovery：文件变更后自动恢复
+- [x] 多文件批量编辑
+- [x] BOM 和行尾风格保留
