@@ -128,6 +128,8 @@ class DeepSeekClient(BaseModelClient):
         kwargs = {"model": self.model, "messages": full_messages, "stream": True}
         if tools:
             kwargs["tools"] = tools
+        # Request usage stats in the final stream chunk so token tracking works.
+        kwargs["stream_options"] = {"include_usage": True}
 
         try:
             response = self.client.chat.completions.create(**kwargs)
@@ -135,6 +137,16 @@ class DeepSeekClient(BaseModelClient):
             reasoning_content = ""
 
             for chunk in response:
+                # The final chunk (with usage) may have an empty choices list.
+                if chunk.usage:
+                    yield StreamChunk(
+                        usage={
+                            "prompt_tokens": chunk.usage.prompt_tokens,
+                            "completion_tokens": chunk.usage.completion_tokens,
+                            "total_tokens": chunk.usage.total_tokens,
+                        }
+                    )
+
                 if not chunk.choices:
                     continue
                 choice = chunk.choices[0]

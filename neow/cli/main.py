@@ -27,10 +27,59 @@ from neow.tools.search import search_code
 from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
-from neow.utils.formatter import print_error, print_info
+from neow.utils.formatter import print_error, print_info, console
 from neow.core.token_tracker import TokenTracker
 from neow.core.session import SessionManager
 from neow.core.plugin import EventBus, PluginAPI, PluginManager
+import threading
+import time
+
+
+def _run_non_interactive(conversation, prompt):
+    """Run a one-shot prompt in non-interactive mode with a TTY-aware spinner.
+
+    When stdout is a TTY, wraps the blocking model call in a Rich ``status``
+    spinner that ticks elapsed seconds so the user can tell the process is
+    alive.  When stdout is piped (e.g. ``neow "x" | grep``), runs silently to
+    keep the pipe clean.
+
+    Args:
+        conversation: ConversationManager instance.
+        prompt: User prompt string.
+
+    Returns:
+        The assistant's response content (may be empty).
+    """
+    if not sys.stdout.isatty():
+        # Piped output: stay silent during the call, print content only.
+        response = conversation.get_response(prompt)
+        return response.content or ""
+
+    # TTY: show a spinner with elapsed seconds.
+    status = console.status("[dim]Thinking...[/dim]", spinner="dots")
+    elapsed = [0]
+    stop_flag = threading.Event()
+
+    def _tick():
+        while not stop_flag.wait(1.0):
+            elapsed[0] += 1
+            try:
+                status.update(f"[dim]Thinking... ({elapsed[0]}s)[/dim]")
+            except Exception:
+                pass
+
+    status.start()
+    ticker = threading.Thread(target=_tick, daemon=True)
+    ticker.start()
+    try:
+        response = conversation.get_response(prompt)
+    finally:
+        stop_flag.set()
+        try:
+            status.stop()
+        except Exception:
+            pass
+    return response.content or ""
 
 
 def create_model_client(config: Config, model_name: str):
@@ -201,9 +250,9 @@ def main(prompt, file, message_file, config, model, verbose):
 
         # Non-interactive mode
         if prompt:
-            response = conversation.get_response(prompt)
-            if response.content:
-                print(response.content)
+            content = _run_non_interactive(conversation, prompt)
+            if content:
+                print(content)
             # Auto-save
             session_manager = SessionManager(Path.home() / ".neow" / "sessions")
             session_manager.save(conversation)

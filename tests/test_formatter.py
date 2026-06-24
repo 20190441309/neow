@@ -10,6 +10,7 @@ from neow.utils.formatter import (
     render_markdown,
     create_status_bar,
     _looks_like_markdown,
+    NEOW_THEME,
 )
 
 
@@ -43,7 +44,7 @@ class TestUserPanel:
         from rich.console import Console
         import io
         buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True, width=80)
+        console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
         output = buf.getvalue()
         assert "test message" in output
@@ -72,7 +73,7 @@ class TestToolCallPanel:
         from rich.console import Console
         import io
         buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True, width=80)
+        console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
         output = buf.getvalue()
         assert "read_file" in output
@@ -96,7 +97,7 @@ class TestToolCallPanel:
         from rich.console import Console
         import io
         buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True, width=80)
+        console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
         output = buf.getvalue()
         assert "..." in output
@@ -124,7 +125,7 @@ class TestToolResultPanel:
         from rich.console import Console
         import io
         buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True, width=80)
+        console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
         output = buf.getvalue()
         # Truncated to 500 chars
@@ -144,7 +145,7 @@ class TestApprovalPanel:
         from rich.console import Console
         import io
         buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True, width=80)
+        console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
         output = buf.getvalue()
         assert "rm -rf /" in output
@@ -157,7 +158,7 @@ class TestApprovalPanel:
         from rich.console import Console
         import io
         buf = io.StringIO()
-        console = Console(file=buf, force_terminal=True, width=80)
+        console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
         output = buf.getvalue()
         assert "a.py" in output

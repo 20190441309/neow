@@ -34,6 +34,7 @@ class Command(Enum):
     APPROVAL = "approval"
     TREE = "tree"
     BRANCH = "branch"
+    VERBOSE = "verbose"
 @dataclass
 class ParsedCommand:
     """Parsed command result."""
@@ -88,6 +89,7 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/approval": Command.APPROVAL,
         "/tree": Command.TREE,
         "/branch": Command.BRANCH,
+        "/verbose": Command.VERBOSE,
     }
 
     command = command_map.get(command_str)

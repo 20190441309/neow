@@ -10,8 +10,6 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.history import FileHistory
 
-from rich.panel import Panel
-
 from neow.cli.commands import Command, parse_command
 from neow.core.conversation import ConversationManager
 from neow.tools.git import git_diff, git_commit, git_undo, GitError
@@ -21,16 +19,25 @@ from neow.utils.formatter import (
     print_welcome,
     print_user_message,
     print_assistant_message,
+    format_assistant_panel,
+    format_streaming_assistant_panel,
     print_diff,
     print_error,
     print_info,
     print_status_bar,
     print_tool_call,
     print_tool_result,
+    print_turn_separator,
     format_reasoning_dropdown,
 )
 from neow.utils.logger import logger
 from neow.core.config import Config
+
+
+def _now_ts() -> str:
+    """Return current local time as ``HH:MM:SS`` for panel subtitles."""
+    from datetime import datetime
+    return datetime.now().strftime("%H:%M:%S")
 
 
 # ── built-in command descriptions for tab completion ──────────────────────
@@ -62,6 +69,7 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/approval":  "Show or set approval mode (always-ask/write/yolo)",
     "/tree":      "Visualize session tree and navigate to history nodes",
     "/branch":    "Branch from a specific message in history",
+    "/verbose":   "Toggle expanded tool-call parameter display",
 }
 
 def _expand_path(prefix: str) -> Path:
@@ -233,6 +241,8 @@ class REPL:
         self._session_name: Optional[str] = None
         self._idle_compact_done = False  # prevent repeated idle compacts
         self._stream_status = None  # Rich Status spinner, set during streaming
+        self._msg_counter = 0  # 1-based sequence number for user/assistant panels
+        self.verbose_tools = False  # /verbose toggle: expand tool call parameters
         self._setup_session()
 
     def _setup_session(self) -> None:
@@ -282,28 +292,42 @@ class REPL:
                     pass
 
     def _read_approval_key(self) -> bool:
-        """Read a single Y/N keystroke for approval.
+        """Read an approval decision with arrow-key navigation.
 
-        Uses msvcrt on Windows or tty/termios on Unix for instant
-        single-key response (no Enter required).  Falls back to
-        prompt_toolkit or plain input() if low-level APIs fail.
+        Renders a two-option selector (``[Y] 允许`` / ``[N] 拒绝``) and lets
+        the user move between them with Up/Down/Left/Right, confirming with
+        Enter.  Y/N still work as single-key shortcuts; Esc/Ctrl+C deny.
+
+        Falls back through three layers:
+          1. ``prompt_toolkit.Application`` with key bindings (cross-platform,
+             supports arrow keys) — primary path.
+          2. Platform-native single-key read (``msvcrt``/``termios``) when
+             prompt_toolkit is unavailable — Y/N only, no arrow keys.
+          3. Plain ``input()`` — last resort.
         """
         import sys
 
-        # ── Try platform-native single-key read ─────────────────────
+        # ── Layer 1: prompt_toolkit Application with arrow-key nav ──
+        if self.session is not None:
+            try:
+                return self._read_approval_prompt_toolkit()
+            except Exception as e:
+                logger.debug(f"prompt_toolkit approval selector failed: {e}")
+
+        # ── Layer 2: platform-native single-key read (Y/N only) ───────
         try:
             if sys.platform == "win32":
                 import msvcrt
                 while True:
                     ch = msvcrt.getwch()
                     if ch in ("y", "Y"):
-                        console.print("[bold green]  ✓ Allowed[/bold green]")
+                        console.print("[sev.success]  ✓ Allowed[/sev.success]")
                         return True
                     if ch in ("n", "N", "\r", "\n"):
-                        console.print("[bold red]  ✗ Denied[/bold red]")
+                        console.print("[sev.error]  ✗ Denied[/sev.error]")
                         return False
                     if ch in ("\x03", "\x1b"):  # Ctrl+C, Esc
-                        console.print("[bold red]  ✗ Denied[/bold red]")
+                        console.print("[sev.error]  ✗ Denied[/sev.error]")
                         return False
             else:
                 import tty, termios
@@ -330,40 +354,112 @@ class REPL:
         except Exception:
             pass
 
-        # ── Fallback: prompt_toolkit prompt ──────────────────────────
-        if self.session is not None:
-            try:
-                from prompt_toolkit.key_binding import KeyBindings
-
-                kb = KeyBindings()
-                result = [False]
-
-                @kb.add("y")
-                @kb.add("Y")
-                def _allow(event):
-                    result[0] = True
-                    event.app.exit(result="y")
-
-                @kb.add("n")
-                @kb.add("N")
-                @kb.add("enter")
-                @kb.add("escape")
-                @kb.add("c-c")
-                def _deny(event):
-                    result[0] = False
-                    event.app.exit(result="n")
-
-                self.session.prompt(
-                    "  [Y] 允许 / [N] 拒绝 > ",
-                    key_bindings=kb,
-                )
-                return result[0]
-            except Exception:
-                pass
-
-        # ── Ultimate fallback: plain input ───────────────────────────
+        # ── Layer 3: plain input() ──────────────────────────────────
         response = input("  [Y] 允许 / [N] 拒绝 > ").strip().lower()
         return response in ("y", "yes")
+
+    def _read_approval_prompt_toolkit(self) -> bool:
+        """Render the arrow-key approval selector via prompt_toolkit.
+
+        Two options (``允许`` default-selected, ``拒绝``) with full key bindings:
+        Up/Down/Left/Right move, Enter confirms, Y/N are single-key shortcuts,
+        Esc/Ctrl+C deny.
+
+        Returns:
+            True if the user approved, False if denied.
+        """
+        from prompt_toolkit import Application
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.layout import Layout, HSplit, Window, FormattedTextControl
+        from prompt_toolkit.formatted_text import FormattedText
+
+        # State: 0 = allow (default), 1 = deny
+        state = {"selected": 0, "result": None}
+
+        def _options_fragment():
+            """Build the formatted text for the two options with the
+            currently-selected one highlighted."""
+            sel = state["selected"]
+            allow_style = "reverse" if sel == 0 else ""
+            deny_style = "reverse" if sel == 1 else ""
+            return FormattedText([
+                ("", "  "),
+                (allow_style, " [Y] 允许 "),
+                ("", "   "),
+                (deny_style, " [N] 拒绝 "),
+                ("", "\n\n"),
+                ("", "  ↑/↓/←/→ 切换 · Enter 确认 · Esc 拒绝"),
+            ])
+
+        control = FormattedTextControl(text=_options_fragment)
+        body = HSplit([Window(content=control, height=3)])
+
+        kb = KeyBindings()
+
+        def _move(direction: int) -> None:
+            """Toggle between 0 (allow) and 1 (deny)."""
+            state["selected"] = (state["selected"] + direction) % 2
+
+        def _confirm(event) -> None:
+            state["result"] = state["selected"] == 0
+            event.app.exit()
+
+        def _deny(event) -> None:
+            state["result"] = False
+            event.app.exit()
+
+        def _allow(event) -> None:
+            state["result"] = True
+            event.app.exit()
+
+        # Arrow keys — all four directions work; Left maps to allow, Right to deny.
+        @kb.add("up")
+        @kb.add("left")
+        def _up(event):
+            _move(-1)
+
+        @kb.add("down")
+        @kb.add("right")
+        def _down(event):
+            _move(1)
+
+        @kb.add("enter")
+        def _enter(event):
+            _confirm(event)
+
+        @kb.add("y")
+        @kb.add("Y")
+        def _y(event):
+            _allow(event)
+
+        @kb.add("n")
+        @kb.add("N")
+        def _n(event):
+            _deny(event)
+
+        @kb.add("escape")
+        @kb.add("c-c")
+        def _esc(event):
+            _deny(event)
+
+        app = Application(
+            layout=Layout(body),
+            key_bindings=kb,
+            full_screen=False,
+            style={
+                "reverse": "reverse",
+            },
+        )
+        app.run()
+
+        result = state["result"]
+        if result is None:
+            return False
+        if result:
+            console.print("[sev.success]  ✓ Allowed[/sev.success]")
+        else:
+            console.print("[sev.error]  ✗ Denied[/sev.error]")
+        return result
 
     def _bottom_toolbar(self) -> str:
         """Return status bar text for prompt_toolkit bottom toolbar."""
@@ -423,10 +519,27 @@ class REPL:
             f"branch:{branch}" if branch else "",
         )
 
+    def _get_recent_sessions(self, limit: int = 3) -> list:
+        """Return up to ``limit`` most recent saved sessions for the welcome page.
+
+        Returns an empty list if no session manager is wired or listing fails.
+        """
+        if not self.session_manager:
+            return []
+        try:
+            sessions = self.session_manager.list_sessions()
+            return sessions[:limit]
+        except Exception as e:
+            logger.debug(f"Failed to list recent sessions: {e}")
+            return []
+
     def start(self) -> None:
         """Start the REPL loop."""
         model_name = getattr(self.conversation.model_client, "model", "")
-        print_welcome(model=model_name)
+        print_welcome(
+            model=model_name,
+            recent_sessions=self._get_recent_sessions(),
+        )
         if self.event_bus:
             self.event_bus.emit("session_start", conversation=self.conversation)
 
@@ -439,7 +552,16 @@ class REPL:
                 # Clear the raw input line and re-render as panel
                 sys.stdout.write("\033[A\033[2K\r")
                 sys.stdout.flush()
-                print_user_message("> " + user_input)
+                # Separate conversation turns with a thin dim rule.
+                if self._msg_counter > 0:
+                    print_turn_separator()
+                self._msg_counter += 1
+                user_num = self._msg_counter
+                print_user_message(
+                    "> " + user_input,
+                    msg_num=user_num,
+                    timestamp=_now_ts(),
+                )
 
                 # Check for commands
                 parsed = parse_command(user_input)
@@ -510,9 +632,13 @@ class REPL:
             True if should exit, False otherwise.
         """
         if parsed.command == Command.HELP:
-            print_welcome()
+            print_welcome(
+                model=getattr(self.conversation.model_client, "model", ""),
+                recent_sessions=self._get_recent_sessions(),
+            )
         elif parsed.command == Command.CLEAR:
             self.conversation.clear_history()
+            self._msg_counter = 0
             print_info("Conversation history cleared")
         elif parsed.command == Command.EXIT:
             if self.event_bus:
@@ -545,10 +671,12 @@ class REPL:
                 print_info("Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai")
         elif parsed.command == Command.DIFF:
             try:
-                staged = parsed.args and "staged" in parsed.args.lower()
+                args_lower = parsed.args.lower() if parsed.args else ""
+                staged = "staged" in args_lower
+                split = "split" in args_lower or "side" in args_lower
                 diff = git_diff(staged=staged)
                 if diff:
-                    print_diff(diff)
+                    print_diff(diff, split=split)
                 else:
                     label = "staged" if staged else "uncommitted"
                     print_info(f"No {label} changes")
@@ -711,12 +839,8 @@ class REPL:
 
         elif parsed.command == Command.THINK:
             if self._last_reasoning:
-                console.print(Panel(
-                    self._last_reasoning,
-                    title="[bold dim]Thinking[/bold dim]",
-                    border_style="dim",
-                    padding=(0, 1),
-                ))
+                from neow.utils.formatter import format_reasoning_expanded
+                console.print(format_reasoning_expanded(self._last_reasoning))
             else:
                 print_info("No thinking content available. Reasoning is captured during AI responses that use thinking mode.")
         elif parsed.command == Command.COMPACT:
@@ -789,6 +913,10 @@ class REPL:
             self._handle_tree(parsed)
         elif parsed.command == Command.BRANCH:
             self._handle_branch(parsed)
+        elif parsed.command == Command.VERBOSE:
+            self.verbose_tools = not self.verbose_tools
+            state = "expanded (all parameters shown)" if self.verbose_tools else "collapsed (one-line summary)"
+            print_info(f"Tool call display: {state}")
         if parsed.command is None and parsed.raw_command:
             if self.plugin_api and parsed.raw_command in self.plugin_api.plugin_commands:
                 self.plugin_api.plugin_commands[parsed.raw_command](parsed.args)
@@ -934,7 +1062,12 @@ class REPL:
             else:
                 response = self.conversation.get_response(user_input)
                 if response.content:
-                    print_assistant_message(response.content)
+                    self._msg_counter += 1
+                    print_assistant_message(
+                        response.content,
+                        msg_num=self._msg_counter,
+                        timestamp=_now_ts(),
+                    )
         except Exception as e:
             print_error(f"Failed to get response: {e}")
             logger.error(f"Failed to get response: {e}")
@@ -978,20 +1111,48 @@ class REPL:
             self._process_input(feedback)
 
     def _process_input_stream(self, user_input: str) -> None:
-        """Process user input with streaming output + dynamic spinner."""
-        import time
+        """Process user input with streaming output + dynamic spinner.
+
+        Uses a Rich ``Live`` region to wrap the assistant's streaming output in
+        a Panel (matching the non-streaming assistant panel) instead of writing
+        raw text to stdout.  Each contiguous content segment between tool calls
+        gets its own Panel; tool calls / results interrupt and print normally.
+        """
+        from rich.live import Live
 
         try:
             stream = self.conversation.get_response_stream(user_input)
             all_reasoning: list[str] = []
-            content_started = False
-            content_chars = 0
-            last_flush = time.monotonic()
             spinner_text = "Thinking..."
 
             status = console.status(spinner_text, spinner="dots")
             self._stream_status = status
             status.start()
+
+            # Per-segment buffer + Live region for the assistant Panel.
+            # One assistant turn shares a single message number + timestamp,
+            # even when interrupted by tool calls (multiple content segments).
+            content_buffer = ""
+            live: Optional[Live] = None
+            assistant_num: Optional[int] = None
+            assistant_ts: Optional[str] = None
+
+            def _finalize_segment() -> None:
+                """Render final Markdown for current segment and close its Live."""
+                nonlocal live, content_buffer
+                if live is not None:
+                    if content_buffer:
+                        live.update(
+                            format_assistant_panel(
+                                content_buffer,
+                                msg_num=assistant_num,
+                                timestamp=assistant_ts,
+                            ),
+                            refresh=True,
+                        )
+                    live.stop()
+                    live = None
+                    content_buffer = ""
 
             try:
                 for chunk in stream:
@@ -999,21 +1160,23 @@ class REPL:
                         ptype = chunk.progress.get("type")
                         name = chunk.progress.get("name", "")
                         if ptype == "tool_start":
+                            _finalize_segment()
                             status.stop()
-                            sys.stdout.write("\n")
-                            print_tool_call(name, chunk.progress.get("args", {}))
+                            print_tool_call(
+                                name,
+                                chunk.progress.get("args", {}),
+                                verbose=self.verbose_tools,
+                            )
                             status.start()
                             spinner_text = f"Executing {name}..."
                         elif ptype == "tool_end":
                             tool_result = chunk.progress.get("result", "")
+                            _finalize_segment()
                             if tool_result:
                                 status.stop()
-                                sys.stdout.write("\n")
                                 print_tool_result(tool_result)
-                                spinner_text = "Thinking..."
                                 status.start()
-                            else:
-                                spinner_text = "Thinking..."
+                            spinner_text = "Thinking..."
                         elif ptype == "reasoning_start":
                             spinner_text = "Thinking..."
                         elif ptype == "reasoning_end":
@@ -1031,32 +1194,51 @@ class REPL:
                             status.update(spinner_text)
 
                     if chunk.content_delta:
-                        if not content_started:
+                        if live is None:
+                            # Start of a new content segment: stop spinner,
+                            # show reasoning dropdown, open a Live Panel.
+                            # Allocate this assistant turn's number + timestamp
+                            # on first content; reused by later segments.
+                            if assistant_num is None:
+                                self._msg_counter += 1
+                                assistant_num = self._msg_counter
+                                assistant_ts = _now_ts()
                             status.stop()
-                            # Show reasoning dropdown before assistant output
                             if all_reasoning:
                                 full_reasoning = "".join(all_reasoning)
                                 self._last_reasoning = full_reasoning
-                                console.print(format_reasoning_dropdown(full_reasoning))
+                                console.print(
+                                    format_reasoning_dropdown(full_reasoning)
+                                )
                                 all_reasoning.clear()
-                            sys.stdout.write("\n\033[1;32mNeow:\033[0m ")
-                            content_started = True
-                        content_chars += len(chunk.content_delta)
-                        sys.stdout.write(chunk.content_delta)
-                        now = time.monotonic()
-                        if now - last_flush > 0.05 or "\n" in chunk.content_delta:
-                            sys.stdout.flush()
-                            last_flush = now
+                            content_buffer = ""
+                            live = Live(
+                                format_streaming_assistant_panel(
+                                    "",
+                                    msg_num=assistant_num,
+                                    timestamp=assistant_ts,
+                                ),
+                                console=console,
+                                refresh_per_second=20,
+                                transient=False,
+                            )
+                            live.start()
+                        content_buffer += chunk.content_delta
+                        live.update(
+                            format_streaming_assistant_panel(
+                                content_buffer,
+                                msg_num=assistant_num,
+                                timestamp=assistant_ts,
+                            )
+                        )
             finally:
+                _finalize_segment()
                 try:
                     status.stop()
                 except Exception:
                     pass
                 self._stream_status = None
-            if content_started:
-                sys.stdout.flush()
-                sys.stdout.write("\n")
-                sys.stdout.flush()
+
             # If reasoning was captured but no content was produced (e.g. tool-only turn)
             if all_reasoning:
                 full_reasoning = "".join(all_reasoning)
@@ -1087,7 +1269,10 @@ class REPL:
                 planner_client, executor_client, self.conversation.tool_executor
             )
             result = orch.run(user_input)
-            print_assistant_message(result)
+            self._msg_counter += 1
+            print_assistant_message(
+                result, msg_num=self._msg_counter, timestamp=_now_ts()
+            )
         except Exception as e:
             print_error(f"Architect mode error: {e}")
             logger.error(f"Architect mode error: {e}")

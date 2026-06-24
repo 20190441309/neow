@@ -481,3 +481,88 @@ class TestBaseModelClientStreaming:
         assert len(chunks) == 1
         assert chunks[0].content_delta == "Hello"
         assert chunks[0].usage == {"total_tokens": 10}
+
+
+class TestDeepSeekStreamingUsage:
+    """Tests that DeepSeek streaming captures token usage (regression test)."""
+
+    @patch("neow.models.deepseek.openai.OpenAI")
+    def test_chat_stream_emits_usage_chunk(self, mock_openai):
+        """chat_stream must yield a usage chunk so token tracking works.
+
+        Regression: previously the streaming loop never read ``chunk.usage``,
+        so ``token_tracker.record()`` was never called and the status bar
+        showed ctx=0 / cost=$0 forever.
+        """
+        # Build two stream chunks: a content chunk, then a final usage chunk
+        # (OpenAI/DeepSeek sends usage in a trailing chunk with empty choices
+        # when stream_options.include_usage is True).
+        content_chunk = MagicMock()
+        content_chunk.usage = None
+        content_chunk.choices = [MagicMock()]
+        content_chunk.choices[0].delta.content = "Hi"
+        content_chunk.choices[0].delta.tool_calls = None
+        content_chunk.choices[0].delta.model_extra = {}
+        content_chunk.choices[0].finish_reason = "stop"
+
+        usage_chunk = MagicMock()
+        usage_chunk.usage = MagicMock(
+            prompt_tokens=12, completion_tokens=8, total_tokens=20
+        )
+        usage_chunk.choices = []  # final usage chunk has no choices
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = iter(
+            [content_chunk, usage_chunk]
+        )
+        mock_openai.return_value = mock_client
+
+        client = DeepSeekClient(api_key="sk-test", model="deepseek-chat")
+        chunks = list(client.chat_stream([{"role": "user", "content": "Hi"}]))
+
+        # At least one chunk must carry usage data.
+        usage_chunks = [c for c in chunks if c.usage]
+        assert len(usage_chunks) == 1, f"expected 1 usage chunk, got {len(usage_chunks)}"
+        assert usage_chunks[0].usage["prompt_tokens"] == 12
+        assert usage_chunks[0].usage["completion_tokens"] == 8
+        assert usage_chunks[0].usage["total_tokens"] == 20
+
+        # Verify stream_options.include_usage was actually requested.
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs.get("stream_options") == {"include_usage": True}
+
+
+class TestOpenAIStreamingUsage:
+    """Tests that OpenAI streaming captures token usage (regression test)."""
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_chat_stream_emits_usage_chunk(self, mock_openai):
+        """chat_stream must yield a usage chunk so token tracking works."""
+        content_chunk = MagicMock()
+        content_chunk.usage = None
+        content_chunk.choices = [MagicMock()]
+        content_chunk.choices[0].delta.content = "Hi"
+        content_chunk.choices[0].delta.tool_calls = None
+        content_chunk.choices[0].finish_reason = "stop"
+
+        usage_chunk = MagicMock()
+        usage_chunk.usage = MagicMock(
+            prompt_tokens=15, completion_tokens=10, total_tokens=25
+        )
+        usage_chunk.choices = []
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = iter(
+            [content_chunk, usage_chunk]
+        )
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
+        chunks = list(client.chat_stream([{"role": "user", "content": "Hi"}]))
+
+        usage_chunks = [c for c in chunks if c.usage]
+        assert len(usage_chunks) == 1, f"expected 1 usage chunk, got {len(usage_chunks)}"
+        assert usage_chunks[0].usage["total_tokens"] == 25
+
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs.get("stream_options") == {"include_usage": True}
