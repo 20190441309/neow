@@ -307,3 +307,28 @@ def test_describe_models_shows_provider_and_endpoint(tmp_path):
         for line in lines
     )
     assert any(line.startswith("deepseek (auto)") for line in lines)
+
+
+def test_end_to_end_offline(monkeypatch, tmp_path):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test")
+    monkeypatch.setattr(
+        "openai.OpenAI",
+        lambda **kwargs: SimpleNamespace(models=SimpleNamespace(list=lambda: [])),
+    )
+    config = _config(
+        tmp_path,
+        {
+            "openrouter": {
+                "provider": "openai-compatible",
+                "api_key_env": "OPENROUTER_API_KEY",
+                "model": "anthropic/claude-sonnet-4",
+                "base_url": "http://localhost:9/v1",
+                "validate": "skip",
+            }
+        },
+        default="openrouter",
+    )
+    client = create_model_client(config, "openrouter")
+    assert client.validate_connection() is True
+    assert client.base_url == "http://localhost:9/v1"
+    assert client.model == "anthropic/claude-sonnet-4"

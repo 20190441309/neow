@@ -112,6 +112,46 @@ export NEOW_DEEPSEEK_API_KEY="your-api-key-here"
 export NEOW_ANTHROPIC_API_KEY="your-api-key-here"
 ```
 
+### Any OpenAI-compatible provider (BYOK)
+
+Point Neow at any OpenAI-compatible endpoint (OpenRouter, SiliconFlow, Moonshot, DeepSeek proxies, vLLM, Ollama, ...), or override the built-in providers' endpoint:
+
+```json
+{
+  "default_model": "openrouter",
+  "models": {
+    "openrouter": {
+      "provider": "openai-compatible",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "model": "anthropic/claude-sonnet-4",
+      "base_url": "https://openrouter.ai/api/v1"
+    },
+    "ollama": {
+      "provider": "openai-compatible",
+      "api_key": "ollama",
+      "model": "qwen2.5:14b",
+      "base_url": "http://localhost:11434/v1",
+      "validate": "skip"
+    }
+  }
+}
+```
+
+Model entry fields:
+
+| Field | Values | Notes |
+|-------|--------|-------|
+| `provider` | `openai` · `openai-compatible` · `anthropic` · `deepseek` | Optional; without it the provider is inferred from the model name |
+| `model` | any string | Sent to the provider |
+| `api_key` | string | Inline key |
+| `api_key_env` | environment variable name | Keeps keys out of the config file |
+| `base_url` | URL | Custom endpoint (supported by all providers) |
+| `validate` | `auto` (default) · `skip` | `skip` disables the startup probe (local servers, gateways without `/models`) |
+
+**Key resolution order:** `api_key` → `api_key_env` → `NEOW_<MODEL_NAME>_API_KEY` → `NEOW_DEEPSEEK_API_KEY` / `NEOW_ANTHROPIC_API_KEY` / `NEOW_OPENAI_API_KEY`. Keys are never logged or echoed.
+
+`/model` lists every configured model with its provider and endpoint. Token prices for custom models can be added under `token.prices` keyed by the model name (unset models count as $0).
+
 ---
 
 ## 💡 Usage
