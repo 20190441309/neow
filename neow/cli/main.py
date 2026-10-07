@@ -280,7 +280,6 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         if mode is RunMode.TUI:
             from neow.tui import run_tui
 
-            executor.approval_callback = lambda tool, params, reason: False
             run_tui(
                 conversation,
                 config=cfg,
@@ -289,6 +288,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
                 approval_policy=approval_policy,
                 event_bus=event_bus,
                 plugin_api=plugin_api,
+                executor=executor,
             )
             return
 
