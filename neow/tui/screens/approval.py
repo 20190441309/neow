@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import Future
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from rich.text import Text
 from textual.app import ComposeResult

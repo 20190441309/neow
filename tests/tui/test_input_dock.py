@@ -50,3 +50,17 @@ async def test_at_file_completion(tmp_path, monkeypatch):
         await pilot.press(*"@ne")
         await pilot.pause()
         assert any("neow/" in option for option in dock.completion_options())
+
+
+async def test_file_options_are_cached(monkeypatch):
+    dock = InputDock()
+    calls = []
+
+    def fake_scan(self):
+        calls.append(1)
+        return ["neow/main.py"]
+
+    monkeypatch.setattr(InputDock, "_scan_files", fake_scan)
+    assert dock._file_options("ne") == ["neow/main.py"]
+    assert dock._file_options("ne") == ["neow/main.py"]
+    assert len(calls) == 1

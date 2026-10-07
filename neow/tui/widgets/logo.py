@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
-from rich.text import Text
 from textual.widgets import Static
 
 from neow.tui.effects.gradient import gradient_text

@@ -1,5 +1,7 @@
 """App shell and chat integration tests (plan tasks 2 and 11)."""
 
+from types import SimpleNamespace
+
 from neow.tui.app import resolve_effects
 from neow.tui.screens.approval import ApprovalModal
 from neow.tui.screens.chat import ChatScreen
@@ -147,3 +149,13 @@ async def test_full_effects_play_card_entrance():
         assert card.styles.opacity == 0.0
         await pilot.pause(0.4)
         assert card.styles.opacity == 1.0
+
+
+async def test_exit_saves_session():
+    saved = []
+    manager = SimpleNamespace(save=lambda conversation: saved.append(True) or "s")
+    app = _chat_app(FakeConversation(script=[]), session_manager=manager)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.exit()
+    assert saved

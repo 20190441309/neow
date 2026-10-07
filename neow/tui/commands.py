@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-from neow.cli.commands import Command, ParsedCommand
+from neow.cli.commands import ParsedCommand
 from neow.utils.logger import logger
 
 
@@ -187,8 +187,8 @@ class CommandDispatcher:
     def _cmd_architect(self, args: str) -> CommandResult:
         self.architect_mode = True
         return CommandResult(
-            "Architect mode enabled. Tasks will be planned and dispatched to sub-agents. "
-            "Use /code to return to normal coding mode."
+            "Architect mode enabled. Tasks will be planned and dispatched "
+            "to sub-agents. Use /code to return to normal coding mode."
         )
 
     def _cmd_code(self, args: str) -> CommandResult:
@@ -316,7 +316,8 @@ class CommandDispatcher:
         new_mode = mode_map.get(args.lower())
         if new_mode is None:
             return CommandResult(
-                f"Unknown mode: {args}. Use: always-ask, write, yolo", kind="error"
+                f"Unknown mode: {args}. Use: always-ask, write, yolo",
+                kind="error",
             )
         self.approval_policy.set_mode(new_mode)
         self._set_config("approval", "mode", new_mode.value)

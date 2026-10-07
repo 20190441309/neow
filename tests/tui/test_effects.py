@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from neow.tui.effects.gradient import GRADIENT, gradient_hex, gradient_text
+from neow.tui.effects.gradient import gradient_hex, gradient_text
 from neow.tui.effects.scramble import SCRAMBLE_RUNES, ScrambleEngine
 
 

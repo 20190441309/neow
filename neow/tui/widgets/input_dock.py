@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import List, Optional
 
@@ -145,6 +146,8 @@ class InputDock(Vertical):
         self._queue: List[str] = []
         self._busy = False
         self._options: List[str] = []
+        self._file_cache: List[str] = []
+        self._file_cache_at = 0.0
         self.posted_submissions: List[str] = []
         self._area = PromptArea(self)
         self._completions = OptionList(id="completions")
@@ -295,10 +298,20 @@ class InputDock(Vertical):
         else:
             self.set_text(value + " ")
 
-    @staticmethod
-    def _file_options(prefix: str, limit: int = 20) -> List[str]:
-        cwd = Path.cwd()
+    def _file_options(self, prefix: str, limit: int = 20) -> List[str]:
+        now = time.monotonic()
+        if now - self._file_cache_at > 5.0:
+            self._file_cache = self._scan_files()
+            self._file_cache_at = now
         prefix_lower = prefix.lower()
+        return [
+            path for path in self._file_cache if path.lower().startswith(prefix_lower)
+        ][:limit]
+
+    def _scan_files(self) -> List[str]:
+        """Return relative file paths under cwd (bounded scan)."""
+
+        cwd = Path.cwd()
         results: List[str] = []
         scanned = 0
         try:
@@ -313,13 +326,9 @@ class InputDock(Vertical):
                 if any(part in SKIP_DIRS for part in path.parts):
                     continue
                 try:
-                    relative = str(path.relative_to(cwd))
+                    results.append(str(path.relative_to(cwd)))
                 except ValueError:
                     continue
-                if relative.lower().startswith(prefix_lower):
-                    results.append(relative)
-                    if len(results) >= limit:
-                        break
         except OSError:
             pass
         return results

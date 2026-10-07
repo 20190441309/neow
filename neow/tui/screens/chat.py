@@ -42,6 +42,7 @@ from neow.tui.screens.tree import SessionTreeScreen
 from neow.tui.widgets.input_dock import InputDock
 from neow.tui.widgets.status_bar import StatusBar, TopBar
 from neow.tui.widgets.timeline import TimelineScroll
+from neow.utils.logger import logger
 
 SIDEBAR_TABS = ("context", "tree", "git")
 
@@ -130,6 +131,17 @@ class ChatScreen(Screen):
 
     def on_resize(self, event) -> None:
         self.apply_width_classes(event.size.width)
+
+    def on_unmount(self) -> None:
+        """Auto-save the session on exit (parity with the classic REPL)."""
+
+        manager = getattr(self.app, "session_manager", None)
+        if manager is None:
+            return
+        try:
+            manager.save(self.app.conversation)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Auto-save failed: {exc}")
 
     def on_key(self, event) -> None:
         collapse = getattr(self.app, "collapse_splash", None)
@@ -608,6 +620,3 @@ class ChatScreen(Screen):
         index = SIDEBAR_TABS.index(self.sidebar_tab)
         self.sidebar_tab = SIDEBAR_TABS[(index + 1) % len(SIDEBAR_TABS)]
         self._refresh_sidebar()
-
-    def action_quit_app(self) -> None:
-        self.app.exit()
