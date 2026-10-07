@@ -4,6 +4,7 @@ import random
 
 from neow.tui.effects.scramble import SCRAMBLE_RUNES
 from neow.tui.widgets.cards import ErrorCard, SystemCard, UserCard
+from neow.tui.widgets.cards.assistant import AssistantCard
 from neow.tui.widgets.cards.thinking import ThinkingCard
 from tests.tui.conftest import _host
 
@@ -74,3 +75,30 @@ def test_huge_reasoning_truncates():
     card.append_reasoning("x" * 10_000)
     assert len(card.body_text()) <= 10_000
     assert card.truncation_hint()
+
+
+async def test_streaming_appends_markdown_and_shows_cursor():
+    card = AssistantCard(number=2, timestamp="12:04")
+    async with _host(card) as pilot:
+        await card.append_content("找到问题了：`get_tool_definitions()`")
+        await card.append_content("\n```python\nreturn prompts.get_tool_definitions()\n```")
+        await pilot.pause()
+        assert "get_tool_definitions" in card.rendered_markdown()
+        assert card.cursor_visible
+
+
+async def test_finish_removes_cursor_and_sets_meta():
+    card = AssistantCard(number=2, timestamp="12:04")
+    async with _host(card) as pilot:
+        await card.append_content("done")
+        card.finish(duration=3.1)
+        await pilot.pause()
+        assert not card.cursor_visible and "3.1s" in card.meta_text()
+
+
+async def test_assistant_truncates_after_300_lines():
+    card = AssistantCard(number=1, timestamp="12:04")
+    async with _host(card) as pilot:
+        await card.append_content("\n".join(f"l{i}" for i in range(310)))
+        await pilot.pause()
+        assert card.truncation_hint().startswith("… (+")
