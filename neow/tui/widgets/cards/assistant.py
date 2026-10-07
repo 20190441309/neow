@@ -24,6 +24,8 @@ class AssistantCard(CardBase):
         self.number = number
         self._timestamp = timestamp
         self._content = ""
+        self._pending = ""
+        self._shown = ""
         self._appended_lines = 0
         self._dropped_lines = 0
         self._finished = False
@@ -33,17 +35,29 @@ class AssistantCard(CardBase):
         self.add_body(self._cursor, "")
 
     async def append_content(self, text: str) -> None:
-        """Append a streamed delta (requires the card to be mounted)."""
+        """Append a streamed delta; buffers until the card is mounted."""
 
         self._content += text
-        total_lines = self._content.count("\n") + 1
-        if not self.is_mounted or not text:
+        self._pending += text
+        if self.is_mounted:
+            await self._flush_pending()
+
+    def on_mount(self) -> None:
+        super().on_mount()
+        if self._pending:
+            self.call_later(self._flush_pending)
+
+    async def _flush_pending(self) -> None:
+        if not self._pending:
             return
+        text, self._pending = self._pending, ""
+        total_lines = self._content.count("\n") + 1
         if self._appended_lines >= MAX_LINES:
             self._dropped_lines = max(total_lines - MAX_LINES, 0)
             return
         if total_lines <= MAX_LINES:
             self._appended_lines = total_lines
+            self._shown += text
             await self._md.append(text)
             return
         lines = text.split("\n")
@@ -52,6 +66,7 @@ class AssistantCard(CardBase):
         self._appended_lines += min(len(lines), room)
         self._dropped_lines = max(total_lines - self._appended_lines, 0)
         if kept:
+            self._shown += kept
             await self._md.append(kept)
 
     def finish(self, duration: float) -> None:
@@ -67,6 +82,11 @@ class AssistantCard(CardBase):
 
     def rendered_markdown(self) -> str:
         return self._content
+
+    def markdown_text(self) -> str:
+        """Text actually delivered to the markdown widget."""
+
+        return self._shown
 
     def meta_text(self) -> str:
         return self._meta

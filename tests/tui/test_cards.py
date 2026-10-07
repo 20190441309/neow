@@ -110,6 +110,14 @@ async def test_assistant_truncates_after_300_lines():
         assert card.truncation_hint().startswith("… (+")
 
 
+async def test_assistant_buffers_content_before_mount():
+    card = AssistantCard(number=1, timestamp="12:04")
+    await card.append_content("early")  # card not mounted yet
+    async with _host(card) as pilot:
+        await pilot.pause()
+        assert "early" in card.markdown_text()
+
+
 def test_edit_file_body_has_inline_diff():
     body = render_tool_body(
         "edit_file", {"file_path": "a.py", "old_text": "x", "new_text": "y"}, "ok"
