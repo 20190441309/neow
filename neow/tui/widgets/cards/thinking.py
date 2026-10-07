@@ -10,10 +10,11 @@ from rich.text import Text
 from textual.widgets import Static
 
 from neow.tui.effects.scramble import ScrambleEngine
+from neow.tui.effects.spinner import BRAILLE_FRAMES
 from neow.tui.theme import MIDNIGHT, widget_palette
 from neow.tui.widgets.cards.base import CardBase
 
-SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+SPINNER_FRAMES = BRAILLE_FRAMES
 SETTLED_STYLE = MIDNIGHT["settled"]
 TRUNCATE_AT = 4000
 

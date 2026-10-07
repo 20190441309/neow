@@ -3,6 +3,7 @@
 import random
 
 from neow.tui.effects.scramble import SCRAMBLE_RUNES
+from neow.tui.effects.spinner import BRAILLE_FRAMES
 from neow.tui.widgets.cards import ErrorCard, SystemCard, UserCard
 from neow.tui.widgets.cards.assistant import AssistantCard
 from neow.tui.widgets.cards.thinking import ThinkingCard
@@ -212,3 +213,27 @@ def test_long_output_truncates_with_hint():
     card = ToolCard(effects="off")
     card.finish(result="\n".join(f"line{i}" for i in range(200)), is_error=False)
     assert card.truncation_hint().startswith("… (+")
+
+
+async def test_tool_spinner_animates_while_running():
+    card = ToolCard(effects="full")
+    async with _host(card) as pilot:
+        card.start("edit_file", {"file_path": "a.py"})
+        await pilot.pause()
+        assert card._spinner_timer is not None
+        first = card._spinner_frame()
+        assert first in BRAILLE_FRAMES
+        card._spin()
+        assert card._spinner_frame() != first
+        assert card.status_icon == "⟳"
+        card.finish(result="ok", is_error=False)
+        await pilot.pause()
+        assert card._spinner_timer is None
+        assert card.status_icon == "✓"
+
+
+def test_tool_spinner_off_mode_is_static():
+    card = ToolCard(effects="off")
+    card.start("edit_file", {"file_path": "a.py"})
+    assert card._spinner_timer is None
+    assert card.status_icon == "⟳"

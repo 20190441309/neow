@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from rich.text import Text
 from textual.widgets import Static
 
+from neow.tui.effects.spinner import BRAILLE_FRAMES
 from neow.tui.theme import MIDNIGHT, widget_palette
 from neow.tui.widgets.cards.base import CardBase
 
@@ -145,6 +146,9 @@ class ToolCard(CardBase):
         self._status = "pending"
         self._user_touched = False
         self._duration: Optional[float] = None
+        self._spinner_timer = None
+        self._spinner_index = 0
+        self._spinner_on = False
         self._body_widget = Static("", classes="tool-body")
         self.add_body(self._body_widget, "")
 
@@ -167,6 +171,18 @@ class ToolCard(CardBase):
         self._render_body()
         if self.collapsed:
             self._set_collapsed(False)
+        self._spinner_on = True
+        if self.effects != "off":
+            self._spinner_timer = self.set_interval(0.1, self._spin)
+
+    def _spin(self) -> None:
+        if not self._spinner_on:
+            return
+        self._spinner_index += 1
+        self.set_title(icon=self._spinner_frame())
+
+    def _spinner_frame(self) -> str:
+        return BRAILLE_FRAMES[self._spinner_index % len(BRAILLE_FRAMES)]
 
     def finish(
         self,
@@ -176,6 +192,10 @@ class ToolCard(CardBase):
     ) -> None:
         self._result = result or ""
         self._duration = duration
+        self._spinner_on = False
+        if self._spinner_timer is not None:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
         if tool_is_denied(self._result):
             self._status = "denied"
         elif is_error or tool_is_error(self._result):
@@ -214,6 +234,8 @@ class ToolCard(CardBase):
 
     @property
     def status_icon(self) -> str:
+        if self._status in ("pending", "running"):
+            return "⟳"
         return self._icon
 
     def toggle(self) -> None:
