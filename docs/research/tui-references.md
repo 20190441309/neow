@@ -77,6 +77,18 @@
 
 断言：scramble 进度推进、折叠状态可切换、markdown 内容完整、logo 存在。
 
+### 3.1 完整界面设计稿（design_mockup.py）
+
+`docs/research/tui-feasibility/design_mockup.py --shots` 渲染完整提案界面（假数据），
+截图见 `docs/research/tui-feasibility/screenshots/`：
+
+| 文件 | 内容 |
+|------|------|
+| `01-main.png` | 主界面：topbar + 卡片时间线 + 输入坞 + 状态栏 |
+| `02-sidebar.png` | 侧栏展开：上下文文件 / 会话树 / Git |
+| `03-approval.png` | 审批模态（背景压暗） |
+| `04-splash.png` | 启动 splash：渐变 ASCII logo + 连接状态 |
+
 ---
 
 ## 4. 对 neow TUI 设计的直接输入（供 t3 使用）
