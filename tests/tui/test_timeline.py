@@ -22,13 +22,13 @@ async def test_stick_to_bottom_and_banner():
     async with _host(timeline) as pilot:
         for n in range(30):
             timeline.add_card(UserCard(f"m{n}", number=n, timestamp="t"))
-        await pilot.pause()
+        await pilot.pause(0.2)
         assert timeline.stuck_to_bottom
         timeline.scroll_up(animate=False)
-        await pilot.pause()
+        await pilot.pause(0.1)
         assert not timeline.stuck_to_bottom
         timeline.add_card(UserCard("new", number=99, timestamp="t"))
-        await pilot.pause()
+        await pilot.pause(0.2)
         assert timeline.query_one(NewMessagesBanner).display
         timeline.jump_to_bottom()
         await pilot.pause()
