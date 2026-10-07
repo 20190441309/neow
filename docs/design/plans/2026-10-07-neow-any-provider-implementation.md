@@ -693,9 +693,11 @@ README 新增 "任意 OpenAI 兼容服务商（BYOK）" 小节：OpenRouter / Ol
 
 ```bash
 PATH="/home/neow/.venv/bin:$PATH" .venv/bin/python -m pytest -q          # 0 failed
-.venv/bin/flake8 neow/models neow/cli neow/tui tests                      # 无新增问题
+.venv/bin/flake8 neow/models/factory.py tests/test_providers.py neow/tui/screens/model_picker.py  # clean
 .venv/bin/black --check neow/models/factory.py tests/test_providers.py    # clean
 ```
+
+注：`neow/cli/main.py` 与 `neow/cli/repl.py` 仅做最小改动（re-export / 展示），两文件存在既有 lint 债务（E402/E501 等，见 TUI 验收报告 §3 补记），不在本计划范围内处理。
 
 - [ ] **步骤 4：Commit**
 
