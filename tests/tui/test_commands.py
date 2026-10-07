@@ -93,6 +93,11 @@ def test_exit_returns_exit_signal():
     assert make_dispatcher().dispatch(ParsedCommand(Command.EXIT)).should_exit
 
 
+def test_compact_returns_compaction_kind():
+    result = make_dispatcher().dispatch(ParsedCommand(Command.COMPACT))
+    assert result.kind == "compaction" and result.text
+
+
 def test_unknown_falls_back_to_plugin_then_error():
     dispatcher = make_dispatcher(plugin_api=None)
     result = dispatcher.dispatch(ParsedCommand(None, None, raw_command="nope"))

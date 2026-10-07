@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from rich.text import Text
 from textual.widgets import Static
 
@@ -45,4 +47,26 @@ class ErrorCard(CardBase):
             self.add_body(Static(Text(detail)), detail)
 
 
-__all__ = ["SystemCard", "ErrorCard"]
+class CompactionCard(CardBase):
+    """Context compaction event (design spec §5.2); collapsed by default."""
+
+    accent_key = "compaction"
+
+    def __init__(self, message: str, *, saved_tokens: Optional[int] = None):
+        meta = f"-{saved_tokens:,} tokens" if saved_tokens else ""
+        super().__init__(
+            title="Context Compacted",
+            icon="◈",
+            meta=meta,
+            accent=MIDNIGHT["compaction"],
+        )
+        self.message = message
+        if message:
+            self.add_body(Static(Text(message)), message)
+        self._set_collapsed(True)
+
+    def body_text(self) -> str:
+        return self.message
+
+
+__all__ = ["SystemCard", "ErrorCard", "CompactionCard"]

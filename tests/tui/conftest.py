@@ -57,6 +57,15 @@ class FakeConversation:
         self.added_web.append(url)
         self.web_cache[url] = content
 
+    def compact(self) -> str:
+        return "compacted"
+
+    def compact_incremental(self, keep_recent_tokens: int = 4000) -> str:
+        return "incremental"
+
+    def compact_with_handoff(self) -> str:
+        return "handoff"
+
 
 def _chat_app(conversation=None, *, effects=None, config=None, **kwargs):
     """Build a NeowApp for Pilot tests."""

@@ -261,10 +261,13 @@ class CommandDispatcher:
             except (ValueError, IndexError):
                 keep = 4000
             return CommandResult(
-                str(self.conversation.compact_incremental(keep_recent_tokens=keep))
+                str(self.conversation.compact_incremental(keep_recent_tokens=keep)),
+                kind="compaction",
             )
         if "incremental" in args.lower():
-            return CommandResult(str(self.conversation.compact_incremental()))
+            return CommandResult(
+                str(self.conversation.compact_incremental()), kind="compaction"
+            )
         if "handoff" in args.lower():
             handoff = self.conversation.compact_with_handoff()
             if handoff:
@@ -273,9 +276,10 @@ class CommandDispatcher:
                 )
                 self.conversation.add_message("assistant", handoff)
             return CommandResult(
-                f"Handoff complete: {len(handoff)} char summary injected"
+                f"Handoff complete: {len(handoff)} char summary injected",
+                kind="compaction",
             )
-        return CommandResult(str(self.conversation.compact()))
+        return CommandResult(str(self.conversation.compact()), kind="compaction")
 
     def _cmd_export(self, args: str) -> CommandResult:
         if self.session_manager is None:

@@ -6,6 +6,7 @@ from neow.tui.app import resolve_effects
 from neow.tui.screens.approval import ApprovalModal
 from neow.tui.screens.chat import ChatScreen
 from neow.tui.widgets.cards import CardBase, UserCard
+from neow.tui.widgets.cards.system import CompactionCard
 from neow.tui.widgets.logo import NeowLogo
 from tests.tui.conftest import Chunk, FakeConversation, _chat_app, _host
 
@@ -186,3 +187,15 @@ async def test_command_palette_lists_slash_commands():
         await pilot.pause()
         commands = list(app.get_system_commands(app.screen))
         assert "/help" in [command.title for command in commands]
+
+
+async def test_compact_command_renders_compaction_card():
+    app = _chat_app(FakeConversation(script=[]))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        screen = app.screen
+        screen.dispatch_command("/compact")
+        await pilot.pause()
+        cards = list(screen.query(CompactionCard))
+        assert cards and cards[-1].collapsed
+        assert "Compacted" in cards[-1].title_text()

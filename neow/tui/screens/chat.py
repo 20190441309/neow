@@ -26,6 +26,7 @@ from neow.tui.bridge.events import (
 from neow.tui.widgets.cards import (
     AssistantCard,
     CardBase,
+    CompactionCard,
     ErrorCard,
     SystemCard,
     ThinkingCard,
@@ -363,8 +364,13 @@ class ChatScreen(Screen):
             self.app.exit()
             return result
         if result.text:
-            level = result.kind if result.kind in ("info", "warn", "error") else "info"
-            self._add_card(SystemCard(result.text, level=level))
+            if result.kind == "compaction":
+                self._add_card(CompactionCard(result.text))
+            else:
+                level = (
+                    result.kind if result.kind in ("info", "warn", "error") else "info"
+                )
+                self._add_card(SystemCard(result.text, level=level))
         self._maybe_lint_followup()
         return result
 
