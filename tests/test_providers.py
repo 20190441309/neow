@@ -4,9 +4,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from neow.core.config import ConfigError
 from neow.models.anthropic import AnthropicClient
 from neow.models.base import validate_openai_compatible
 from neow.models.deepseek import DeepSeekClient
+from neow.models.factory import (
+    PROVIDERS,
+    normalize_env_name,
+    resolve_api_key,
+    resolve_provider,
+)
 from neow.models.openai import OpenAIClient
 
 
@@ -94,3 +101,75 @@ def test_anthropic_base_url_passthrough(monkeypatch):
     monkeypatch.setattr("anthropic.Anthropic", fake_anthropic)
     AnthropicClient(api_key="k", model="m", base_url="http://gw")
     assert captured["base_url"] == "http://gw"
+
+
+def test_normalize_env_name():
+    assert normalize_env_name("my-router.v2") == "MY_ROUTER_V2"
+    assert normalize_env_name("openrouter") == "OPENROUTER"
+
+
+@pytest.mark.parametrize("provider", PROVIDERS)
+def test_resolve_explicit_provider(provider):
+    assert (
+        resolve_provider({"provider": provider, "model": "m"}, "whatever") == provider
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("deepseek", "deepseek"),
+        ("claude-sonnet", "anthropic"),
+        ("gpt-4o", "openai"),
+        ("my-deepseek-proxy", "deepseek"),
+    ],
+)
+def test_resolve_heuristic_backward_compat(name, expected):
+    assert resolve_provider({"model": "m"}, name) == expected
+
+
+def test_resolve_unknown_provider_raises():
+    with pytest.raises(ConfigError) as exc:
+        resolve_provider({"provider": "foo", "model": "m"}, "x")
+    assert "openai-compatible" in str(exc.value)
+
+
+def test_resolve_uninferable_name_raises():
+    with pytest.raises(ConfigError) as exc:
+        resolve_provider({}, "mystery")
+    assert "provider" in str(exc.value)
+
+
+def test_error_messages_never_include_key():
+    with pytest.raises(ConfigError) as exc:
+        resolve_provider({"provider": "foo", "api_key": "sk-super-secret"}, "x")
+    assert "sk-super-secret" not in str(exc.value)
+
+
+def test_api_key_prefers_config_value():
+    entry = {"api_key": "direct", "api_key_env": "OTHER"}
+    assert resolve_api_key(entry, "x", env={"OTHER": "env"}) == "direct"
+
+
+def test_api_key_env_reference():
+    assert resolve_api_key({"api_key_env": "MY_KEY"}, "x", env={"MY_KEY": "s"}) == "s"
+
+
+def test_api_key_generic_convention():
+    assert (
+        resolve_api_key({}, "my-router", env={"NEOW_MY_ROUTER_API_KEY": "gen"}) == "gen"
+    )
+
+
+def test_api_key_legacy_env():
+    assert (
+        resolve_api_key({}, "anthropic", env={"NEOW_ANTHROPIC_API_KEY": "legacy"})
+        == "legacy"
+    )
+
+
+def test_api_key_missing_raises_with_hint():
+    with pytest.raises(ConfigError) as exc:
+        resolve_api_key({}, "my-router", env={})
+    message = str(exc.value)
+    assert "api_key_env" in message and "NEOW_MY_ROUTER_API_KEY" in message
