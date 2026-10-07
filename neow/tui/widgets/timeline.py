@@ -40,6 +40,7 @@ class TimelineScroll(VerticalScroll):
         super().__init__(*args, **kwargs)
         self._banner = NewMessagesBanner()
         self._follow_pending = False
+        self._follow_dirty = False
 
     def compose(self):
         yield self._banner
@@ -55,8 +56,13 @@ class TimelineScroll(VerticalScroll):
             self._banner.display = True
 
     def _schedule_follow(self) -> None:
-        """Coalesce follow-ups so a burst of adds doesn't queue many scrolls."""
+        """Coalesce follow-ups so a burst of adds doesn't queue many scrolls.
 
+        A follow already in flight is re-scheduled once more because layout
+        may settle after it ran, leaving the viewport short of the bottom.
+        """
+
+        self._follow_dirty = True
         if self._follow_pending:
             return
         self._follow_pending = True
@@ -67,6 +73,10 @@ class TimelineScroll(VerticalScroll):
         if self.is_mounted:
             self.scroll_end(animate=False)
             self._banner.display = False
+            if self._follow_dirty:
+                self._follow_dirty = False
+                self._follow_pending = True
+                self.call_after_refresh(self._follow_bottom)
 
     def cards(self) -> list[CardBase]:
         return list(self.query(CardBase))
