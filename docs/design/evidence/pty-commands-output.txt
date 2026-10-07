@@ -1,0 +1,408 @@
+/help
+/help
+[>25u[?2026$p[?2048$p ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                                                                                                  
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                           ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                   ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                  ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎
+▊                                                                           ▊                                                                           ▊                                                                           ▊                                                                                                                                                           
+  NEOW · 斜杠命令                                                               
+    /help              显示帮助                                                 
+    /model             切换或查看模型                                           
+    /diff              查看未提交改动                                           
+    /commit       提交（无 msg 时由 AI 生成）                                   
+    /undo              回退上一次 AI 提交                                       
+    /add <file>        加入上下文                                               
+    /drop <file>       移出上下文                                               
+    /ls                列出上下文文件                                           
+    /lint · /test      运行 linter / 测试（支持 on/off）                        
+    /architect · /code 架构师模式 / 编码模式                                    
+    /save · /load      保存 / 载入会话                                          
+    /history           历史会话                                                 
+    /cost              token 与费用                                             
+    /web <url>         抓取网页加入上下文                                       
+    /think             查看最近一次推理内容                                     
+    /compact           压缩上下文（incremental / handoff）                      
+    /export            导出 Markdown                                            
+    /image <file>      附加图片                                                 
+    /approval          审批模式（always-ask / write / yolo）                    
+    /tree · /branch    会话树导航 / 分叉                                        
+    /verbose           切换工具参数展开                                         
+    /clear             清空会话历史                                                                                                                             
+  NEOW · 斜杠命令                                                               
+    /help              显示帮助                                                 
+    /model             切换或查看模型                                           
+    /diff              查看未提交改动                                           
+    /commit       提交（无 msg 时由 AI 生成）                                   
+    /undo              回退上一次 AI 提交                                       
+    /add <file>        加入上下文                                               
+    /drop <file>       移出上下文                                               
+    /ls                列出上下文文件                                           
+    /lint · /test      运行 linter / 测试（支持 on/off）                        
+    /architect · /code 架构师模式 / 编码模式                                    
+    /save · /load      保存 / 载入会话                                          
+    /history           历史会话                                                 
+    /cost              token 与费用                                             
+    /web <url>         抓取网页加入上下文                                       
+    /think             查看最近一次推理内容                                     
+    /compact           压缩上下文（incremental / handoff）                      
+    /export            导出 Markdown                                            
+    /image <file>      附加图片                                                 
+    /approval          审批模式（always-ask / write / yolo）                    
+    /tree · /branch    会话树导航 / 分叉                                        
+    /verbose           切换工具参数展开                                         
+    /clear             清空会话历史                                                                                                                             
+  NEOW · 斜杠命令                                                               
+    /help              显示帮助                                                 
+    /model             切换或查看模型                                           
+    /diff              查看未提交改动                                           
+    /commit       提交（无 msg 时由 AI 生成）                                   
+    /undo              回退上一次 AI 提交                                       
+    /add <file>        加入上下文                                               
+    /drop <file>       移出上下文                                               
+    /ls                列出上下文文件                                           
+    /lint · /test      运行 linter / 测试（支持 on/off）                        
+    /architect · /code 架构师模式 / 编码模式                                    
+    /save · /load      保存 / 载入会话                                          
+    /history           历史会话                                                 
+    /cost              token 与费用                                             
+    /web <url>         抓取网页加入上下文                                       
+    /think             查看最近一次推理内容                                     
+    /compact           压缩上下文（incremental / handoff）                      
+    /export            导出 Markdown                                            
+    /image <file>      附加图片                                                 
+    /approval          审批模式（always-ask / write / yolo）                    
+    /tree · /branch    会话树导航 / 分叉                                        
+    /verbose           切换工具参数展开                                         
+    /clear             清空会话历史                                                                                                                             
+  NEOW · 斜杠命令                                                               
+    /help              显示帮助                                                 
+    /model             切换或查看模型                                           
+    /diff              查看未提交改动                                           
+    /commit       提交（无 msg 时由 AI 生成）                                   
+    /undo              回退上一次 AI 提交                                       
+    /add <file>        加入上下文                                               
+    /drop <file>       移出上下文                                               
+    /ls                列出上下文文件                                           
+    /lint · /test      运行 linter / 测试（支持 on/off）                        
+    /architect · /code 架构师模式 / 编码模式                                    
+    /save · /load      保存 / 载入会话                                          
+    /history           历史会话                                                 
+    /cost              token 与费用                                             
+    /web <url>         抓取网页加入上下文                                       
+    /think             查看最近一次推理内容                                     
+    /compact           压缩上下文（incremental / handoff）                      
+    /export            导出 Markdown                                            
+    /image <file>      附加图片                                                 
+    /approval          审批模式（always-ask / write / yolo）                    
+    /tree · /branch    会话树导航 / 分叉                                        
+    /verbose           切换工具参数展开                                         
+    /clear             清空会话历史                                              ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                   ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                  ▊                                                                            DIFF · c 提交 · u 回退 · Esc 返回                                              
+                                                                                
+  diff --git a/neow/tui/app.py b/neow/tui/app.py                                
+  index c4fb416..dbc116d 100644                                                 
+  --- a/neow/tui/app.py                                                         
+  +++ b/neow/tui/app.py                                                         
+  @@ -6,11 +6,12 @@ import os                                                   
+   from concurrent.futures import Future                                        
+   from typing import Any, Optional                                             
+                                                                                
+  -from textual.app import App                                                  
+  +from textual.app import App, SystemCommand                                   
+                                                                                
+   from neow.tui.bridge.controller import ApprovalBridge                        
+   from neow.tui.screens.approval import ApprovalModal, apply_decision          
+   from neow.tui.screens.chat import ChatScreen                                 
+  +from neow.tui.widgets.input_dock import SLASH_COMMANDS                       
+   from neow.tui.widgets.logo import NeowLogo                                   
+                                                                                
+   VALID_EFFECTS = ("full", "subtle", "off")                                    
+  @@ -38,7 +39,7 @@ class NeowApp(App):                                         
+                                                                                
+       CSS_PATH = "theme.tcss"                                                  
+       TITLE = "neow"                                                            DIFF · c 提交 · u 回退 · Esc 返回                                              
+                                                                                
+  diff --git a/neow/tui/app.py b/neow/tui/app.py                                
+  index c4fb416..dbc116d 100644                                                 
+  --- a/neow/tui/app.py                                                       ▅▅
+  +++ b/neow/tui/app.py                                                         
+  @@ -6,11 +6,12 @@ import os                                                   
+   from concurrent.futures import Future                                        
+   from typing import Any, Optional                                             
+                                                                                
+  -from textual.app import App                                                  
+  +from textual.app import App, SystemCommand                                   
+                                                                                
+   from neow.tui.bridge.controller import ApprovalBridge                        
+   from neow.tui.screens.approval import ApprovalModal, apply_decision          
+   from neow.tui.screens.chat import ChatScreen                                 
+  +from neow.tui.widgets.input_dock import SLASH_COMMANDS                       
+   from neow.tui.widgets.logo import NeowLogo                                   
+                                                                                
+   VALID_EFFECTS = ("full", "subtle", "off")                                    
+  @@ -38,7 +39,7 @@ class NeowApp(App):                                         
+                                                                                
+       CSS_PATH = "theme.tcss"                                                  
+       TITLE = "neow"                                                            DIFF · c 提交 · u 回退 · Esc 返回                                              
+                                                                                
+  diff --git a/neow/tui/app.py b/neow/tui/app.py                                
+  index c4fb416..dbc116d 100644                                                 
+  --- a/neow/tui/app.py                                                       ▅▅
+  +++ b/neow/tui/app.py                                                         
+  @@ -6,11 +6,12 @@ import os                                                   
+   from concurrent.futures import Future                                        
+   from typing import Any, Optional                                             
+                                                                                
+  -from textual.app import App                                                  
+  +from textual.app import App, SystemCommand                                   
+                                                                                
+   from neow.tui.bridge.controller import ApprovalBridge                        
+   from neow.tui.screens.approval import ApprovalModal, apply_decision          
+   from neow.tui.screens.chat import ChatScreen                                 
+  +from neow.tui.widgets.input_dock import SLASH_COMMANDS                       
+   from neow.tui.widgets.logo import NeowLogo                                   
+                                                                                
+   VALID_EFFECTS = ("full", "subtle", "off")                                    
+  @@ -38,7 +39,7 @@ class NeowApp(App):                                         
+                                                                                
+       CSS_PATH = "theme.tcss"                                                  
+       TITLE = "neow"                                                            DIFF · c 提交 · u 回退 · Esc 返回                                              
+                                                                                
+  diff --git a/neow/tui/app.py b/neow/tui/app.py                                
+  index c4fb416..dbc116d 100644                                                 
+  --- a/neow/tui/app.py                                                       ▅▅
+  +++ b/neow/tui/app.py                                                         
+  @@ -6,11 +6,12 @@ import os                                                   
+   from concurrent.futures import Future                                        
+   from typing import Any, Optional                                             
+                                                                                
+  -from textual.app import App                                                  
+  +from textual.app import App, SystemCommand                                   
+                                                                                
+   from neow.tui.bridge.controller import ApprovalBridge                        
+   from neow.tui.screens.approval import ApprovalModal, apply_decision          
+   from neow.tui.screens.chat import ChatScreen                                 
+  +from neow.tui.widgets.input_dock import SLASH_COMMANDS                       
+   from neow.tui.widgets.logo import NeowLogo                                   
+                                                                                
+   VALID_EFFECTS = ("full", "subtle", "off")                                    
+  @@ -38,7 +39,7 @@ class NeowApp(App):                                         
+                                                                                
+       CSS_PATH = "theme.tcss"                                                  
+       TITLE = "neow"                                                            ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                   ◆ NEOW                                                                         
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+────────────────────────────────────────────────────────────────────────────────
+ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ 
+ ▊                                                                            ▎ 
+ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 
+ Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断                          
+ ▲0 ▼0  ·  $0.0000        idle                                                  ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎
+▊                                                                            ▎
+▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 选择模型 · Enter 切换 · Esc 返回                                               
+▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎
+▊ ▐X▌ anthropic                                                                ▎
+▊ ▐X▌ openai                                                                   ▎
+▊ ▐X▌ deepseek                                                                 ▎
+▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+                                                                                ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎
+▊ ▐X▌ anthropic                                                                ▎
+▊ ▐X▌ openai                                                                   ▎
+▊ ▐X▌ deepseek                                                                 ▎
+▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 选择模型 · Enter 切换 · Esc 返回                                               
+▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎
+▊ ▐X▌ anthropic                                                                ▎
+▊ ▐X▌ openai                                                                   ▎
+▊ ▐X▌ deepseek                                                                 ▎
+▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ 选择模型 · Enter 切换 · Esc 返回                                               
+▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎
+▊ ▐X▌ anthropic                                                                ▎
+▊ ▐X▌ openai                                                                   ▎
+▊ ▐X▌ deeps
