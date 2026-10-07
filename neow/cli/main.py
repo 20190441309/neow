@@ -274,13 +274,26 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
             session_manager.save(conversation)
             sys.exit(0)
 
-        # Full-screen TUI (default on a TTY; wired in plan task 2)
+        session_manager = SessionManager(Path.home() / ".neow" / "sessions")
+
+        # Full-screen TUI (default on a TTY)
         if mode is RunMode.TUI:
-            raise click.ClickException("TUI mode lands in task 2")
+            from neow.tui import run_tui
+
+            executor.approval_callback = lambda tool, params, reason: False
+            run_tui(
+                conversation,
+                config=cfg,
+                token_tracker=token_tracker,
+                session_manager=session_manager,
+                approval_policy=approval_policy,
+                event_bus=event_bus,
+                plugin_api=plugin_api,
+            )
+            return
 
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)
-        session_manager = SessionManager(Path.home() / ".neow" / "sessions")
 
         repl = REPL(conversation, config=cfg, streaming=streaming_enabled,
                     token_tracker=token_tracker, session_manager=session_manager,

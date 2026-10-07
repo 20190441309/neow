@@ -1,0 +1,101 @@
+$bg: #0b0d12;
+$surface: #0f1117;
+$elevated: #151a23;
+$border: #1e293b;
+$border-strong: #334155;
+$text: #e5e7eb;
+$dim: #94a3b8;
+$muted: #64748b;
+$accent1: #22d3ee;
+$accent2: #a78bfa;
+$accent3: #f472b6;
+$accent4: #facc15;
+$success: #34d399;
+$error: #f87171;
+$warn: #facc15;
+$info: #38bdf8;
+
+Screen {
+    background: $bg;
+    color: $text;
+    layout: vertical;
+}
+
+#topbar {
+    height: 1;
+    background: $surface;
+    color: $muted;
+    padding: 0 1;
+}
+
+#topbar-info {
+    width: 1fr;
+}
+
+#body {
+    height: 1fr;
+    layout: horizontal;
+}
+
+#timeline {
+    width: 1fr;
+    padding: 1 2;
+}
+
+#sidebar {
+    width: 42;
+    display: none;
+    background: $surface;
+    border-left: solid $border;
+    padding: 1;
+}
+
+#sidebar.visible {
+    display: block;
+}
+
+#queuestrip {
+    display: none;
+    height: auto;
+    color: $warn;
+    padding: 0 1;
+}
+
+#queuestrip.visible {
+    display: block;
+}
+
+#inputdock {
+    height: auto;
+    min-height: 2;
+    max-height: 8;
+    border-top: solid $border;
+    padding: 0 1;
+}
+
+#statusbar {
+    height: 1;
+    background: $surface;
+    color: $muted;
+    padding: 0 1;
+}
+
+ChatScreen.small-sidebar #sidebar {
+    width: 36;
+}
+
+ChatScreen.no-sidebar #sidebar {
+    display: none;
+}
+
+ChatScreen.narrow #timeline {
+    padding: 0 1;
+}
+
+ChatScreen.narrow #inputdock {
+    padding: 0;
+}
+
+ChatScreen.narrow #statusbar {
+    padding: 0;
+}

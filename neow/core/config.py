@@ -7,6 +7,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
+from neow.utils.logger import logger
+
 
 class ConfigError(Exception):
     """Configuration error."""
@@ -78,6 +80,11 @@ class Config:
             "auto_detect": True,
             "max_content_length": 10000,
             "timeout": 10,
+        },
+        "tui": {
+            "effects": "full",
+            "sidebar_default": False,
+            "theme": "midnight",
         },
     }
 
@@ -213,6 +220,24 @@ class Config:
             "mode": "write",
             "overrides": {},
         })
+
+    @property
+    def tui(self) -> Dict[str, Any]:
+        """Get validated TUI configuration."""
+        cfg = self._config.get("tui", {})
+        effects = cfg.get("effects", "full")
+        if effects not in ("full", "subtle", "off"):
+            logger.warning("Unknown tui.effects %r; falling back to 'full'", effects)
+            effects = "full"
+        theme = cfg.get("theme", "midnight")
+        if theme != "midnight":
+            logger.warning("Unknown tui.theme %r; falling back to 'midnight'", theme)
+            theme = "midnight"
+        return {
+            "effects": effects,
+            "sidebar_default": bool(cfg.get("sidebar_default", False)),
+            "theme": theme,
+        }
 
     def resolve_model_alias(self, alias: str) -> str:
         """Resolve model alias to canonical name. Returns input if no alias found."""
