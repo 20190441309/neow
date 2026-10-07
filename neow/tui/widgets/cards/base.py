@@ -58,6 +58,7 @@ class CardBase(Vertical):
 
     def on_mount(self) -> None:
         self.styles.border_left = ("heavy", self.accent)
+        self._title_widget.update(self._render_title())
         for widget in self._body_widgets:
             self.body.mount(widget)
 
@@ -99,7 +100,8 @@ class CardBase(Vertical):
             self._icon = icon
         if meta is not None:
             self._meta = meta
-        self._title_widget.update(self._render_title())
+        if self.is_mounted:
+            self._title_widget.update(self._render_title())
 
     # -- collapse ------------------------------------------------------
 
