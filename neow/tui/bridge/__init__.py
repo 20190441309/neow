@@ -1,6 +1,6 @@
 """Bridge between the Textual UI and neow's synchronous core."""
 
-from neow.tui.bridge.controller import ChatController
+from neow.tui.bridge.controller import ApprovalBridge, ChatController
 from neow.tui.bridge.events import (
     ContentDelta,
     ReasoningDelta,
@@ -15,6 +15,7 @@ from neow.tui.bridge.events import (
 
 __all__ = [
     "ChatController",
+    "ApprovalBridge",
     "ContentDelta",
     "ReasoningDelta",
     "ReasoningEnd",

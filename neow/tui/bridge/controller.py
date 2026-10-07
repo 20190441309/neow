@@ -12,6 +12,9 @@ from __future__ import annotations
 import re
 import threading
 import time
+from concurrent.futures import CancelledError as FutureCancelledError
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Callable, Dict, Optional
 
 from neow.tui.bridge.events import (
@@ -200,4 +203,36 @@ class ChatController:
         self._flush_content()
 
 
-__all__ = ["ChatController"]
+__all__ = ["ChatController", "ApprovalBridge"]
+
+
+class ApprovalBridge:
+    """Thread-safe bridge from a worker thread to a UI approval modal.
+
+    ``request`` runs on the worker thread and must schedule the modal on
+    the UI thread without blocking (e.g. ``app.call_from_thread``).  The
+    bridge blocks the worker on a ``Future`` with a timeout, defaulting to
+    denial on timeout/cancellation/errors so the process never hangs.
+    """
+
+    def __init__(
+        self,
+        *,
+        request: Callable[[str, Dict[str, Any], str, Future], None],
+        timeout: float = 600.0,
+    ):
+        self._request = request
+        self.timeout = timeout
+
+    def __call__(self, tool: str, params: Dict[str, Any], reason: str) -> bool:
+        future: Future = Future()
+        try:
+            self._request(tool, params, reason, future)
+        except Exception:
+            return False
+        try:
+            return bool(future.result(timeout=self.timeout))
+        except (FutureTimeoutError, FutureCancelledError):
+            return False
+        except Exception:
+            return False
