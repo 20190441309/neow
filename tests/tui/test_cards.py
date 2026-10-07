@@ -6,6 +6,12 @@ from neow.tui.effects.scramble import SCRAMBLE_RUNES
 from neow.tui.widgets.cards import ErrorCard, SystemCard, UserCard
 from neow.tui.widgets.cards.assistant import AssistantCard
 from neow.tui.widgets.cards.thinking import ThinkingCard
+from neow.tui.widgets.cards.tool import (
+    ToolCard,
+    render_tool_body,
+    tool_is_denied,
+    tool_is_error,
+)
 from tests.tui.conftest import _host
 
 
@@ -102,3 +108,83 @@ async def test_assistant_truncates_after_300_lines():
         await card.append_content("\n".join(f"l{i}" for i in range(310)))
         await pilot.pause()
         assert card.truncation_hint().startswith("… (+")
+
+
+def test_edit_file_body_has_inline_diff():
+    body = render_tool_body(
+        "edit_file", {"file_path": "a.py", "old_text": "x", "new_text": "y"}, "ok"
+    )
+    assert "- x" in body and "+ y" in body
+
+
+def test_execute_command_body_has_cmd_and_exit():
+    body = render_tool_body(
+        "execute_command", {"command": "npm test"}, "Exit code: 1\n2 failed"
+    )
+    assert "$ npm test" in body and "Exit code: 1" in body
+
+
+def test_search_body_has_hit_count():
+    body = render_tool_body(
+        "search_code", {"pattern": "foo"}, "a.py:1: foo\nb.py:2: foo"
+    )
+    assert "2" in body and "foo" in body
+
+
+def test_read_file_body_has_line_count():
+    body = render_tool_body("read_file", {"path": "a.py"}, "line1\nline2\nline3")
+    assert "3" in body
+
+
+def test_error_and_denied_detection():
+    assert tool_is_error("Error: boom") and not tool_is_error("ok")
+    assert tool_is_denied("Error: User denied: execute_command")
+
+
+async def test_tool_running_expanded_then_done_collapses():
+    card = ToolCard(effects="off")
+    async with _host(card) as pilot:
+        card.start("edit_file", {"file_path": "a.py"})
+        await pilot.pause()
+        assert not card.collapsed and card.status_icon == "⟳"
+        card.finish(result="ok", is_error=False)
+        await pilot.pause()
+        assert card.collapsed and card.status_icon == "✓"
+
+
+async def test_tool_error_stays_open():
+    card = ToolCard(effects="off")
+    async with _host(card) as pilot:
+        card.start("execute_command", {"command": "false"})
+        card.finish(result="Error: exit 1", is_error=True)
+        await pilot.pause()
+        assert (
+            not card.collapsed
+            and card.status_icon == "✗"
+            and card.accent == "#f87171"
+        )
+
+
+async def test_tool_denied_icon():
+    card = ToolCard(effects="off")
+    card.start("write_file", {"file_path": "a.py"})
+    card.finish(result="Error: User denied: write_file", is_error=True)
+    assert card.status_icon == "⛔"
+
+
+async def test_user_toggle_during_run_disables_auto_collapse():
+    card = ToolCard(effects="off")
+    async with _host(card) as pilot:
+        card.start("edit_file", {"file_path": "a.py"})
+        card.toggle()
+        await pilot.pause()
+        assert card.collapsed
+        card.finish(result="ok", is_error=False)
+        await pilot.pause()
+        assert card.collapsed
+
+
+def test_long_output_truncates_with_hint():
+    card = ToolCard(effects="off")
+    card.finish(result="\n".join(f"line{i}" for i in range(200)), is_error=False)
+    assert card.truncation_hint().startswith("… (+")

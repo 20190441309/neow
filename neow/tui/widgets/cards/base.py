@@ -109,10 +109,15 @@ class CardBase(Vertical):
     def collapsed(self) -> bool:
         return self._collapsed
 
+    def _set_collapsed(self, value: bool) -> None:
+        """Set collapse state without marking it as a user action."""
+
+        self._collapsed = value
+        self.body.display = not value
+        self.set_class(value, "collapsed")
+
     def toggle(self) -> None:
-        self._collapsed = not self._collapsed
-        self.body.display = not self._collapsed
-        self.set_class(self._collapsed, "collapsed")
+        self._set_collapsed(not self._collapsed)
 
     # -- accent --------------------------------------------------------
 
