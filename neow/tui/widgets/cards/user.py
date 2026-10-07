@@ -1,0 +1,24 @@
+"""User prompt card."""
+
+from __future__ import annotations
+
+from textual.widgets import Static
+
+from neow.tui.widgets.cards.base import CardBase
+
+
+class UserCard(CardBase):
+    """User prompt: cyan accent, multiline text preserved."""
+
+    def __init__(self, text: str, *, number: int, timestamp: str):
+        super().__init__(
+            title=f"You #{number}",
+            icon="❯",
+            meta=f"· {timestamp}",
+            accent="#22d3ee",
+        )
+        self.text = text
+        self.add_body(Static(text), text)
+
+
+__all__ = ["UserCard"]
