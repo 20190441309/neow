@@ -4,7 +4,12 @@ from typing import Any, Dict, Generator, List, Optional
 
 import openai
 
-from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
+from neow.models.base import (
+    BaseModelClient,
+    ModelResponse,
+    StreamChunk,
+    validate_openai_compatible,
+)
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
 
@@ -12,16 +17,26 @@ from neow.utils.logger import logger
 class DeepSeekClient(BaseModelClient):
     """DeepSeek model client using OpenAI-compatible API."""
 
-    def __init__(self, api_key: str, model: str = "deepseek-v4-flash"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "deepseek-v4-flash",
+        base_url: Optional[str] = None,
+        validate: bool = True,
+    ):
         """Initialize DeepSeek client.
 
         Args:
             api_key: DeepSeek API key.
             model: Model name (default: deepseek-v4-flash).
+            base_url: Optional custom endpoint (defaults to DeepSeek's).
+            validate: Whether to run the startup connection probe.
         """
         super().__init__(api_key, model)
+        self.base_url = base_url
+        self.validate_enabled = validate
         self.client = openai.OpenAI(
-            api_key=api_key, base_url="https://api.deepseek.com"
+            api_key=api_key, base_url=base_url or "https://api.deepseek.com"
         )
         self._last_reasoning_content = None
 
@@ -62,7 +77,7 @@ class DeepSeekClient(BaseModelClient):
             logger.debug(f"Sending request to DeepSeek API with {len(full_messages)} messages")
             response = self.client.chat.completions.create(**kwargs)  # type: ignore
             choice = response.choices[0]
-            logger.debug(f"Received response from DeepSeek API")
+            logger.debug("Received response from DeepSeek API")
 
             # Parse tool calls
             tool_calls = []
@@ -207,9 +222,6 @@ class DeepSeekClient(BaseModelClient):
         Returns:
             True if connection is valid, False otherwise.
         """
-        try:
-            self.client.models.list()
+        if not self.validate_enabled:
             return True
-        except Exception as e:
-            logger.error(f"DeepSeek connection validation failed: {e}")
-            return False
+        return validate_openai_compatible(self.client, "DeepSeek")

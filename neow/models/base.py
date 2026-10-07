@@ -1,8 +1,27 @@
 """Base class for AI model clients."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, Generator, List, Optional
+
+from neow.utils.logger import logger
+
+
+def validate_openai_compatible(client: Any, label: str) -> bool:
+    """Validate an OpenAI-compatible endpoint, tolerating a missing /models."""
+
+    try:
+        client.models.list()
+        return True
+    except Exception as exc:  # noqa: BLE001 - reported through the return value
+        status = getattr(exc, "status_code", None)
+        if status in (404, 405, 501):
+            logger.debug(
+                f"{label}: endpoint has no /models (HTTP {status}); assuming compatible"
+            )
+            return True
+        logger.error(f"{label} connection validation failed: {exc}")
+        return False
 
 
 class ModelResponse:
@@ -59,6 +78,8 @@ class BaseModelClient(ABC):
         """
         self.api_key = api_key
         self.model = model
+        self.base_url: Optional[str] = None
+        self.validate_enabled: bool = True
 
     @abstractmethod
     def chat(

@@ -9,18 +9,32 @@ from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
 
+
 class AnthropicClient(BaseModelClient):
     """Anthropic Claude model client."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-4-6",
+        base_url: Optional[str] = None,
+        validate: bool = True,
+    ):
         """Initialize Anthropic client.
 
         Args:
             api_key: Anthropic API key.
             model: Model name (default: claude-sonnet-4-6).
+            base_url: Optional custom endpoint.
+            validate: Whether to run the startup connection probe.
         """
         super().__init__(api_key, model)
-        self.client = anthropic.Anthropic(api_key=api_key)
+        self.base_url = base_url
+        self.validate_enabled = validate
+        kwargs: Dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self.client = anthropic.Anthropic(**kwargs)
 
     def chat(
         self,
@@ -178,6 +192,8 @@ class AnthropicClient(BaseModelClient):
         Returns:
             True if connection is valid, False otherwise.
         """
+        if not self.validate_enabled:
+            return True
         try:
             self.client.messages.create(
                 model=self.model,

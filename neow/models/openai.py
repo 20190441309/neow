@@ -4,7 +4,12 @@ from typing import Any, Dict, Generator, List, Optional
 
 import openai
 
-from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
+from neow.models.base import (
+    BaseModelClient,
+    ModelResponse,
+    StreamChunk,
+    validate_openai_compatible,
+)
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
 
@@ -12,15 +17,28 @@ from neow.utils.logger import logger
 class OpenAIClient(BaseModelClient):
     """OpenAI model client."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o",
+        base_url: Optional[str] = None,
+        validate: bool = True,
+    ):
         """Initialize OpenAI client.
 
         Args:
             api_key: OpenAI API key.
             model: Model name (default: gpt-4o).
+            base_url: Optional custom endpoint.
+            validate: Whether to run the startup connection probe.
         """
         super().__init__(api_key, model)
-        self.client = openai.OpenAI(api_key=api_key)
+        self.base_url = base_url
+        self.validate_enabled = validate
+        kwargs: Dict[str, Any] = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        self.client = openai.OpenAI(**kwargs)
 
     def chat(
         self,
@@ -177,9 +195,6 @@ class OpenAIClient(BaseModelClient):
         Returns:
             True if connection is valid, False otherwise.
         """
-        try:
-            self.client.models.list()
+        if not self.validate_enabled:
             return True
-        except Exception as e:
-            logger.error(f"OpenAI connection validation failed: {e}")
-            return False
+        return validate_openai_compatible(self.client, "OpenAI")
