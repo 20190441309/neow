@@ -25,6 +25,7 @@ from neow.tools.file_ops import read_file, write_file, edit_file, create_file, d
 from neow.tools.command import execute_command
 from neow.tools.search import search_code
 from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
+from neow.cli.mode import ModeError, RunMode, select_run_mode
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
 from neow.utils.formatter import print_error, print_info, console
@@ -141,11 +142,14 @@ def setup_tools(executor: ToolExecutor) -> None:
 @click.option("--config", "-c", type=click.Path(exists=True), help="Config file path")
 @click.option("--model", "-m", type=str, help="AI model to use")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
-def main(prompt, file, message_file, config, model, verbose):
+@click.option("--plain", is_flag=True, help="Use the classic line REPL")
+@click.option("--tui", is_flag=True, help="Force the full-screen TUI")
+def main(prompt, file, message_file, config, model, verbose, plain, tui):
     """Neow - A lightweight, general-purpose AI CLI assistant."""
     # Detect pipe input
+    stdin_is_tty = sys.stdin.isatty()
     piped_input = ""
-    if not sys.stdin.isatty():
+    if not stdin_is_tty:
         piped_input = sys.stdin.read().strip()
 
     # Merge piped input into prompt
@@ -154,6 +158,18 @@ def main(prompt, file, message_file, config, model, verbose):
             prompt = f"{piped_input}\n\n{prompt}"
         else:
             prompt = piped_input
+
+    # Select entry mode (pure logic; fails fast on bad flag combinations)
+    try:
+        mode = select_run_mode(
+            prompt=prompt,
+            plain=plain,
+            tui=tui,
+            stdin_tty=stdin_is_tty,
+            stdout_tty=sys.stdout.isatty(),
+        )
+    except ModeError as exc:
+        raise click.UsageError(str(exc)) from exc
 
     # Setup logging
     log_level = logging.DEBUG if verbose else logging.INFO
@@ -257,6 +273,10 @@ def main(prompt, file, message_file, config, model, verbose):
             session_manager = SessionManager(Path.home() / ".neow" / "sessions")
             session_manager.save(conversation)
             sys.exit(0)
+
+        # Full-screen TUI (default on a TTY; wired in plan task 2)
+        if mode is RunMode.TUI:
+            raise click.ClickException("TUI mode lands in task 2")
 
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)
