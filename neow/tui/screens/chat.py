@@ -11,6 +11,7 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Static
 
+from neow.cli.commands import parse_command
 from neow.tui.bridge.controller import ChatController
 from neow.tui.bridge.events import (
     ContentDelta,
@@ -31,6 +32,7 @@ from neow.tui.widgets.cards import (
     ToolCard,
     UserCard,
 )
+from neow.tui.commands import CommandDispatcher, CommandResult
 from neow.tui.widgets.input_dock import InputDock
 from neow.tui.widgets.status_bar import StatusBar, TopBar
 from neow.tui.widgets.timeline import TimelineScroll
@@ -66,6 +68,7 @@ class ChatScreen(Screen):
         self._running_tools: Dict[str, ToolCard] = {}
         self._tool_started: Dict[str, float] = {}
         self._controller: Optional[ChatController] = None
+        self.commands: Optional[CommandDispatcher] = None
         self.sidebar_tab = "context"
 
     # -- composition ---------------------------------------------------
@@ -88,6 +91,15 @@ class ChatScreen(Screen):
             approval_bridge=getattr(app, "approval_bridge", None),
             token_tracker=getattr(app, "token_tracker", None),
             event_bus=getattr(app, "event_bus", None),
+        )
+        self.commands = CommandDispatcher(
+            conversation=app.conversation,
+            config=getattr(app, "config", None),
+            session_manager=getattr(app, "session_manager", None),
+            token_tracker=getattr(app, "token_tracker", None),
+            approval_policy=getattr(app, "approval_policy", None),
+            event_bus=getattr(app, "event_bus", None),
+            plugin_api=getattr(app, "plugin_api", None),
         )
         self.refresh_status()
 
@@ -273,7 +285,34 @@ class ChatScreen(Screen):
         strip.set_class(bool(count), "visible")
 
     def on_input_dock_submitted(self, message: InputDock.Submitted) -> None:
+        if message.text.startswith("/"):
+            self.dispatch_command(message.text)
+            return
         self.submit_prompt(message.text)
+
+    def dispatch_command(self, raw: str) -> CommandResult:
+        """Run a slash command and present the result (spec §7.3)."""
+
+        if self.commands is None:
+            return CommandResult("Command dispatcher not ready", kind="error")
+        result = self.commands.dispatch(parse_command(raw))
+        if result.should_exit:
+            self.app.exit()
+            return result
+        if result.text:
+            level = result.kind if result.kind in ("info", "warn", "error") else "info"
+            self.timeline.add_card(SystemCard(result.text, level=level))
+        self._maybe_lint_followup()
+        return result
+
+    def _maybe_lint_followup(self) -> None:
+        feedback = getattr(self.app.conversation, "pending_lint_feedback", None)
+        if feedback and not self._busy:
+            self.app.conversation.pending_lint_feedback = None
+            self.timeline.add_card(
+                SystemCard("自动修复 lint/test 错误", level="warn")
+            )
+            self._start_turn(feedback)
 
     def on_input_dock_queue_changed(self, message: InputDock.QueueChanged) -> None:
         self._update_queue_strip()
