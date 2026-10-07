@@ -105,7 +105,7 @@ class NeowApp(App):
                     foreground=palette["text"],
                     background=palette["bg"],
                     surface=palette["surface"],
-                    panel=palette["surface"],
+                    panel=palette["panel"],
                     dark=(name == "midnight"),
                     variables=theme_variables(palette),
                 )

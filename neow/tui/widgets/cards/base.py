@@ -18,7 +18,7 @@ class CardBase(Vertical):
 
     DEFAULT_CSS = """
     CardBase {
-        background: $surface;
+        background: $panel;
         border-left: heavy $border;
         padding: 0 2;
         margin: 0 0 1 0;

@@ -76,6 +76,7 @@ class ChatScreen(Screen):
         self._turn_number = 0
         self._turn_started = 0.0
         self._current_assistant: Optional[AssistantCard] = None
+        self._segment_started = 0.0
         self._current_thinking: Optional[ThinkingCard] = None
         self._running_tools: Dict[str, ToolCard] = {}
         self._tool_started: Dict[str, float] = {}
@@ -223,6 +224,7 @@ class ChatScreen(Screen):
         self._turn_started = time.monotonic()
         self._current_assistant = None
         self._current_thinking = None
+        self._segment_started = time.monotonic()
         self._running_tools = {}
         self._tool_started = {}
         self._add_card(
@@ -257,6 +259,8 @@ class ChatScreen(Screen):
             card = self._ensure_assistant()
             self.call_later(card.append_content, event.text)
         elif isinstance(event, ToolStarted):
+            if self._current_assistant is not None:
+                self._current_assistant.finish(time.monotonic() - self._segment_started)
             self._current_assistant = None
             card = ToolCard(effects=self.app.effects)
             card.start(event.name, event.args)
@@ -293,6 +297,7 @@ class ChatScreen(Screen):
 
     def _ensure_assistant(self) -> AssistantCard:
         if self._current_assistant is None:
+            self._segment_started = time.monotonic()
             card = AssistantCard(
                 number=self._turn_number,
                 timestamp=self._timestamp(),
@@ -305,7 +310,7 @@ class ChatScreen(Screen):
     def _finish_turn(self, content: str) -> None:
         duration = time.monotonic() - self._turn_started
         if self._current_assistant is not None:
-            self._current_assistant.finish(duration)
+            self._current_assistant.finish(time.monotonic() - self._segment_started)
             self._current_assistant = None
         if self._current_thinking is not None:
             self._current_thinking.finish_reasoning(duration)

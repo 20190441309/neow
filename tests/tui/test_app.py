@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from neow.tui.app import resolve_effects
 from neow.tui.screens.approval import ApprovalModal
 from neow.tui.screens.chat import ChatScreen
-from neow.tui.widgets.cards import CardBase, UserCard
+from neow.tui.widgets.cards import AssistantCard, CardBase, UserCard
 from neow.tui.widgets.cards.system import CompactionCard
 from neow.tui.widgets.logo import NeowLogo
 from tests.tui.conftest import Chunk, FakeConversation, _chat_app, _host
@@ -234,3 +234,28 @@ async def test_ctrl_y_without_code_shows_notice():
         await pilot.press("ctrl+y")
         await pilot.pause(0.1)
         assert copied == [] and notices
+
+
+async def test_split_assistant_segments_finish_their_cursors():
+    script = [
+        Chunk(content_delta="one"),
+        Chunk(
+            progress={
+                "type": "tool_start",
+                "name": "read_file",
+                "args": {"path": "a.py"},
+            }
+        ),
+        Chunk(progress={"type": "tool_end", "name": "read_file", "result": "ok"}),
+        Chunk(content_delta="two"),
+        Chunk(finish_reason="stop"),
+    ]
+    app = _chat_app(FakeConversation(script=script))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        screen = app.screen
+        screen.submit_prompt("hi")
+        await pilot.pause(0.5)
+        cards = list(screen.query(AssistantCard))
+        assert len(cards) == 2
+        assert all(not card.cursor_visible for card in cards)
