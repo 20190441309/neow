@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from concurrent.futures import Future
 from typing import Any, Optional
 
@@ -10,6 +11,26 @@ from textual.app import App
 from neow.tui.bridge.controller import ApprovalBridge
 from neow.tui.screens.approval import ApprovalModal, apply_decision
 from neow.tui.screens.chat import ChatScreen
+from neow.tui.widgets.logo import NeowLogo
+
+VALID_EFFECTS = ("full", "subtle", "off")
+
+
+def resolve_effects(config_value: str, *, env_none: Optional[bool] = None) -> str:
+    """Resolve the effective animation mode (design spec §6.4).
+
+    ``TEXTUAL_ANIMATIONS=none`` forces ``off``.  Non-TTY downgrades are
+    enforced earlier by the entry-mode selection (``select_run_mode``).
+    """
+
+    animations_off = (
+        env_none
+        if env_none is not None
+        else os.environ.get("TEXTUAL_ANIMATIONS", "").strip().lower() == "none"
+    )
+    if animations_off:
+        return "off"
+    return config_value if config_value in VALID_EFFECTS else "full"
 
 
 class NeowApp(App):
@@ -41,7 +62,7 @@ class NeowApp(App):
         self.event_bus = event_bus
         self.plugin_api = plugin_api
         self.executor = executor
-        self.effects = effects or self._config_effects()
+        self.effects = resolve_effects(effects or self._config_effects())
         self.approval_bridge = ApprovalBridge(request=self._request_approval)
         if executor is not None:
             executor.approval_callback = self.approval_bridge
@@ -53,6 +74,17 @@ class NeowApp(App):
             except Exception:
                 pass
         return "full"
+
+    # -- splash ---------------------------------------------------------
+
+    def collapse_splash(self) -> None:
+        """Collapse the startup logo animation (idempotent)."""
+
+        try:
+            logo = self.screen.query_one(NeowLogo)
+        except Exception:
+            return
+        logo.collapse_splash()
 
     # -- approval bridge -----------------------------------------------
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.widgets import Static
 
 from neow.tui.widgets.cards.base import CardBase
@@ -18,7 +19,7 @@ class UserCard(CardBase):
             accent="#22d3ee",
         )
         self.text = text
-        self.add_body(Static(text), text)
+        self.add_body(Static(Text(text)), text)
 
 
 __all__ = ["UserCard"]

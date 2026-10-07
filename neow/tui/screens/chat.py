@@ -131,6 +131,11 @@ class ChatScreen(Screen):
     def on_resize(self, event) -> None:
         self.apply_width_classes(event.size.width)
 
+    def on_key(self, event) -> None:
+        collapse = getattr(self.app, "collapse_splash", None)
+        if callable(collapse):
+            collapse()
+
     def apply_width_classes(self, width: int) -> None:
         self.set_class(width < 110, "small-sidebar")
         self.set_class(width < 88, "no-sidebar")
@@ -192,7 +197,7 @@ class ChatScreen(Screen):
         self._current_thinking = None
         self._running_tools = {}
         self._tool_started = {}
-        self.timeline.add_card(
+        self._add_card(
             UserCard(text, number=self._turn_number, timestamp=self._timestamp())
         )
         self.status_bar.set_activity("✻ thinking")
@@ -229,7 +234,7 @@ class ChatScreen(Screen):
             card.start(event.name, event.args)
             self._running_tools[event.name] = card
             self._tool_started[event.name] = time.monotonic()
-            self.timeline.add_card(card)
+            self._add_card(card)
             self.status_bar.set_activity(f"⟳ {event.name}")
         elif isinstance(event, ToolFinished):
             card = self._running_tools.pop(event.name, None)
@@ -240,23 +245,32 @@ class ChatScreen(Screen):
         elif isinstance(event, TurnCompleted):
             self._finish_turn(event.content)
         elif isinstance(event, TurnFailed):
-            self.timeline.add_card(ErrorCard("模型错误", event.message))
+            self._add_card(ErrorCard("模型错误", event.message))
             self._finish_turn("")
+
+    def _add_card(self, card: CardBase) -> None:
+        """Add a card, playing its entrance animation in full effects mode."""
+
+        self.timeline.add_card(card)
+        if getattr(self.app, "effects", "full") == "full":
+            card.play_entrance()
 
     def _ensure_thinking(self) -> ThinkingCard:
         if self._current_thinking is None:
             card = ThinkingCard(effects=self.app.effects)
             self._current_thinking = card
-            self.timeline.add_card(card)
+            self._add_card(card)
         return self._current_thinking
 
     def _ensure_assistant(self) -> AssistantCard:
         if self._current_assistant is None:
             card = AssistantCard(
-                number=self._turn_number, timestamp=self._timestamp()
+                number=self._turn_number,
+                timestamp=self._timestamp(),
+                effects=getattr(self.app, "effects", "full"),
             )
             self._current_assistant = card
-            self.timeline.add_card(card)
+            self._add_card(card)
         return self._current_assistant
 
     def _finish_turn(self, content: str) -> None:
@@ -282,9 +296,7 @@ class ChatScreen(Screen):
         feedback = getattr(self.app.conversation, "pending_lint_feedback", None)
         if feedback:
             self.app.conversation.pending_lint_feedback = None
-            self.timeline.add_card(
-                SystemCard("自动修复 lint/test 错误", level="warn")
-            )
+            self._add_card(SystemCard("自动修复 lint/test 错误", level="warn"))
             self._start_turn(feedback)
 
     # -- status / queue ------------------------------------------------
@@ -326,7 +338,7 @@ class ChatScreen(Screen):
             return result
         if result.text:
             level = result.kind if result.kind in ("info", "warn", "error") else "info"
-            self.timeline.add_card(SystemCard(result.text, level=level))
+            self._add_card(SystemCard(result.text, level=level))
         self._maybe_lint_followup()
         return result
 
@@ -334,9 +346,7 @@ class ChatScreen(Screen):
         feedback = getattr(self.app.conversation, "pending_lint_feedback", None)
         if feedback and not self._busy:
             self.app.conversation.pending_lint_feedback = None
-            self.timeline.add_card(
-                SystemCard("自动修复 lint/test 错误", level="warn")
-            )
+            self._add_card(SystemCard("自动修复 lint/test 错误", level="warn"))
             self._start_turn(feedback)
 
     # -- screen hooks (plan task 14) -----------------------------------
@@ -365,11 +375,11 @@ class ChatScreen(Screen):
             client = create_model_client(self.app.config, name)
             if client.validate_connection():
                 self.app.conversation.model_client = client
-                self.timeline.add_card(SystemCard(f"Switched to model: {name}"))
+                self._add_card(SystemCard(f"Switched to model: {name}"))
             else:
-                self.timeline.add_card(ErrorCard("模型切换失败", f"无法连接 {name}"))
+                self._add_card(ErrorCard("模型切换失败", f"无法连接 {name}"))
         except Exception as exc:  # noqa: BLE001
-            self.timeline.add_card(ErrorCard("模型切换失败", str(exc)))
+            self._add_card(ErrorCard("模型切换失败", str(exc)))
 
     def _open_session_picker(self):
         sessions = []
@@ -387,7 +397,7 @@ class ChatScreen(Screen):
     def _load_session(self, name: str) -> None:
         manager = getattr(self.app, "session_manager", None)
         if manager is None:
-            self.timeline.add_card(ErrorCard("会话", "Session manager not available"))
+            self._add_card(ErrorCard("会话", "Session manager not available"))
             return
         loaded = False
         try:
@@ -397,14 +407,14 @@ class ChatScreen(Screen):
                 conversation.messages.clear()
                 conversation.messages.extend(tree_mgr.get_messages(name))
                 loaded = True
-                self.timeline.add_card(SystemCard(f"Session loaded (JSONL): {name}"))
+                self._add_card(SystemCard(f"Session loaded (JSONL): {name}"))
         except Exception:
             loaded = False
         if not loaded:
             if manager.restore(name, self.app.conversation):
-                self.timeline.add_card(SystemCard(f"Session loaded: {name}"))
+                self._add_card(SystemCard(f"Session loaded: {name}"))
             else:
-                self.timeline.add_card(ErrorCard("会话", f"Session not found: {name}"))
+                self._add_card(ErrorCard("会话", f"Session not found: {name}"))
 
     def _active_session_name(self):
         manager = getattr(self.app, "session_manager", None)
@@ -442,7 +452,7 @@ class ChatScreen(Screen):
         manager = getattr(self.app, "session_manager", None)
         name = self._active_session_name()
         if manager is None or not name:
-            self.timeline.add_card(ErrorCard("会话树", "No active session"))
+            self._add_card(ErrorCard("会话树", "No active session"))
             return
         try:
             tree_mgr = manager.session_tree
@@ -450,9 +460,9 @@ class ChatScreen(Screen):
             conversation = self.app.conversation
             conversation.messages.clear()
             conversation.messages.extend(tree_mgr.get_messages(name))
-            self.timeline.add_card(SystemCard(f"Navigated to node {node_id[:8]}"))
+            self._add_card(SystemCard(f"Navigated to node {node_id[:8]}"))
         except (ValueError, FileNotFoundError) as exc:
-            self.timeline.add_card(ErrorCard("会话树", str(exc)))
+            self._add_card(ErrorCard("会话树", str(exc)))
 
     def _branch_at(self, node_id: str) -> None:
         if not node_id:
@@ -477,7 +487,7 @@ class ChatScreen(Screen):
 
     def _diff_undo(self) -> None:
         result = self._undo_action()
-        self.timeline.add_card(SystemCard(result.text, level=result.kind))
+        self._add_card(SystemCard(result.text, level=result.kind))
 
     def _commit_ai(self):
         self.submit_prompt(

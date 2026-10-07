@@ -94,7 +94,11 @@ class ChatController:
         try:
             self._prelude(user_input)
             if self._token_tracker and self._token_tracker.check_max_tokens():
-                self._emit(TurnFailed("Token limit reached. Use /compact to summarize history."))
+                self._emit(
+                    TurnFailed(
+                        "Token limit reached. Use /compact to summarize history."
+                    )
+                )
                 return
 
             if hasattr(self._conversation, "on_cancel"):
@@ -128,7 +132,9 @@ class ChatController:
     # -- turn internals ------------------------------------------------
 
     def _prelude(self, user_input: str) -> None:
-        if self._web_fetcher is not None and hasattr(self._conversation, "add_web_content"):
+        if self._web_fetcher is not None and hasattr(
+            self._conversation, "add_web_content"
+        ):
             cache = getattr(self._conversation, "web_cache", {}) or {}
             for url in URL_PATTERN.findall(user_input):
                 if url in cache:

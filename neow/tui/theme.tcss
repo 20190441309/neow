@@ -99,3 +99,20 @@ ChatScreen.narrow #inputdock {
 ChatScreen.narrow #statusbar {
     padding: 0;
 }
+
+.picker-title {
+    height: 1;
+    color: #a78bfa;
+    text-style: bold;
+    padding: 0 1;
+}
+
+#help-text {
+    padding: 1 2;
+}
+
+#diff-body,
+#cost-body {
+    padding: 1 2;
+    color: #cbd5e1;
+}

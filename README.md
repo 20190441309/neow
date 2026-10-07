@@ -38,6 +38,35 @@
 
 ---
 
+## 🖥️ Full-screen TUI (default)
+
+Running `neow` on a TTY opens the full-screen TUI:
+
+- **Card timeline**: user, assistant, thinking, tool call, error and compaction cards; tool cards collapse automatically when done.
+- **Thinking scramble** (`✻ Thinking`): live reasoning with a crush-style scrambled frontier that settles into `✻ Thought …` and collapses when finished.
+- **Keyboard**: `Enter` send · `Ctrl+J` newline · `Esc` interrupt · `Tab` sidebar · `Ctrl+T` sidebar tab · `Ctrl+O` collapse card · `Ctrl+P` command palette · `Ctrl+Q` quit.
+- `@` completes file paths, `/` lists slash commands; all existing commands (`/help`, `/model`, `/diff`, `/tree`, `/cost`, …) work.
+- Approvals appear as a modal: `y` allow once, `a` always allow this tool, `n`/`Esc` deny.
+- Design reference: `docs/research/tui-feasibility/screenshots/`.
+
+Prefer the classic line REPL?
+
+```bash
+neow --plain        # classic REPL (unchanged)
+neow --tui          # force the full-screen TUI
+neow "prompt"       # one-shot mode (unchanged)
+```
+
+Animation modes via `.neow.json` (defaults to `full`):
+
+```json
+{ "tui": { "effects": "full" } }
+```
+
+`effects` accepts `full`, `subtle` or `off`; `TEXTUAL_ANIMATIONS=none` also forces `off`. Piped or non-TTY output never starts the TUI.
+
+---
+
 ## 🛠️ Installation
 
 Get up and running in seconds.

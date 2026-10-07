@@ -12,9 +12,13 @@ from tests.tui.conftest import FakeConversation, _chat_app
 
 
 def test_bridge_allow_and_deny():
-    allow = ApprovalBridge(request=lambda tool, params, reason, fut: fut.set_result(True))
+    allow = ApprovalBridge(
+        request=lambda tool, params, reason, fut: fut.set_result(True)
+    )
     assert allow("edit_file", {}, "write") is True
-    deny = ApprovalBridge(request=lambda tool, params, reason, fut: fut.set_result(False))
+    deny = ApprovalBridge(
+        request=lambda tool, params, reason, fut: fut.set_result(False)
+    )
     assert deny("edit_file", {}, "write") is False
 
 

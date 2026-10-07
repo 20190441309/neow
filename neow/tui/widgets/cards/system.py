@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.widgets import Static
 
 from neow.tui.widgets.cards.base import CardBase
@@ -27,7 +28,7 @@ class SystemCard(CardBase):
         self.message = message
         self.level = level
         if not short:
-            self.add_body(Static(message), message)
+            self.add_body(Static(Text(message)), message)
 
 
 class ErrorCard(CardBase):
@@ -37,7 +38,7 @@ class ErrorCard(CardBase):
         super().__init__(title=title, icon="✗", accent="#f87171")
         self.detail = detail
         if detail:
-            self.add_body(Static(detail), detail)
+            self.add_body(Static(Text(detail)), detail)
 
 
 __all__ = ["SystemCard", "ErrorCard"]

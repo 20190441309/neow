@@ -80,7 +80,9 @@ async def test_tree_screen_renders_nodes():
 
 async def test_diff_screen_shows_diff_and_binds_commit():
     app = _screen_app(
-        DiffScreen(diff_text="+added\n-removed", on_commit=lambda: None, on_undo=lambda: None)
+        DiffScreen(
+            diff_text="+added\n-removed", on_commit=lambda: None, on_undo=lambda: None
+        )
     )
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -88,6 +90,16 @@ async def test_diff_screen_shows_diff_and_binds_commit():
         await pilot.press("c")
         await pilot.pause()
         assert app.screen.committed
+
+
+async def test_diff_screen_renders_markup_like_text():
+    text = '{"type": "reasoning_start"}\n+ [bold]literal[/bold]'
+    app = _screen_app(
+        DiffScreen(diff_text=text, on_commit=lambda: None, on_undo=lambda: None)
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "reasoning_start" in _app_text(app)
 
 
 async def test_cost_screen_shows_summary():

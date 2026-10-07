@@ -11,7 +11,10 @@ from textual.widgets import SelectionList, Static
 class ModelPickerScreen(Screen):
     """Pick a configured model; Enter switches and dismisses."""
 
-    BINDINGS = [("escape", "app.pop_screen", "返回"), ("enter", "select_current", "选择")]
+    BINDINGS = [
+        ("escape", "app.pop_screen", "返回"),
+        ("enter", "select_current", "选择"),
+    ]
 
     def __init__(self, *, models: List[str], on_select: Callable[[str], None]):
         super().__init__()

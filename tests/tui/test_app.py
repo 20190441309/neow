@@ -1,9 +1,11 @@
 """App shell and chat integration tests (plan tasks 2 and 11)."""
 
+from neow.tui.app import resolve_effects
 from neow.tui.screens.approval import ApprovalModal
 from neow.tui.screens.chat import ChatScreen
 from neow.tui.widgets.cards import CardBase, UserCard
-from tests.tui.conftest import Chunk, FakeConversation, _chat_app
+from neow.tui.widgets.logo import NeowLogo
+from tests.tui.conftest import Chunk, FakeConversation, _chat_app, _host
 
 CARD_SCRIPT = [
     Chunk(progress={"type": "reasoning_start"}),
@@ -106,3 +108,42 @@ async def test_exit_with_pending_approval():
         await pilot.pause(0.1)
         app.exit()
     # Reaching this point (no hang, no exception) is the assertion.
+
+
+async def test_effects_off_disables_logo_timer():
+    app = _chat_app(FakeConversation(script=[]), effects="off")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        logo = app.screen.query_one(NeowLogo)
+        assert logo._timer is None
+
+
+async def test_logo_skips_on_any_key():
+    app = _chat_app(FakeConversation(script=[]), effects="full")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        logo = app.screen.query_one(NeowLogo)
+        logo.start_splash()
+        assert logo._timer is not None
+        await pilot.press("x")
+        await pilot.pause()
+        assert logo.collapsed_splash
+        assert logo._timer is None
+
+
+def test_effect_mode_from_config_and_env(monkeypatch):
+    monkeypatch.setenv("TEXTUAL_ANIMATIONS", "none")
+    assert resolve_effects("full") == "off"
+    assert resolve_effects("subtle", env_none=False) == "subtle"
+    monkeypatch.delenv("TEXTUAL_ANIMATIONS")
+    assert resolve_effects("warp9") == "full"
+    assert resolve_effects("off") == "off"
+
+
+async def test_full_effects_play_card_entrance():
+    card = UserCard("hi", number=1, timestamp="t")
+    async with _host(card) as pilot:
+        card.play_entrance()
+        assert card.styles.opacity == 0.0
+        await pilot.pause(0.4)
+        assert card.styles.opacity == 1.0

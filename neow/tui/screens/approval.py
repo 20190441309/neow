@@ -92,6 +92,21 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
             yield Static(self._detail_text())
             yield Static(self._hint_text(), classes="approval-hint")
 
+    def on_mount(self) -> None:
+        self._pulse_on = False
+        self._pulse_timer = self.set_interval(0.4, self._pulse)
+
+    def _pulse(self) -> None:
+        self._pulse_on = not self._pulse_on
+        try:
+            box = self.query_one(".approval-box")
+            box.styles.border = (
+                "round",
+                "#facc15" if self._pulse_on else "#8a6d0b",
+            )
+        except Exception:
+            pass
+
     # -- content -------------------------------------------------------
 
     def _title_text(self) -> Text:

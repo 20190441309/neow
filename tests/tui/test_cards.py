@@ -29,6 +29,18 @@ async def test_user_card_preserves_multiline():
     assert "a\nb" in card.body_text()
 
 
+async def test_user_card_renders_brackets_as_text():
+    import re
+
+    from tests.tui.conftest import _host
+
+    card = UserCard("see [bold]x[/bold] and {json}", number=1, timestamp="t")
+    async with _host(card) as pilot:
+        await pilot.pause()
+        svg = re.sub(r"<[^>]+>", "", pilot.app.export_screenshot())
+        assert "[bold]x[/bold]" in svg
+
+
 def test_system_card_levels():
     assert SystemCard("ok").accent == "#38bdf8"
     assert SystemCard("careful", level="warn").accent == "#facc15"
@@ -51,7 +63,11 @@ def test_finish_collapses_and_titles_duration():
     card = ThinkingCard(effects="full")
     card.append_reasoning("abc")
     card.finish_reasoning(duration=4.2)
-    assert card.collapsed and "Thought" in card.title_text() and "4.2s" in card.title_text()
+    assert (
+        card.collapsed
+        and "Thought" in card.title_text()
+        and "4.2s" in card.title_text()
+    )
 
 
 async def test_full_mode_runs_timer_then_stops():
@@ -87,7 +103,9 @@ async def test_streaming_appends_markdown_and_shows_cursor():
     card = AssistantCard(number=2, timestamp="12:04")
     async with _host(card) as pilot:
         await card.append_content("找到问题了：`get_tool_definitions()`")
-        await card.append_content("\n```python\nreturn prompts.get_tool_definitions()\n```")
+        await card.append_content(
+            "\n```python\nreturn prompts.get_tool_definitions()\n```"
+        )
         await pilot.pause()
         assert "get_tool_definitions" in card.rendered_markdown()
         assert card.cursor_visible
@@ -167,9 +185,7 @@ async def test_tool_error_stays_open():
         card.finish(result="Error: exit 1", is_error=True)
         await pilot.pause()
         assert (
-            not card.collapsed
-            and card.status_icon == "✗"
-            and card.accent == "#f87171"
+            not card.collapsed and card.status_icon == "✗" and card.accent == "#f87171"
         )
 
 

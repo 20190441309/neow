@@ -82,7 +82,9 @@ def main() -> int:
 
     if not ok:
         missing = [n for n in NEEDLES if n not in text]
-        raise AssertionError(f"PTY observe failed; missing {missing}; tail={text[-500:]!r}")
+        raise AssertionError(
+            f"PTY observe failed; missing {missing}; tail={text[-500:]!r}"
+        )
     print("PTY OBSERVE OK")
     print("evidence:", evidence)
     return 0

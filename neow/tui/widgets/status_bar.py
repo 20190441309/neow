@@ -9,6 +9,8 @@ from rich.text import Text
 from textual.containers import Horizontal
 from textual.widgets import Static
 
+from neow.tui.widgets.logo import NeowLogo
+
 
 def _git_branch() -> Optional[str]:
     """Best-effort current git branch; None outside a repo."""
@@ -20,21 +22,6 @@ def _git_branch() -> Optional[str]:
         return branch or None
     except Exception:
         return None
-
-
-class NeowLogo(Static):
-    """Neow wordmark (animated splash lands in plan task 15)."""
-
-    def __init__(self, *, effects: str = "full"):
-        super().__init__("◆ NEOW", classes="logo")
-        self.effects = effects
-        self._timer = None
-
-    @property
-    def collapsed_splash(self) -> bool:
-        """Whether the startup splash has been collapsed to the mark."""
-
-        return True
 
 
 class TopBar(Horizontal):

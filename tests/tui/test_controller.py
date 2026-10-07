@@ -48,7 +48,11 @@ def test_event_sequence_from_fake_stream():
 def test_delta_coalescing_with_fake_clock():
     now = [0.0]
     conv = FakeConversation(
-        script=[Chunk(content_delta="a"), Chunk(content_delta="b"), Chunk(content_delta="c")]
+        script=[
+            Chunk(content_delta="a"),
+            Chunk(content_delta="b"),
+            Chunk(content_delta="c"),
+        ]
     )
     events = []
     ctrl = ChatController(

@@ -54,7 +54,9 @@ def run_pty(args, *, send=b"", delay=2.0, interval=0.8, timeout=25.0):
         proc.kill()
         proc.wait()
         os.close(master)
-        raise AssertionError(f"TIMEOUT: neow {args} did not exit; tail={bytes(output[-300:])!r}")
+        raise AssertionError(
+            f"TIMEOUT: neow {args} did not exit; tail={bytes(output[-300:])!r}"
+        )
     os.close(master)
     return proc.returncode, bytes(output)
 

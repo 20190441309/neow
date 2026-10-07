@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from rich.text import Text
 from textual.screen import Screen
 from textual.widgets import Static
 
@@ -33,7 +34,7 @@ class DiffScreen(Screen):
 
     def compose(self):
         yield Static("DIFF · c 提交 · u 回退 · Esc 返回", classes="picker-title")
-        yield Static(self.diff_text or "(no uncommitted changes)", id="diff-body")
+        yield Static(Text(self.diff_text or "(no uncommitted changes)"), id="diff-body")
 
     def action_commit(self) -> None:
         self.committed = True

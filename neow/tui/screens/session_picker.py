@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
+from rich.text import Text
 from textual.screen import Screen
 from textual.widgets import SelectionList, Static
 
@@ -19,9 +20,14 @@ def _label(session: Dict[str, Any]) -> str:
 class SessionPickerScreen(Screen):
     """Pick a saved session; Enter loads and dismisses."""
 
-    BINDINGS = [("escape", "app.pop_screen", "返回"), ("enter", "select_current", "选择")]
+    BINDINGS = [
+        ("escape", "app.pop_screen", "返回"),
+        ("enter", "select_current", "选择"),
+    ]
 
-    def __init__(self, *, sessions: List[Dict[str, Any]], on_select: Callable[[str], None]):
+    def __init__(
+        self, *, sessions: List[Dict[str, Any]], on_select: Callable[[str], None]
+    ):
         super().__init__()
         self.sessions = list(sessions)
         self.on_select = on_select
@@ -32,7 +38,10 @@ class SessionPickerScreen(Screen):
             yield Static("(no saved sessions)", id="session-empty")
             return
         yield SelectionList(
-            *[(_label(session), session.get("name", "")) for session in self.sessions],
+            *[
+                (Text(_label(session)), session.get("name", ""))
+                for session in self.sessions
+            ],
             id="session-list",
         )
 

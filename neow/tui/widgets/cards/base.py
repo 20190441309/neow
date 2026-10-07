@@ -121,6 +121,12 @@ class CardBase(Vertical):
     def toggle(self) -> None:
         self._set_collapsed(not self._collapsed)
 
+    def play_entrance(self) -> None:
+        """Fade the card in (design spec §6.1; full effects mode only)."""
+
+        self.styles.opacity = 0.0
+        self.styles.animate("opacity", 1.0, duration=0.12, easing="out_cubic")
+
     # -- accent --------------------------------------------------------
 
     def set_accent(self, color: str) -> None:

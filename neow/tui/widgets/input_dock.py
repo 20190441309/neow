@@ -68,6 +68,12 @@ class PromptArea(TextArea):
         self._dock = dock
 
     async def _on_key(self, event) -> None:
+        try:
+            collapse = getattr(self.app, "collapse_splash", None)
+            if callable(collapse):
+                collapse()
+        except Exception:
+            pass
         key = event.key
         if key == "enter":
             event.stop()
@@ -131,7 +137,9 @@ class InputDock(Vertical):
 
     def __init__(self, *, history_path: Optional[Path] = None, **kwargs):
         super().__init__(**kwargs)
-        self._history_path = Path(history_path) if history_path else Path(".neow_history")
+        self._history_path = (
+            Path(history_path) if history_path else Path(".neow_history")
+        )
         self._history: List[str] = self._load_history()
         self._history_index: Optional[int] = None
         self._queue: List[str] = []

@@ -35,7 +35,13 @@ def _tool_summary(name: str, args: Dict[str, Any]) -> str:
 
     if name in ("read_file",):
         return str(args.get("path") or args.get("file_path") or "")
-    if name in ("edit_file", "hashline_edit", "write_file", "create_file", "delete_file"):
+    if name in (
+        "edit_file",
+        "hashline_edit",
+        "write_file",
+        "create_file",
+        "delete_file",
+    ):
         return str(args.get("file_path") or args.get("path") or "")
     if name == "execute_command":
         return str(args.get("command", ""))[:60]
@@ -159,13 +165,18 @@ class ToolCard(CardBase):
             meta = f"{meta} · {duration:.1f}s"
         self.set_title(icon=icon, meta=meta)
         self.set_accent(accent)
+        try:
+            self.styles.animate(
+                "opacity",
+                0.85,
+                duration=0.15,
+                on_complete=lambda: self.styles.animate("opacity", 1.0, duration=0.15),
+            )
+        except Exception:
+            pass
         self._render_body()
 
-        if (
-            self._status == "done"
-            and not self._user_touched
-            and not self.collapsed
-        ):
+        if self._status == "done" and not self._user_touched and not self.collapsed:
             self._set_collapsed(True)
 
     def set_duration(self, seconds: float) -> None:

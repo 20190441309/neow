@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.screen import Screen
 from textual.widgets import Static
 
@@ -17,7 +18,7 @@ class CostScreen(Screen):
 
     def compose(self):
         yield Static("COST · Esc 返回", classes="picker-title")
-        yield Static(self.summary, id="cost-body")
+        yield Static(Text(self.summary), id="cost-body")
 
 
 __all__ = ["CostScreen"]

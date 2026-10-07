@@ -14,7 +14,7 @@ MAX_LINES = 300
 class AssistantCard(CardBase):
     """One assistant content segment; streamed markdown plus ``▊`` cursor."""
 
-    def __init__(self, *, number: int, timestamp: str):
+    def __init__(self, *, number: int, timestamp: str, effects: str = "full"):
         super().__init__(
             title=f"Assistant #{number}",
             icon="●",
@@ -23,12 +23,15 @@ class AssistantCard(CardBase):
         )
         self.number = number
         self._timestamp = timestamp
+        self.effects = effects
         self._content = ""
         self._pending = ""
         self._shown = ""
         self._appended_lines = 0
         self._dropped_lines = 0
         self._finished = False
+        self._cursor_timer = None
+        self._blink_on = True
         self._md = Markdown("")
         self._cursor = Static(CURSOR, classes="stream-cursor")
         self.add_body(self._md, "")
@@ -46,6 +49,14 @@ class AssistantCard(CardBase):
         super().on_mount()
         if self._pending:
             self.call_later(self._flush_pending)
+        if self.effects == "full" and not self._finished:
+            self._cursor_timer = self.set_interval(0.5, self._blink)
+
+    def _blink(self) -> None:
+        if not self.is_mounted or self._finished:
+            return
+        self._blink_on = not self._blink_on
+        self._cursor.styles.color = "#a78bfa" if self._blink_on else "#64748b"
 
     async def _flush_pending(self) -> None:
         if not self._pending:
@@ -73,6 +84,9 @@ class AssistantCard(CardBase):
         """End the stream: hide the cursor and record the duration."""
 
         self._finished = True
+        if self._cursor_timer is not None:
+            self._cursor_timer.stop()
+            self._cursor_timer = None
         self._cursor.display = False
         self.set_title(meta=f"{self._timestamp} · {duration:.1f}s")
 
