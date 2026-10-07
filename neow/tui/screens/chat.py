@@ -33,6 +33,7 @@ from neow.tui.widgets.cards import (
     ToolCard,
     UserCard,
 )
+from neow.tui.clipboard import extract_last_code_block
 from neow.tui.commands import CommandDispatcher, CommandResult
 from neow.tui.screens.cost import CostScreen
 from neow.tui.screens.diff_view import DiffScreen
@@ -66,6 +67,7 @@ class ChatScreen(Screen):
         ("ctrl+t", "cycle_sidebar", "侧栏页"),
         ("tab", "toggle_sidebar", "侧栏"),
         ("f1", "show_help", "帮助"),
+        ("ctrl+y", "copy_last_code", "复制代码"),
     ]
 
     def __init__(self):
@@ -616,6 +618,9 @@ class ChatScreen(Screen):
     def on_input_dock_queue_changed(self, message: InputDock.QueueChanged) -> None:
         self._update_queue_strip()
 
+    def on_input_dock_copy_requested(self, message: InputDock.CopyRequested) -> None:
+        self.action_copy_last_code()
+
     @staticmethod
     def _timestamp() -> str:
         return time.strftime("%H:%M")
@@ -637,6 +642,20 @@ class ChatScreen(Screen):
 
     def action_show_help(self) -> None:
         self._open_help()
+
+    def action_copy_last_code(self) -> None:
+        """Copy the last code block of the newest assistant card (OSC52)."""
+
+        cards = [
+            card for card in self.timeline.cards() if isinstance(card, AssistantCard)
+        ]
+        text = cards[-1].rendered_markdown() if cards else ""
+        code = extract_last_code_block(text)
+        if not code:
+            self.notify("没有可复制的代码块", severity="warning", timeout=2)
+            return
+        self.app.copy_to_clipboard(code)
+        self.notify("已复制最后一个代码块", timeout=2)
 
     def action_toggle_sidebar(self) -> None:
         sidebar = self.sidebar

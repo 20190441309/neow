@@ -199,3 +199,38 @@ async def test_compact_command_renders_compaction_card():
         cards = list(screen.query(CompactionCard))
         assert cards and cards[-1].collapsed
         assert "Compacted" in cards[-1].title_text()
+
+
+async def test_ctrl_y_copies_last_code_block():
+    script = [
+        Chunk(content_delta="first\n```python\nprint(1)\n```\n"),
+        Chunk(content_delta="second\n```bash\necho hi\n```"),
+        Chunk(finish_reason="stop"),
+    ]
+    app = _chat_app(FakeConversation(script=script))
+    copied = []
+    app.copy_to_clipboard = lambda text: copied.append(text)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.screen.submit_prompt("hi")
+        await pilot.pause(0.5)
+        await pilot.press("ctrl+y")
+        await pilot.pause(0.1)
+        assert copied == ["echo hi"]
+
+
+async def test_ctrl_y_without_code_shows_notice():
+    script = [Chunk(content_delta="no code here"), Chunk(finish_reason="stop")]
+    app = _chat_app(FakeConversation(script=script))
+    copied = []
+    notices = []
+    app.copy_to_clipboard = lambda text: copied.append(text)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        screen = app.screen
+        screen.notify = lambda *args, **kwargs: notices.append((args, kwargs))
+        screen.submit_prompt("hi")
+        await pilot.pause(0.5)
+        await pilot.press("ctrl+y")
+        await pilot.pause(0.1)
+        assert copied == [] and notices

@@ -76,6 +76,11 @@ class PromptArea(TextArea):
         except Exception:
             pass
         key = event.key
+        if key == "ctrl+y":
+            event.stop()
+            event.prevent_default()
+            self._dock.post_message(InputDock.CopyRequested())
+            return
         if key == "enter":
             event.stop()
             event.prevent_default()
@@ -111,6 +116,9 @@ class InputDock(Vertical):
 
     class QueueChanged(Message):
         """The queued-prompt list changed."""
+
+    class CopyRequested(Message):
+        """Ctrl+Y asked the screen to copy the last code block."""
 
     DEFAULT_CSS = """
     InputDock {
