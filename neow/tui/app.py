@@ -6,11 +6,12 @@ import os
 from concurrent.futures import Future
 from typing import Any, Optional
 
-from textual.app import App
+from textual.app import App, SystemCommand
 
 from neow.tui.bridge.controller import ApprovalBridge
 from neow.tui.screens.approval import ApprovalModal, apply_decision
 from neow.tui.screens.chat import ChatScreen
+from neow.tui.widgets.input_dock import SLASH_COMMANDS
 from neow.tui.widgets.logo import NeowLogo
 
 VALID_EFFECTS = ("full", "subtle", "off")
@@ -38,7 +39,7 @@ class NeowApp(App):
 
     CSS_PATH = "theme.tcss"
     TITLE = "neow"
-    BINDINGS = [("ctrl+q", "quit", "Quit")]
+    BINDINGS = [("ctrl+q", "quit", "Quit"), ("ctrl+p", "command_palette", "命令面板")]
 
     def __init__(
         self,
@@ -74,6 +75,23 @@ class NeowApp(App):
             except Exception:
                 pass
         return "full"
+
+    # -- command palette -----------------------------------------------
+
+    def get_system_commands(self, screen):
+        """Expose slash commands in the Ctrl+P command palette (spec §7.3)."""
+
+        yield from super().get_system_commands(screen)
+        for name in SLASH_COMMANDS:
+            yield SystemCommand(name, f"运行 {name}", self._slash_callback(name))
+
+    def _slash_callback(self, name: str):
+        def run() -> None:
+            dispatch = getattr(self.screen, "dispatch_command", None)
+            if callable(dispatch):
+                dispatch(name)
+
+        return run
 
     # -- splash ---------------------------------------------------------
 

@@ -63,6 +63,7 @@ class ChatScreen(Screen):
         ("ctrl+o", "toggle_card", "折叠"),
         ("ctrl+t", "cycle_sidebar", "侧栏页"),
         ("tab", "toggle_sidebar", "侧栏"),
+        ("f1", "show_help", "帮助"),
     ]
 
     def __init__(self):
@@ -126,6 +127,17 @@ class ChatScreen(Screen):
         )
         self.refresh_status()
         self._refresh_sidebar()
+        if self._sidebar_default():
+            self.sidebar.set_class(True, "visible")
+
+    def _sidebar_default(self) -> bool:
+        config = getattr(self.app, "config", None)
+        if config is None:
+            return False
+        try:
+            return bool(config.tui.get("sidebar_default", False))
+        except Exception:
+            return False
 
     # -- responsive breakpoints (spec §4.3) ----------------------------
 
@@ -606,6 +618,9 @@ class ChatScreen(Screen):
         cards = self.timeline.cards()
         if cards:
             cards[-1].toggle()
+
+    def action_show_help(self) -> None:
+        self._open_help()
 
     def action_toggle_sidebar(self) -> None:
         sidebar = self.sidebar

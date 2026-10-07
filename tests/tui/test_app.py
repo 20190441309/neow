@@ -159,3 +159,30 @@ async def test_exit_saves_session():
         await pilot.pause()
         app.exit()
     assert saved
+
+
+async def test_sidebar_default_config_shows_sidebar():
+    config = SimpleNamespace(tui={"sidebar_default": True})
+    app = _chat_app(FakeConversation(script=[]), config=config)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.screen.sidebar_visible
+
+
+async def test_f1_opens_help():
+    from neow.tui.screens.help import HelpScreen
+
+    app = _chat_app(FakeConversation(script=[]))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("f1")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpScreen)
+
+
+async def test_command_palette_lists_slash_commands():
+    app = _chat_app(FakeConversation(script=[]))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        commands = list(app.get_system_commands(app.screen))
+        assert "/help" in [command.title for command in commands]
