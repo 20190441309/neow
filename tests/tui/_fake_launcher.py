@@ -28,7 +28,16 @@ class FakeClient:
         )
 
     def chat_stream(self, messages, system_prompt=None, tools=None):
-        yield StreamChunk(content_delta="fake response")
+        import time
+
+        yield StreamChunk(progress={"type": "reasoning_start"})
+        for _ in range(3):
+            yield StreamChunk(reasoning_delta="分析问题中…")
+            time.sleep(0.15)
+        yield StreamChunk(progress={"type": "reasoning_end"})
+        for _ in range(3):
+            yield StreamChunk(content_delta="fake response ")
+            time.sleep(0.05)
         yield StreamChunk(
             finish_reason="stop",
             usage={"prompt_tokens": 1, "completion_tokens": 2},
