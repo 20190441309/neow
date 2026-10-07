@@ -284,3 +284,26 @@ def test_main_reexports_create_model_client():
     from neow.models.factory import create_model_client as from_factory
 
     assert from_main is from_factory
+
+
+def test_describe_models_shows_provider_and_endpoint(tmp_path):
+    from neow.models.factory import describe_models
+
+    config = _config(
+        tmp_path,
+        {
+            "openrouter": {
+                "provider": "openai-compatible",
+                "api_key": "k",
+                "model": "m",
+                "base_url": "https://openrouter.ai/api/v1",
+            },
+            "deepseek": {"api_key": "k", "model": "deepseek-v4-flash"},
+        },
+    )
+    lines = describe_models(config)
+    assert any(
+        line.startswith("openrouter (openai-compatible @ https://openrouter.ai/api/v1)")
+        for line in lines
+    )
+    assert any(line.startswith("deepseek (auto)") for line in lines)

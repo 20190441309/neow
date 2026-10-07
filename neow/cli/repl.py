@@ -33,6 +33,7 @@ from neow.utils.formatter import (
 )
 from neow.utils.logger import logger
 from neow.core.config import Config
+from neow.models.factory import describe_models
 
 
 def _now_ts() -> str:
@@ -666,9 +667,10 @@ class REPL:
                     print_error(f"Failed to switch model: {e}")
             else:
                 current = self.conversation.model_client.model
-                available = list(self.config.models.keys())
                 print_info(f"Current model: {current}")
-                print_info(f"Available models: {', '.join(available)}")
+                print_info("Available models:")
+                for line in describe_models(self.config):
+                    print_info(f"  {line}")
                 print_info("Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai")
         elif parsed.command == Command.DIFF:
             try:

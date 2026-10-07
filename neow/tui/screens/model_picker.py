@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, List
+from typing import Callable, Dict, List, Optional
 
 from textual.screen import Screen
 from textual.widgets import SelectionList, Static
@@ -16,15 +16,22 @@ class ModelPickerScreen(Screen):
         ("enter", "select_current", "选择"),
     ]
 
-    def __init__(self, *, models: List[str], on_select: Callable[[str], None]):
+    def __init__(
+        self,
+        *,
+        models: List[str],
+        on_select: Callable[[str], None],
+        labels: Optional[Dict[str, str]] = None,
+    ):
         super().__init__()
         self.models = list(models)
+        self.labels = dict(labels or {})
         self.on_select = on_select
 
     def compose(self):
         yield Static("选择模型 · Enter 切换 · Esc 返回", classes="picker-title")
         yield SelectionList(
-            *[(model, model) for model in self.models],
+            *[(self.labels.get(model, model), model) for model in self.models],
             id="model-list",
         )
 

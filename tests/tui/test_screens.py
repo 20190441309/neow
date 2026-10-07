@@ -38,6 +38,23 @@ async def test_model_picker_switches_via_callback():
         assert switched == ["openai"]
 
 
+async def test_model_picker_labels_shown_and_selection_returns_name():
+    switched = []
+    app = _screen_app(
+        ModelPickerScreen(
+            models=["openrouter"],
+            labels={"openrouter": "openrouter (openai-compatible)"},
+            on_select=switched.append,
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "openai-compatible" in _app_text(app)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert switched == ["openrouter"]
+
+
 async def test_session_picker_lists_sessions():
     sessions = [
         {

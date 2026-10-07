@@ -82,6 +82,7 @@ __all__ = [
     "resolve_api_key",
     "client_for",
     "create_model_client",
+    "describe_models",
 ]
 
 
@@ -117,3 +118,15 @@ def create_model_client(config: "Config", model_name: str):
         base_url=entry.get("base_url") or None,
         validate=validate_value == "auto",
     )
+
+
+def describe_models(config: "Config") -> list[str]:
+    """One-line provider/endpoint description per configured model (spec §8)."""
+
+    lines = []
+    for name, entry in config.models.items():
+        provider = entry.get("provider") or "auto"
+        base_url = entry.get("base_url")
+        suffix = f" @ {base_url}" if base_url else ""
+        lines.append(f"{name} ({provider}{suffix})")
+    return lines

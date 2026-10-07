@@ -381,14 +381,22 @@ class ChatScreen(Screen):
 
     def _open_model_picker(self):
         models = []
+        labels = {}
         config = getattr(self.app, "config", None)
         if config is not None:
             try:
-                models = list(config.models.keys())
+                for name, entry in config.models.items():
+                    models.append(name)
+                    provider = entry.get("provider")
+                    if provider:
+                        labels[name] = f"{name} ({provider})"
             except Exception:
                 models = []
+                labels = {}
         self.app.push_screen(
-            ModelPickerScreen(models=models, on_select=self._switch_model)
+            ModelPickerScreen(
+                models=models, labels=labels, on_select=self._switch_model
+            )
         )
         return None
 
