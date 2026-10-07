@@ -80,3 +80,4 @@ aider/
 
 # Development planning docs (internal)
 docs/superpowers/
+.superpowers/
