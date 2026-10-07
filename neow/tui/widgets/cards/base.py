@@ -38,8 +38,10 @@ class CardBase(Vertical):
         icon: str = "",
         meta: str = "",
         accent: str = DEFAULT_ACCENT,
+        card_id: Optional[str] = None,
     ):
         super().__init__()
+        self.card_id = card_id or f"card-{id(self):x}"
         self._title = title
         self._icon = icon
         self._meta = meta
