@@ -80,3 +80,13 @@ async def _host(widget):
     app = HostApp()
     async with app.run_test() as pilot:
         yield pilot
+
+
+def _screen_app(screen):
+    """Build an App whose only screen is *screen* (pushed on mount)."""
+
+    class ScreenHost(App):
+        def on_mount(self):
+            self.push_screen(screen)
+
+    return ScreenHost()

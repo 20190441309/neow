@@ -33,6 +33,12 @@ from neow.tui.widgets.cards import (
     UserCard,
 )
 from neow.tui.commands import CommandDispatcher, CommandResult
+from neow.tui.screens.cost import CostScreen
+from neow.tui.screens.diff_view import DiffScreen
+from neow.tui.screens.help import HelpScreen
+from neow.tui.screens.model_picker import ModelPickerScreen
+from neow.tui.screens.session_picker import SessionPickerScreen
+from neow.tui.screens.tree import SessionTreeScreen
 from neow.tui.widgets.input_dock import InputDock
 from neow.tui.widgets.status_bar import StatusBar, TopBar
 from neow.tui.widgets.timeline import TimelineScroll
@@ -101,7 +107,24 @@ class ChatScreen(Screen):
             event_bus=getattr(app, "event_bus", None),
             plugin_api=getattr(app, "plugin_api", None),
         )
+        self._last_reasoning = ""
+        self.commands.hooks.update(
+            {
+                "help": self._open_help,
+                "model": self._open_model_picker,
+                "history": self._open_session_picker,
+                "load": self._open_session_picker,
+                "tree": self._open_tree,
+                "branch": self._open_tree,
+                "diff": self._open_diff,
+                "commit_ai": self._commit_ai,
+                "undo": self._undo_action,
+                "cost": self._open_cost,
+                "think": self._show_thinking,
+            }
+        )
         self.refresh_status()
+        self._refresh_sidebar()
 
     # -- responsive breakpoints (spec §4.3) ----------------------------
 
@@ -195,6 +218,7 @@ class ChatScreen(Screen):
         elif isinstance(event, ReasoningEnd):
             card = self._ensure_thinking()
             card.finish_reasoning(event.duration)
+            self._last_reasoning = event.reasoning
             self._current_thinking = None
         elif isinstance(event, ContentDelta):
             card = self._ensure_assistant()
@@ -247,6 +271,7 @@ class ChatScreen(Screen):
         self.status_bar.set_activity("idle")
         self.input_dock.set_busy(False)
         self.refresh_status()
+        self._refresh_sidebar()
 
         nxt = self.input_dock.pop_first_queued()
         if nxt is not None:
@@ -314,6 +339,230 @@ class ChatScreen(Screen):
             )
             self._start_turn(feedback)
 
+    # -- screen hooks (plan task 14) -----------------------------------
+
+    def _open_help(self):
+        self.app.push_screen(HelpScreen())
+        return None
+
+    def _open_model_picker(self):
+        models = []
+        config = getattr(self.app, "config", None)
+        if config is not None:
+            try:
+                models = list(config.models.keys())
+            except Exception:
+                models = []
+        self.app.push_screen(
+            ModelPickerScreen(models=models, on_select=self._switch_model)
+        )
+        return None
+
+    def _switch_model(self, name: str) -> None:
+        try:
+            from neow.cli.main import create_model_client
+
+            client = create_model_client(self.app.config, name)
+            if client.validate_connection():
+                self.app.conversation.model_client = client
+                self.timeline.add_card(SystemCard(f"Switched to model: {name}"))
+            else:
+                self.timeline.add_card(ErrorCard("模型切换失败", f"无法连接 {name}"))
+        except Exception as exc:  # noqa: BLE001
+            self.timeline.add_card(ErrorCard("模型切换失败", str(exc)))
+
+    def _open_session_picker(self):
+        sessions = []
+        manager = getattr(self.app, "session_manager", None)
+        if manager is not None:
+            try:
+                sessions = manager.list_sessions()
+            except Exception:
+                sessions = []
+        self.app.push_screen(
+            SessionPickerScreen(sessions=sessions, on_select=self._load_session)
+        )
+        return None
+
+    def _load_session(self, name: str) -> None:
+        manager = getattr(self.app, "session_manager", None)
+        if manager is None:
+            self.timeline.add_card(ErrorCard("会话", "Session manager not available"))
+            return
+        loaded = False
+        try:
+            tree_mgr = manager.session_tree
+            if tree_mgr.find_session(name):
+                conversation = self.app.conversation
+                conversation.messages.clear()
+                conversation.messages.extend(tree_mgr.get_messages(name))
+                loaded = True
+                self.timeline.add_card(SystemCard(f"Session loaded (JSONL): {name}"))
+        except Exception:
+            loaded = False
+        if not loaded:
+            if manager.restore(name, self.app.conversation):
+                self.timeline.add_card(SystemCard(f"Session loaded: {name}"))
+            else:
+                self.timeline.add_card(ErrorCard("会话", f"Session not found: {name}"))
+
+    def _active_session_name(self):
+        manager = getattr(self.app, "session_manager", None)
+        if manager is None:
+            return None
+        try:
+            sessions = manager.list_sessions()
+        except Exception:
+            return None
+        return sessions[0]["name"] if sessions else None
+
+    def _open_tree(self):
+        tree = {}
+        leaf = None
+        name = self._active_session_name()
+        manager = getattr(self.app, "session_manager", None)
+        if manager is not None and name:
+            try:
+                tree_mgr = manager.session_tree
+                tree = tree_mgr.get_tree(name)
+                leaf = tree_mgr.get_leaf_id(name)
+            except Exception:
+                tree = {}
+        self.app.push_screen(
+            SessionTreeScreen(
+                tree=tree,
+                leaf_id=leaf,
+                on_goto=self._goto_node,
+                on_branch=self._branch_at,
+            )
+        )
+        return None
+
+    def _goto_node(self, node_id: str) -> None:
+        manager = getattr(self.app, "session_manager", None)
+        name = self._active_session_name()
+        if manager is None or not name:
+            self.timeline.add_card(ErrorCard("会话树", "No active session"))
+            return
+        try:
+            tree_mgr = manager.session_tree
+            tree_mgr.branch_at(name, node_id)
+            conversation = self.app.conversation
+            conversation.messages.clear()
+            conversation.messages.extend(tree_mgr.get_messages(name))
+            self.timeline.add_card(SystemCard(f"Navigated to node {node_id[:8]}"))
+        except (ValueError, FileNotFoundError) as exc:
+            self.timeline.add_card(ErrorCard("会话树", str(exc)))
+
+    def _branch_at(self, node_id: str) -> None:
+        if not node_id:
+            return
+        self._goto_node(node_id)
+
+    def _open_diff(self):
+        from neow.tools.git import GitError, git_diff
+
+        try:
+            diff = git_diff()
+        except GitError as exc:
+            diff = str(exc)
+        self.app.push_screen(
+            DiffScreen(
+                diff_text=diff,
+                on_commit=self._commit_ai,
+                on_undo=self._diff_undo,
+            )
+        )
+        return None
+
+    def _diff_undo(self) -> None:
+        result = self._undo_action()
+        self.timeline.add_card(SystemCard(result.text, level=result.kind))
+
+    def _commit_ai(self):
+        self.submit_prompt(
+            "Please generate a concise commit message for the current changes "
+            "and use the git_commit tool to commit them."
+        )
+        return CommandResult("正在生成 commit message…")
+
+    def _undo_action(self) -> CommandResult:
+        from neow.tools.git import GitError, git_undo
+
+        try:
+            return CommandResult(git_undo())
+        except GitError as exc:
+            return CommandResult(str(exc), kind="error")
+
+    def _open_cost(self):
+        summary = ""
+        tracker = getattr(self.app, "token_tracker", None)
+        if tracker is not None:
+            try:
+                summary = str(tracker.get_session_summary())
+            except Exception:
+                summary = ""
+        self.app.push_screen(CostScreen(summary=summary))
+        return None
+
+    def _show_thinking(self) -> CommandResult:
+        if self._last_reasoning:
+            return CommandResult(self._last_reasoning)
+        return CommandResult(
+            "No thinking content available. Reasoning is captured during "
+            "AI responses that use thinking mode."
+        )
+
+    def _refresh_sidebar(self) -> None:
+        try:
+            sidebar = self.sidebar
+        except Exception:
+            return
+        for child in list(sidebar.children):
+            child.remove()
+        tab = self.sidebar_tab
+        lines = []
+        if tab == "context":
+            files = []
+            try:
+                files = self.app.conversation.list_context_files()
+            except Exception:
+                files = []
+            lines = [f"CONTEXT · {len(files)} files"]
+            lines.extend(f"  {path}" for path in files)
+            if not files:
+                lines.append("  (empty)")
+        elif tab == "tree":
+            lines = ["SESSION TREE"]
+            manager = getattr(self.app, "session_manager", None)
+            if manager is None:
+                lines.append("  (no session manager)")
+            else:
+                try:
+                    sessions = manager.list_sessions()
+                    if sessions:
+                        lines.extend(
+                            f"  {s.get('name')} ({s.get('message_count', 0)})"
+                            for s in sessions[:5]
+                        )
+                    else:
+                        lines.append("  (no sessions)")
+                except Exception as exc:  # noqa: BLE001
+                    lines.append(f"  {exc}")
+        else:
+            lines = ["GIT"]
+            try:
+                from neow.tools.git import git_log, git_status
+
+                status = git_status()
+                lines.append(status or "  clean")
+                log = git_log(3)
+                if log:
+                    lines.append(log)
+            except Exception as exc:  # noqa: BLE001
+                lines.append(f"  {exc}")
+        sidebar.mount(Static("\n".join(lines)))
+
     def on_input_dock_queue_changed(self, message: InputDock.QueueChanged) -> None:
         self._update_queue_strip()
 
@@ -343,10 +592,12 @@ class ChatScreen(Screen):
             self.notify("终端宽度不足，无法显示侧栏", severity="warning", timeout=2)
             return
         sidebar.set_class(not visible, "visible")
+        self._refresh_sidebar()
 
     def action_cycle_sidebar(self) -> None:
         index = SIDEBAR_TABS.index(self.sidebar_tab)
         self.sidebar_tab = SIDEBAR_TABS[(index + 1) % len(SIDEBAR_TABS)]
+        self._refresh_sidebar()
 
     def action_quit_app(self) -> None:
         self.app.exit()

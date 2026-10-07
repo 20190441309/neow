@@ -1,5 +1,6 @@
 """Approval bridge and modal tests (plan task 10)."""
 
+import threading
 from concurrent.futures import Future
 
 from textual.app import App
@@ -7,6 +8,7 @@ from textual.app import App
 from neow.core.approval import ApprovalMode, ApprovalPolicy
 from neow.tui.bridge import ApprovalBridge
 from neow.tui.screens.approval import ApprovalDecision, ApprovalModal, apply_decision
+from tests.tui.conftest import FakeConversation, _chat_app
 
 
 def test_bridge_allow_and_deny():
@@ -64,3 +66,25 @@ def test_always_sets_policy_override():
     apply_decision(ApprovalDecision.ALLOW_ALWAYS, policy, "execute_command", future)
     assert policy.tool_overrides["execute_command"] == "allow"
     assert future.result() is True
+
+
+async def test_approval_flow_end_to_end():
+    """Worker thread blocks on the bridge; modal resolves the future."""
+
+    app = _chat_app(FakeConversation(script=[]))
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        result = {}
+
+        def worker():
+            result["approved"] = app.approval_bridge(
+                "execute_command", {"command": "npm test"}, "exec"
+            )
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        await pilot.pause(0.4)
+        await pilot.press("y")
+        await pilot.pause(0.2)
+        thread.join(timeout=5)
+        assert result["approved"] is True

@@ -11,7 +11,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Static
+from textual.widgets import RadioButton, RadioSet, Static
 
 
 class ApprovalDecision(Enum):
@@ -137,4 +137,39 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
         self.dismiss(ApprovalDecision.DENY)
 
 
-__all__ = ["ApprovalDecision", "ApprovalModal", "apply_decision"]
+__all__ = ["ApprovalDecision", "ApprovalModal", "ApprovalPicker", "apply_decision"]
+
+
+class ApprovalPicker(ModalScreen):
+    """Pick an approval mode; changes apply immediately."""
+
+    BINDINGS = [("escape", "app.pop_screen", "返回")]
+
+    def __init__(self, *, policy: Any, on_change=None):
+        super().__init__()
+        self.policy = policy
+        self.on_change = on_change
+
+    def compose(self) -> ComposeResult:
+        yield Static("审批模式 · 选择后立即生效", classes="picker-title")
+        yield RadioSet("always-ask", "write", "yolo", id="approval-modes")
+
+    def on_mount(self) -> None:
+        order = {"always-ask": 0, "write": 1, "yolo": 2}
+        buttons = list(self.query(RadioButton))
+        index = order.get(getattr(self.policy.mode, "value", "write"), 1)
+        if 0 <= index < len(buttons):
+            buttons[index].value = True
+
+    def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
+        label = getattr(event.pressed, "label", "")
+        text = str(getattr(label, "plain", label)).strip()
+        try:
+            from neow.core.approval import ApprovalMode
+
+            mode = ApprovalMode(text)
+        except ValueError:
+            return
+        self.policy.set_mode(mode)
+        if self.on_change is not None:
+            self.on_change(mode)
