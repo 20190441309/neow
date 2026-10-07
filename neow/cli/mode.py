@@ -27,6 +27,17 @@ class ModeError(Exception):
     """Raised when the requested entry mode cannot be honoured."""
 
 
+def tui_available() -> bool:
+    """Whether the Textual TUI can be loaded (spec §10 fallback)."""
+
+    try:
+        import importlib.util
+
+        return importlib.util.find_spec("textual") is not None
+    except Exception:
+        return False
+
+
 def select_run_mode(
     *,
     prompt: Optional[str],

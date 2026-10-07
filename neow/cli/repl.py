@@ -24,6 +24,7 @@ from neow.utils.formatter import (
     print_diff,
     print_error,
     print_info,
+    print_warning,
     print_status_bar,
     print_tool_call,
     print_tool_result,

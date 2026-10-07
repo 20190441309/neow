@@ -25,10 +25,10 @@ from neow.tools.file_ops import read_file, write_file, edit_file, create_file, d
 from neow.tools.command import execute_command
 from neow.tools.search import search_code
 from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
-from neow.cli.mode import ModeError, RunMode, select_run_mode
+from neow.cli.mode import ModeError, RunMode, select_run_mode, tui_available
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
-from neow.utils.formatter import print_error, print_info, console
+from neow.utils.formatter import print_error, print_info, print_warning, console
 from neow.core.token_tracker import TokenTracker
 from neow.core.session import SessionManager
 from neow.core.plugin import EventBus, PluginAPI, PluginManager
@@ -276,21 +276,26 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
 
         session_manager = SessionManager(Path.home() / ".neow" / "sessions")
 
-        # Full-screen TUI (default on a TTY)
+        # Full-screen TUI (default on a TTY).  If Textual is unavailable we
+        # warn and fall through to the classic REPL (spec §10).
         if mode is RunMode.TUI:
-            from neow.tui import run_tui
+            if tui_available():
+                from neow.tui import run_tui
 
-            run_tui(
-                conversation,
-                config=cfg,
-                token_tracker=token_tracker,
-                session_manager=session_manager,
-                approval_policy=approval_policy,
-                event_bus=event_bus,
-                plugin_api=plugin_api,
-                executor=executor,
+                run_tui(
+                    conversation,
+                    config=cfg,
+                    token_tracker=token_tracker,
+                    session_manager=session_manager,
+                    approval_policy=approval_policy,
+                    event_bus=event_bus,
+                    plugin_api=plugin_api,
+                    executor=executor,
+                )
+                return
+            print_warning(
+                "Textual is not installed; falling back to the classic REPL"
             )
-            return
 
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)

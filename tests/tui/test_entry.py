@@ -4,7 +4,12 @@ import pytest
 from click.testing import CliRunner
 
 from neow.cli.main import main as cli_main
-from neow.cli.mode import ModeError, RunMode, select_run_mode
+from neow.cli.mode import (
+    ModeError,
+    RunMode,
+    select_run_mode,
+    tui_available,
+)
 
 
 def _m(**kw):
@@ -57,3 +62,21 @@ def test_cli_tui_non_tty_exits_2():
     result = CliRunner().invoke(cli_main, ["--tui"])
     assert result.exit_code == 2
     assert "TTY" in result.output
+
+
+def test_tui_available_when_textual_installed():
+    assert tui_available() is True
+
+
+def test_tui_unavailable_when_textual_missing(monkeypatch):
+    import importlib.util
+
+    real_find_spec = importlib.util.find_spec
+
+    def fake_find_spec(name, *args, **kwargs):
+        if name == "textual":
+            return None
+        return real_find_spec(name, *args, **kwargs)
+
+    monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+    assert tui_available() is False

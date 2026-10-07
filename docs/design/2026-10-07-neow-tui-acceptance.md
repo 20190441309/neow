@@ -12,7 +12,7 @@
 | 命令 | 结果 |
 |------|------|
 | `pytest -q`（全量） | **536 passed, 0 failed** |
-| `flake8 neow/tui tests/tui` | clean |
+| `flake8 neow/tui tests/tui`（仓库 `.flake8`：max-line-length 88 / extend-ignore E203） | clean |
 | `black --check neow/tui tests/tui neow/cli/mode.py` | clean（48 files unchanged） |
 | `python tests/tui/pty_smoke.py` | **PTY SMOKE OK**（TUI / `--plain` / one-shot 三入口） |
 | `python tests/tui/pty_observe.py` | **PTY OBSERVE OK**（thinking 乱码 + 流式渲染） |
@@ -108,6 +108,7 @@
 | `neow "prompt"` 一次性模式不变 | ✅ | PTY SMOKE 入口 3 |
 | 管道/非 TTY → plain | ✅ | `test_no_tty_falls_back_plain`、`test_piped_stdin_falls_back_plain` |
 | 冲突 flag → 退出码 2 | ✅ | `test_cli_flags_conflict_exits_2` |
+| textual 导入失败 → 警告 + 回退 REPL | ✅ | `tui_available()` 探测 + main 回退分支；`test_tui_available_when_textual_installed`、`test_tui_unavailable_when_textual_missing` |
 
 ## 3. 审查发现与处置
 
@@ -124,6 +125,10 @@
 | Minor | 规格缺口：`tui.sidebar_default`、F1、Ctrl+P 面板 | 复核轮补齐（3 测试） |
 
 任务执行期间已修复的真实缺陷还包括：`Widget._render` 命名冲突（两次）、Textual 8 `SelectionList` 无 `Selected` 消息、`Static.update` 需 active app、AssistantCard 缓冲等，均记录在 SDD 账本。
+
+**审计补记（goal 完成后）**：审计指出 lint 证据表述不准确——flake8 不读 `pyproject.toml` 的 `[tool.flake8]`，默认命令会报 60+ 条 E501；已新增仓库级 `.flake8`（max-line-length 88 / E203），默认命令现为 clean，本报告 lint 行改为精确命令。同时补齐规格 §10 最后一行：`textual` 缺失时的警告 + 回退 REPL（`tui_available()` + 两个单测）。
+
+将 `neow/cli` 纳入 lint 范围后还发现两处 `print_warning` 未导入的潜在 `NameError`：`main.py`（本次回退分支引入）与 `repl.py` 的既有路径（token 告警/空闲压缩时触发）；均已修复，F821 现为 0。`neow/cli` 仍存在既有的 E402/E501/E303 等风格债务（不改变旧代码风格，未处理）。
 
 ## 4. 延后的 Minor
 
