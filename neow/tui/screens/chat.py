@@ -31,6 +31,7 @@ from neow.tui.widgets.cards import (
     ToolCard,
     UserCard,
 )
+from neow.tui.widgets.input_dock import InputDock
 from neow.tui.widgets.status_bar import StatusBar, TopBar
 from neow.tui.widgets.timeline import TimelineScroll
 
@@ -58,7 +59,6 @@ class ChatScreen(Screen):
     def __init__(self):
         super().__init__()
         self._busy = False
-        self._queue: List[str] = []
         self._turn_number = 0
         self._turn_started = 0.0
         self._current_assistant: Optional[AssistantCard] = None
@@ -76,8 +76,7 @@ class ChatScreen(Screen):
             yield TimelineScroll(id="timeline")
             yield Vertical(id="sidebar")
         yield Static(id="queuestrip")
-        with Vertical(id="inputdock"):
-            yield Static("❯ 输入消息…", id="input-placeholder")
+        yield InputDock(id="inputdock")
         yield StatusBar(id="statusbar")
 
     def on_mount(self) -> None:
@@ -117,6 +116,10 @@ class ChatScreen(Screen):
         return self.query_one("#sidebar", Vertical)
 
     @property
+    def input_dock(self) -> InputDock:
+        return self.query_one("#inputdock", InputDock)
+
+    @property
     def sidebar_visible(self) -> bool:
         return self.sidebar.has_class("visible")
 
@@ -128,14 +131,14 @@ class ChatScreen(Screen):
 
     @property
     def queued(self) -> List[str]:
-        return list(self._queue)
+        return self.input_dock.queued_texts()
 
     def submit_prompt(self, text: str) -> None:
         text = (text or "").strip()
         if not text:
             return
         if self._busy:
-            self._queue.append(text)
+            self.input_dock.enqueue(text)
             self._update_queue_strip()
             return
         self._start_turn(text)
@@ -158,6 +161,7 @@ class ChatScreen(Screen):
             UserCard(text, number=self._turn_number, timestamp=self._timestamp())
         )
         self.status_bar.set_activity("✻ thinking")
+        self.input_dock.set_busy(True)
         self._run_turn(text)
 
     @work(thread=True, exclusive=True)
@@ -229,10 +233,11 @@ class ChatScreen(Screen):
             self._current_thinking = None
         self._busy = False
         self.status_bar.set_activity("idle")
+        self.input_dock.set_busy(False)
         self.refresh_status()
 
-        if self._queue:
-            nxt = self._queue.pop(0)
+        nxt = self.input_dock.pop_first_queued()
+        if nxt is not None:
             self._update_queue_strip()
             self._start_turn(nxt)
             return
@@ -262,9 +267,16 @@ class ChatScreen(Screen):
 
     def _update_queue_strip(self) -> None:
         strip = self.query_one("#queuestrip", Static)
-        if self._queue:
-            strip.update(f"⏳ 排队 {len(self._queue)} · ↑ 取回")
-        strip.set_class(bool(self._queue), "visible")
+        count = self.input_dock.queued_count()
+        if count:
+            strip.update(f"⏳ 排队 {count} · ↑ 取回")
+        strip.set_class(bool(count), "visible")
+
+    def on_input_dock_submitted(self, message: InputDock.Submitted) -> None:
+        self.submit_prompt(message.text)
+
+    def on_input_dock_queue_changed(self, message: InputDock.QueueChanged) -> None:
+        self._update_queue_strip()
 
     @staticmethod
     def _timestamp() -> str:
