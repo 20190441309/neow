@@ -230,7 +230,7 @@ class Config:
             logger.warning("Unknown tui.effects %r; falling back to 'full'", effects)
             effects = "full"
         theme = cfg.get("theme", "midnight")
-        if theme != "midnight":
+        if theme not in ("midnight", "light"):
             logger.warning("Unknown tui.theme %r; falling back to 'midnight'", theme)
             theme = "midnight"
         return {

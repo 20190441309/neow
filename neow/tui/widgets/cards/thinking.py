@@ -10,11 +10,11 @@ from rich.text import Text
 from textual.widgets import Static
 
 from neow.tui.effects.scramble import ScrambleEngine
+from neow.tui.theme import MIDNIGHT, widget_palette
 from neow.tui.widgets.cards.base import CardBase
 
 SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-ACCENT = "#52525b"
-SETTLED_STYLE = "#71717a"
+SETTLED_STYLE = MIDNIGHT["settled"]
 TRUNCATE_AT = 4000
 
 
@@ -25,6 +25,8 @@ class ThinkingCard(CardBase):
     ``subtle`` (10 fps spinner strip) or ``off`` (static dim text).
     """
 
+    accent_key = "role_thinking"
+
     def __init__(
         self,
         *,
@@ -33,13 +35,18 @@ class ThinkingCard(CardBase):
         fps: int = 20,
         rng: Optional[random.Random] = None,
     ):
-        super().__init__(title="Thinking", icon="✻", meta="", accent=ACCENT)
+        palette = widget_palette(None)
+        super().__init__(
+            title="Thinking", icon="✻", meta="", accent=palette["role_thinking"]
+        )
         self.effects = effects
         self._fps = fps
         self._engine = ScrambleEngine(
             enabled=effects == "full",
             rng=rng,
             frontier=frontier,
+            colors=tuple(palette["gradient"]),
+            settled_color=palette["settled"],
         )
         self._reasoning = ""
         self._finished = False
@@ -49,6 +56,14 @@ class ThinkingCard(CardBase):
         self._started_at: Optional[float] = None
         self._live = Static("", classes="thinking-live")
         self.add_body(self._live, "")
+
+    def apply_palette(self, palette) -> None:
+        super().apply_palette(palette)
+        if palette.get("gradient"):
+            self._engine.colors = tuple(palette["gradient"])
+        if palette.get("settled"):
+            self._engine.settled_color = palette["settled"]
+        self._apply_live()
 
     # -- lifecycle -----------------------------------------------------
 
@@ -95,6 +110,7 @@ class ThinkingCard(CardBase):
             self._live.update(self._frame())
 
     def _frame(self) -> Text:
+        palette = widget_palette(self)
         if self.effects == "full":
             return self._engine.frame(
                 self._reasoning + " ",
@@ -104,10 +120,10 @@ class ThinkingCard(CardBase):
         if self.effects == "subtle":
             spinner = SPINNER_FRAMES[self._spinner_index % len(SPINNER_FRAMES)]
             return Text.assemble(
-                (self._reasoning + " ", SETTLED_STYLE),
-                (spinner, "#a78bfa"),
+                (self._reasoning + " ", palette["settled"]),
+                (spinner, palette["accent2"]),
             )
-        return Text(self._reasoning, style=SETTLED_STYLE)
+        return Text(self._reasoning, style=palette["settled"])
 
     def _tick(self) -> None:
         self._phase = self._engine.advance(self._phase)

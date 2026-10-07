@@ -7,10 +7,12 @@ from concurrent.futures import Future
 from typing import Any, Optional
 
 from textual.app import App, SystemCommand
+from textual.theme import Theme
 
 from neow.tui.bridge.controller import ApprovalBridge
 from neow.tui.screens.approval import ApprovalModal, apply_decision
 from neow.tui.screens.chat import ChatScreen
+from neow.tui.theme import PALETTES, theme_variables
 from neow.tui.widgets.input_dock import SLASH_COMMANDS
 from neow.tui.widgets.logo import NeowLogo
 
@@ -64,6 +66,9 @@ class NeowApp(App):
         self.plugin_api = plugin_api
         self.executor = executor
         self.effects = resolve_effects(effects or self._config_effects())
+        self.theme_name = self._config_theme()
+        self.palette = PALETTES.get(self.theme_name, PALETTES["midnight"])
+        self._install_themes()
         self.approval_bridge = ApprovalBridge(request=self._request_approval)
         if executor is not None:
             executor.approval_callback = self.approval_bridge
@@ -75,6 +80,37 @@ class NeowApp(App):
             except Exception:
                 pass
         return "full"
+
+    def _config_theme(self) -> str:
+        if self.config is not None:
+            try:
+                return self.config.tui.get("theme", "midnight")
+            except Exception:
+                pass
+        return "midnight"
+
+    def _install_themes(self) -> None:
+        """Register the neow palettes as Textual themes (spec §8.3)."""
+
+        for name, palette in PALETTES.items():
+            self.register_theme(
+                Theme(
+                    name=f"neow-{name}",
+                    primary=palette["accent1"],
+                    secondary=palette["accent2"],
+                    warning=palette["warn"],
+                    error=palette["error"],
+                    success=palette["success"],
+                    accent=palette["accent3"],
+                    foreground=palette["text"],
+                    background=palette["bg"],
+                    surface=palette["surface"],
+                    panel=palette["surface"],
+                    dark=(name == "midnight"),
+                    variables=theme_variables(palette),
+                )
+            )
+        self.theme = f"neow-{self.theme_name}"
 
     # -- command palette -----------------------------------------------
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.widgets import Static
 
 from neow.tui.effects.gradient import gradient_text
+from neow.tui.theme import widget_palette
 
 MARK = "◆ NEOW"
 
@@ -43,7 +44,7 @@ class NeowLogo(Static):
         self._paint()
 
     def _paint(self) -> None:
-        self.update(gradient_text(MARK, self._phase))
+        self.update(gradient_text(MARK, self._phase, widget_palette(self)["gradient"]))
 
     def collapse_splash(self) -> None:
         """Stop the animation and keep the static mark (idempotent)."""

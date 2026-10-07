@@ -1,30 +1,14 @@
-$bg: #0b0d12;
-$surface: #0f1117;
-$elevated: #151a23;
-$border: #1e293b;
-$border-strong: #334155;
-$text: #e5e7eb;
-$dim: #94a3b8;
-$muted: #64748b;
-$accent1: #22d3ee;
-$accent2: #a78bfa;
-$accent3: #f472b6;
-$accent4: #facc15;
-$success: #34d399;
-$error: #f87171;
-$warn: #facc15;
-$info: #38bdf8;
 
 Screen {
-    background: $bg;
-    color: $text;
+    background: $neow-bg;
+    color: $neow-text;
     layout: vertical;
 }
 
 #topbar {
     height: 1;
-    background: $surface;
-    color: $muted;
+    background: $neow-surface;
+    color: $neow-muted;
     padding: 0 1;
 }
 
@@ -45,8 +29,8 @@ Screen {
 #sidebar {
     width: 42;
     display: none;
-    background: $surface;
-    border-left: solid $border;
+    background: $neow-surface;
+    border-left: solid $neow-border;
     padding: 1;
 }
 
@@ -57,7 +41,7 @@ Screen {
 #queuestrip {
     display: none;
     height: auto;
-    color: $warn;
+    color: $neow-warn;
     padding: 0 1;
 }
 
@@ -69,14 +53,14 @@ Screen {
     height: auto;
     min-height: 2;
     max-height: 8;
-    border-top: solid $border;
+    border-top: solid $neow-border;
     padding: 0 1;
 }
 
 #statusbar {
     height: 1;
-    background: $surface;
-    color: $muted;
+    background: $neow-surface;
+    color: $neow-muted;
     padding: 0 1;
 }
 
@@ -102,7 +86,7 @@ ChatScreen.narrow #statusbar {
 
 .picker-title {
     height: 1;
-    color: #a78bfa;
+    color: $neow-accent2;
     text-style: bold;
     padding: 0 1;
 }
@@ -114,5 +98,5 @@ ChatScreen.narrow #statusbar {
 #diff-body,
 #cost-body {
     padding: 1 2;
-    color: #cbd5e1;
+    color: $neow-dim;
 }

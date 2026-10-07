@@ -42,6 +42,7 @@ from neow.tui.screens.tree import SessionTreeScreen
 from neow.tui.widgets.input_dock import InputDock
 from neow.tui.widgets.status_bar import StatusBar, TopBar
 from neow.tui.widgets.timeline import TimelineScroll
+from neow.tui.theme import get_palette
 from neow.utils.logger import logger
 
 SIDEBAR_TABS = ("context", "tree", "git")
@@ -275,6 +276,7 @@ class ChatScreen(Screen):
     def _add_card(self, card: CardBase) -> None:
         """Add a card, playing its entrance animation in full effects mode."""
 
+        card.apply_palette(get_palette(self.app))
         self.timeline.add_card(card)
         if getattr(self.app, "effects", "full") == "full":
             card.play_entrance()

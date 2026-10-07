@@ -121,18 +121,18 @@ class InputDock(Vertical):
         height: auto;
         max-height: 6;
         border: none;
-        background: #0f1117;
+        background: $surface;
     }
     InputDock #completions {
         display: none;
         height: auto;
         max-height: 8;
         border: none;
-        background: #151a23;
+        background: $panel;
     }
     InputDock #input-hint {
         height: 1;
-        color: #475569;
+        color: $text-muted;
     }
     """
 

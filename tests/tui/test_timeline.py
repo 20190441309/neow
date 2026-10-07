@@ -1,8 +1,21 @@
 """Timeline scroll tests (plan task 8)."""
 
+import time
+
 from neow.tui.widgets.cards import CardBase, UserCard
 from neow.tui.widgets.timeline import NewMessagesBanner, TimelineScroll
 from tests.tui.conftest import _host
+
+
+async def _settle(pilot, predicate, timeout: float = 3.0) -> bool:
+    """Poll until *predicate* holds (follow callbacks settle across frames)."""
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        await pilot.pause(0.05)
+    return predicate()
 
 
 async def test_cards_keep_insertion_order():
@@ -22,15 +35,14 @@ async def test_stick_to_bottom_and_banner():
     async with _host(timeline) as pilot:
         for n in range(30):
             timeline.add_card(UserCard(f"m{n}", number=n, timestamp="t"))
-        await pilot.pause(0.2)
-        assert timeline.stuck_to_bottom
+        assert await _settle(pilot, lambda: timeline.stuck_to_bottom)
         timeline.scroll_up(animate=False)
         await pilot.pause(0.1)
         assert not timeline.stuck_to_bottom
         timeline.add_card(UserCard("new", number=99, timestamp="t"))
-        await pilot.pause(0.2)
-        assert timeline.query_one(NewMessagesBanner).display
+        assert await _settle(
+            pilot, lambda: timeline.query_one(NewMessagesBanner).display
+        )
         timeline.jump_to_bottom()
-        await pilot.pause()
-        assert timeline.stuck_to_bottom
+        assert await _settle(pilot, lambda: timeline.stuck_to_bottom)
         assert not timeline.query_one(NewMessagesBanner).display

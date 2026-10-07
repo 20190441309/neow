@@ -8,6 +8,8 @@ from rich.text import Text
 from textual.containers import Vertical
 from textual.widgets import Static
 
+from neow.tui.theme import widget_palette
+
 DEFAULT_ACCENT = "#334155"
 
 
@@ -16,8 +18,8 @@ class CardBase(Vertical):
 
     DEFAULT_CSS = """
     CardBase {
-        background: #0f1117;
-        border-left: heavy #334155;
+        background: $surface;
+        border-left: heavy $border;
         padding: 0 2;
         margin: 0 0 1 0;
         height: auto;
@@ -30,6 +32,9 @@ class CardBase(Vertical):
         height: auto;
     }
     """
+
+    #: Palette key used by :meth:`apply_palette` for the accent rule.
+    accent_key = None
 
     def __init__(
         self,
@@ -80,7 +85,7 @@ class CardBase(Vertical):
             out.append(f"{self._icon} ")
         out.append(self._title)
         if self._meta:
-            out.append(f"   {self._meta}", style="#64748b")
+            out.append(f"   {self._meta}", style=widget_palette(self)["muted"])
         return out
 
     def title_text(self) -> str:
@@ -132,6 +137,12 @@ class CardBase(Vertical):
     def set_accent(self, color: str) -> None:
         self.accent = color
         self.styles.border_left = ("heavy", color)
+
+    def apply_palette(self, palette) -> None:
+        """Adopt role colours from the active palette."""
+
+        if self.accent_key and palette.get(self.accent_key):
+            self.set_accent(palette[self.accent_key])
 
     # -- text ----------------------------------------------------------
 

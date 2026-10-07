@@ -11,6 +11,8 @@ from neow.tui.widgets.cards.base import CardBase
 class UserCard(CardBase):
     """User prompt: cyan accent, multiline text preserved."""
 
+    accent_key = "role_user"
+
     def __init__(self, text: str, *, number: int, timestamp: str):
         super().__init__(
             title=f"You #{number}",

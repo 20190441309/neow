@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from textual.widgets import Markdown, Static
 
+from neow.tui.theme import MIDNIGHT, widget_palette
 from neow.tui.widgets.cards.base import CardBase
 
-ACCENT = "#a78bfa"
 CURSOR = "▊"
 MAX_LINES = 300
 
@@ -14,12 +14,14 @@ MAX_LINES = 300
 class AssistantCard(CardBase):
     """One assistant content segment; streamed markdown plus ``▊`` cursor."""
 
+    accent_key = "role_assistant"
+
     def __init__(self, *, number: int, timestamp: str, effects: str = "full"):
         super().__init__(
             title=f"Assistant #{number}",
             icon="●",
             meta=f"· {timestamp}",
-            accent=ACCENT,
+            accent=MIDNIGHT["role_assistant"],
         )
         self.number = number
         self._timestamp = timestamp
@@ -47,6 +49,7 @@ class AssistantCard(CardBase):
 
     def on_mount(self) -> None:
         super().on_mount()
+        self._cursor.styles.color = widget_palette(self)["accent2"]
         if self._pending:
             self.call_later(self._flush_pending)
         if self.effects == "full" and not self._finished:
@@ -55,8 +58,11 @@ class AssistantCard(CardBase):
     def _blink(self) -> None:
         if not self.is_mounted or self._finished:
             return
+        palette = widget_palette(self)
         self._blink_on = not self._blink_on
-        self._cursor.styles.color = "#a78bfa" if self._blink_on else "#64748b"
+        self._cursor.styles.color = (
+            palette["accent2"] if self._blink_on else palette["muted"]
+        )
 
     async def _flush_pending(self) -> None:
         if not self._pending:

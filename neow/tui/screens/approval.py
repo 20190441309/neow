@@ -13,6 +13,8 @@ from textual.containers import Vertical
 from textual.screen import ModalScreen
 from textual.widgets import RadioButton, RadioSet, Static
 
+from neow.tui.theme import get_palette
+
 
 class ApprovalDecision(Enum):
     ALLOW_ONCE = "allow_once"
@@ -47,14 +49,14 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
 
     DEFAULT_CSS = """
     ApprovalModal {
-        background: #05060a 65%;
+        background: $background 65%;
         align: center middle;
     }
     .approval-box {
         width: 74;
         height: auto;
-        border: round #facc15;
-        background: #0f1117;
+        border: round $warning;
+        background: $surface;
         padding: 1 2;
     }
     .approval-title {
@@ -98,11 +100,12 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
 
     def _pulse(self) -> None:
         self._pulse_on = not self._pulse_on
+        palette = get_palette(self.app)
         try:
             box = self.query_one(".approval-box")
             box.styles.border = (
                 "round",
-                "#facc15" if self._pulse_on else "#8a6d0b",
+                palette["warn"] if self._pulse_on else palette["muted"],
             )
         except Exception:
             pass
@@ -110,34 +113,36 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
     # -- content -------------------------------------------------------
 
     def _title_text(self) -> Text:
+        palette = get_palette(self.app)
         out = Text()
-        out.append("⚠ 审批请求", style="#facc15 bold")
+        out.append("⚠ 审批请求", style=f"{palette['warn']} bold")
         segment = self.tool
         if self.tier:
             segment += f" · tier: {self.tier}"
-        out.append(f"   {segment}", style="#64748b")
+        out.append(f"   {segment}", style=palette["muted"])
         return out
 
     def _detail_text(self) -> Text:
+        palette = get_palette(self.app)
         summary = str(self.params)
         if len(summary) > 200:
             summary = summary[:200] + "…"
         out = Text()
-        out.append("$ ", style="#64748b")
-        out.append(summary, style="#e5e7eb")
-        out.append("\n\n原因：", style="#94a3b8")
-        out.append(self.reason, style="#71717a")
+        out.append("$ ", style=palette["muted"])
+        out.append(summary, style=palette["text"])
+        out.append("\n\n原因：", style=palette["dim"])
+        out.append(self.reason, style=palette["settled"])
         return out
 
-    @staticmethod
-    def _hint_text() -> Text:
+    def _hint_text(self) -> Text:
+        palette = get_palette(self.app)
         return Text.assemble(
-            ("[y]", "#34d399 bold"),
-            (" 允许一次    ", "#94a3b8"),
-            ("[a]", "#22d3ee bold"),
-            (" 本会话总是允许    ", "#94a3b8"),
-            ("[n/Esc]", "#f87171 bold"),
-            (" 拒绝", "#94a3b8"),
+            ("[y]", f"{palette['success']} bold"),
+            (" 允许一次    ", palette["dim"]),
+            ("[a]", f"{palette['accent1']} bold"),
+            (" 本会话总是允许    ", palette["dim"]),
+            ("[n/Esc]", f"{palette['error']} bold"),
+            (" 拒绝", palette["dim"]),
         )
 
     # -- actions -------------------------------------------------------

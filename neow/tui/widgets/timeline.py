@@ -16,8 +16,8 @@ class NewMessagesBanner(Static):
         display: none;
         dock: top;
         height: 1;
-        color: #a78bfa;
-        background: #151a23;
+        color: $secondary;
+        background: $panel;
         padding: 0 1;
         text-align: center;
     }
@@ -41,6 +41,7 @@ class TimelineScroll(VerticalScroll):
         self._banner = NewMessagesBanner()
         self._follow_pending = False
         self._follow_dirty = False
+        self._follow_wanted = False
 
     def compose(self):
         yield self._banner
@@ -51,6 +52,7 @@ class TimelineScroll(VerticalScroll):
         was_stuck = self.stuck_to_bottom
         self.mount(card)
         if was_stuck:
+            self._follow_wanted = True
             self._schedule_follow()
         else:
             self._banner.display = True
@@ -70,13 +72,28 @@ class TimelineScroll(VerticalScroll):
 
     def _follow_bottom(self) -> None:
         self._follow_pending = False
-        if self.is_mounted:
-            self.scroll_end(animate=False)
-            self._banner.display = False
-            if self._follow_dirty:
-                self._follow_dirty = False
-                self._follow_pending = True
-                self.call_after_refresh(self._follow_bottom)
+        if not self._follow_wanted or not self.is_mounted:
+            return
+        self.scroll_end(animate=False)
+        self._banner.display = False
+        if self._follow_dirty:
+            self._follow_dirty = False
+            self._follow_pending = True
+            self.call_after_refresh(self._follow_bottom)
+        else:
+            self._follow_wanted = False
+
+    def scroll_up(self, *args, **kwargs) -> None:
+        """User scroll cancels any pending follow (spec §4.2 stickiness)."""
+
+        self._follow_wanted = False
+        self._follow_dirty = False
+        super().scroll_up(*args, **kwargs)
+
+    def scroll_down(self, *args, **kwargs) -> None:
+        self._follow_wanted = False
+        self._follow_dirty = False
+        super().scroll_down(*args, **kwargs)
 
     def cards(self) -> list[CardBase]:
         return list(self.query(CardBase))

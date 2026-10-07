@@ -7,12 +7,21 @@ from typing import Any, Dict, Optional
 from rich.text import Text
 from textual.widgets import Static
 
+from neow.tui.theme import MIDNIGHT, widget_palette
 from neow.tui.widgets.cards.base import CardBase
 
-ACCENT_RUNNING = "#facc15"
-ACCENT_DONE = "#34d399"
-ACCENT_ERROR = "#f87171"
+ACCENT_RUNNING = MIDNIGHT["tool_running"]
+ACCENT_DONE = MIDNIGHT["tool_done"]
+ACCENT_ERROR = MIDNIGHT["tool_error"]
 MAX_BODY_LINES = 30
+
+_STATUS_ACCENT_KEYS = {
+    "pending": "tool_running",
+    "running": "tool_running",
+    "done": "tool_done",
+    "error": "tool_error",
+    "denied": "tool_error",
+}
 
 
 def tool_is_error(result: str) -> bool:
@@ -54,8 +63,20 @@ def _tool_summary(name: str, args: Dict[str, Any]) -> str:
     return _first_str(args)[:60]
 
 
-def render_tool_body(name: str, args: Dict[str, Any], result: str) -> Text:
+def render_tool_body(
+    name: str,
+    args: Dict[str, Any],
+    result: str,
+    palette: Optional[Dict[str, Any]] = None,
+) -> Text:
     """Render a tool's body as rich text (design spec §5.4 table)."""
+
+    palette = palette or MIDNIGHT
+    error = palette["error"]
+    success = palette["success"]
+    dim = palette["dim"]
+    muted = palette["muted"]
+    text_style = f"bold {palette['text']}"
 
     out = Text()
     if name in ("edit_file", "hashline_edit"):
@@ -63,47 +84,47 @@ def render_tool_body(name: str, args: Dict[str, Any], result: str) -> Text:
         new = str(args.get("new_text", ""))
         if old or new:
             for line in old.split("\n"):
-                out.append(f"- {line}\n", style="#f87171")
+                out.append(f"- {line}\n", style=error)
             for line in new.split("\n"):
-                out.append(f"+ {line}\n", style="#34d399")
+                out.append(f"+ {line}\n", style=success)
             anchor = args.get("expected_hash")
             if anchor:
-                out.append(f"@ {str(anchor)[:12]}\n", style="#64748b")
+                out.append(f"@ {str(anchor)[:12]}\n", style=muted)
             return out
-        out.append(result or "(no diff)", style="#94a3b8")
+        out.append(result or "(no diff)", style=dim)
         return out
     if name == "execute_command":
-        out.append(f"$ {args.get('command', '')}\n", style="bold #e5e7eb")
-        out.append(result or "(no output)", style="#94a3b8")
+        out.append(f"$ {args.get('command', '')}\n", style=text_style)
+        out.append(result or "(no output)", style=dim)
         return out
     if name == "search_code":
         matches = [line for line in result.splitlines() if line.strip()]
-        out.append(f"{len(matches)} 处命中\n", style="bold #e5e7eb")
-        out.append("\n".join(matches[:10]) or "(no matches)", style="#94a3b8")
+        out.append(f"{len(matches)} 处命中\n", style=text_style)
+        out.append("\n".join(matches[:10]) or "(no matches)", style=dim)
         return out
     if name == "read_file":
         path = args.get("path") or args.get("file_path") or ""
         lines = result.count("\n") + (1 if result else 0)
-        out.append(f"{path} · {lines} 行\n", style="bold #e5e7eb")
-        out.append("\n".join(result.splitlines()[:5]), style="#94a3b8")
+        out.append(f"{path} · {lines} 行\n", style=text_style)
+        out.append("\n".join(result.splitlines()[:5]), style=dim)
         return out
     if name in ("write_file", "create_file"):
         path = args.get("file_path") or ""
         lines = result.count("\n") + (1 if result else 0)
-        out.append(f"{path} · {lines} 行\n", style="bold #e5e7eb")
-        out.append("\n".join(result.splitlines()[:10]), style="#94a3b8")
+        out.append(f"{path} · {lines} 行\n", style=text_style)
+        out.append("\n".join(result.splitlines()[:10]), style=dim)
         return out
     if name == "delete_file":
-        out.append(f"{args.get('file_path', '')} (已删除)", style="#f87171")
+        out.append(f"{args.get('file_path', '')} (已删除)", style=error)
         return out
     if name in ("web", "fetch_url"):
-        out.append(f"{args.get('url', '')}\n", style="bold #e5e7eb")
-        out.append(result[:1000], style="#94a3b8")
+        out.append(f"{args.get('url', '')}\n", style=text_style)
+        out.append(result[:1000], style=dim)
         return out
     if name.startswith("git_") or name in ("lint", "test", "run_lint", "run_tests"):
-        out.append(result[:1500] or "(no output)", style="#94a3b8")
+        out.append(result[:1500] or "(no output)", style=dim)
         return out
-    out.append(result or "(no output)", style="#94a3b8")
+    out.append(result or "(no output)", style=dim)
     return out
 
 
@@ -127,6 +148,14 @@ class ToolCard(CardBase):
         self._body_widget = Static("", classes="tool-body")
         self.add_body(self._body_widget, "")
 
+    # -- palette -------------------------------------------------------
+
+    def apply_palette(self, palette) -> None:
+        key = _STATUS_ACCENT_KEYS.get(self._status, "tool_running")
+        if palette.get(key):
+            self.set_accent(palette[key])
+        self._render_body()
+
     # -- lifecycle -----------------------------------------------------
 
     def start(self, name: str, args: Dict[str, Any]) -> None:
@@ -134,7 +163,7 @@ class ToolCard(CardBase):
         self._args = dict(args or {})
         self._status = "running"
         self.set_title(title=name, icon="⟳", meta=_tool_summary(name, self._args))
-        self.set_accent(ACCENT_RUNNING)
+        self.set_accent(widget_palette(self)["tool_running"])
         self._render_body()
         if self.collapsed:
             self._set_collapsed(False)
@@ -155,11 +184,8 @@ class ToolCard(CardBase):
             self._status = "done"
 
         icon = {"done": "✓", "error": "✗", "denied": "⛔"}[self._status]
-        accent = {
-            "done": ACCENT_DONE,
-            "error": ACCENT_ERROR,
-            "denied": ACCENT_ERROR,
-        }[self._status]
+        palette = widget_palette(self)
+        accent = palette[_STATUS_ACCENT_KEYS[self._status]]
         meta = _tool_summary(self._name, self._args)
         if duration is not None:
             meta = f"{meta} · {duration:.1f}s"
@@ -205,13 +231,15 @@ class ToolCard(CardBase):
     # -- rendering -----------------------------------------------------
 
     def _render_body(self) -> None:
-        body = render_tool_body(self._name, self._args, self._result)
+        body = render_tool_body(
+            self._name, self._args, self._result, palette=widget_palette(self)
+        )
         lines = body.split("\n")
         if len(lines) > MAX_BODY_LINES:
             body = Text("\n").join(lines[:MAX_BODY_LINES])
             body.append(
                 f"\n… (+{len(lines) - MAX_BODY_LINES} 行)",
-                style="#64748b",
+                style=widget_palette(self)["muted"],
             )
         if self.is_mounted:
             self._body_widget.update(body)

@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.containers import Horizontal
 from textual.widgets import Static
 
+from neow.tui.theme import widget_palette
 from neow.tui.widgets.logo import NeowLogo
 
 
@@ -35,20 +36,30 @@ class TopBar(Horizontal):
         self.refresh_info()
 
     def refresh_info(self) -> None:
+        palette = widget_palette(self)
         app = self.app
         conversation = getattr(app, "conversation", None)
         model = getattr(getattr(conversation, "model_client", None), "model", "unknown")
-        parts: list[tuple[str, str]] = [(f"  {model}", "#a78bfa")]
+        parts: list[tuple[str, str]] = [(f"  {model}", palette["accent2"])]
 
         branch = _git_branch()
         if branch:
-            parts += [("  ·  ", "#334155"), (f"⎇ {branch}", "#94a3b8")]
+            parts += [
+                ("  ·  ", palette["border_strong"]),
+                (f"⎇ {branch}", palette["dim"]),
+            ]
 
         policy = getattr(app, "approval_policy", None)
         if policy is not None:
-            parts += [("  ·  ", "#334155"), (f"⛨ {policy.mode.value}", "#facc15")]
+            parts += [
+                ("  ·  ", palette["border_strong"]),
+                (f"⛨ {policy.mode.value}", palette["warn"]),
+            ]
 
-        parts += [("  ·  ", "#334155"), (str(Path.cwd()), "#64748b")]
+        parts += [
+            ("  ·  ", palette["border_strong"]),
+            (str(Path.cwd()), palette["muted"]),
+        ]
 
         info = Text()
         for segment, style in parts:
@@ -90,14 +101,19 @@ class StatusBar(Static):
         self.update(self._render_text())
 
     def _render_text(self) -> Text:
+        palette = widget_palette(self)
         out = Text()
-        out.append(f"▲{self._input_tokens} ▼{self._output_tokens}", "#94a3b8")
+        out.append(f"▲{self._input_tokens} ▼{self._output_tokens}", palette["dim"])
         if self._cost is not None:
-            out.append("  ·  ", "#334155")
-            out.append(f"${self._cost:.4f}", "#34d399")
+            out.append("  ·  ", palette["border_strong"])
+            out.append(f"${self._cost:.4f}", palette["success"])
         if self._context_pct is not None:
-            out.append("  ·  ", "#334155")
-            out.append(f"ctx {self._context_pct:.0f}%", "#94a3b8")
+            out.append("  ·  ", palette["border_strong"])
+            out.append(f"ctx {self._context_pct:.0f}%", palette["dim"])
         out.append("        ", "")
-        out.append(self._activity, "#a78bfa" if self._activity != "idle" else "#64748b")
+        color = palette["accent2"] if self._activity != "idle" else palette["muted"]
+        out.append(self._activity, color)
         return out
+
+
+__all__ = ["TopBar", "StatusBar", "NeowLogo"]
