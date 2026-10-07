@@ -1,5 +1,6 @@
 """任意服务商（BYOK）测试（实现计划任务 1 起）。"""
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -10,6 +11,7 @@ from neow.models.base import validate_openai_compatible
 from neow.models.deepseek import DeepSeekClient
 from neow.models.factory import (
     PROVIDERS,
+    create_model_client,
     normalize_env_name,
     resolve_api_key,
     resolve_provider,
@@ -173,3 +175,112 @@ def test_api_key_missing_raises_with_hint():
         resolve_api_key({}, "my-router", env={})
     message = str(exc.value)
     assert "api_key_env" in message and "NEOW_MY_ROUTER_API_KEY" in message
+
+
+def _config(tmp_path, models, default="deepseek"):
+    from neow.core.config import Config
+
+    path = tmp_path / ".neow.json"
+    path.write_text(json.dumps({"default_model": default, "models": models}))
+    return Config(path)
+
+
+def _fake_clients(monkeypatch, used):
+    def make(name):
+        class Fake:
+            def __init__(self, **kwargs):
+                used[name] = kwargs
+
+        return Fake
+
+    monkeypatch.setattr("neow.models.factory.OpenAIClient", make("openai"))
+    monkeypatch.setattr("neow.models.factory.AnthropicClient", make("anthropic"))
+    monkeypatch.setattr("neow.models.factory.DeepSeekClient", make("deepseek"))
+
+
+def test_create_client_provider_mapping(monkeypatch, tmp_path):
+    used = {}
+    _fake_clients(monkeypatch, used)
+    config = _config(
+        tmp_path,
+        {
+            "a": {"provider": "openai-compatible", "api_key": "k", "model": "m"},
+            "b": {"provider": "anthropic", "api_key": "k", "model": "m"},
+            "c": {"provider": "deepseek", "api_key": "k", "model": "m"},
+        },
+    )
+    create_model_client(config, "a")
+    create_model_client(config, "b")
+    create_model_client(config, "c")
+    assert set(used) == {"openai", "anthropic", "deepseek"}
+
+
+def test_create_client_passes_base_url_and_validate(monkeypatch, tmp_path):
+    used = {}
+    _fake_clients(monkeypatch, used)
+    config = _config(
+        tmp_path,
+        {
+            "ollama": {
+                "provider": "openai-compatible",
+                "api_key": "ollama",
+                "model": "qwen2.5:14b",
+                "base_url": "http://localhost:11434/v1",
+                "validate": "skip",
+            }
+        },
+    )
+    create_model_client(config, "ollama")
+    assert used["openai"] == {
+        "api_key": "ollama",
+        "model": "qwen2.5:14b",
+        "base_url": "http://localhost:11434/v1",
+        "validate": False,
+    }
+
+
+def test_legacy_config_behavior_unchanged(monkeypatch, tmp_path):
+    used = {}
+    _fake_clients(monkeypatch, used)
+    config = _config(
+        tmp_path, {"deepseek": {"api_key": "k", "model": "deepseek-v4-flash"}}
+    )
+    create_model_client(config, "deepseek")
+    assert used["deepseek"] == {
+        "api_key": "k",
+        "model": "deepseek-v4-flash",
+        "base_url": None,
+        "validate": True,
+    }
+
+
+def test_missing_model_field_raises(monkeypatch, tmp_path):
+    _fake_clients(monkeypatch, {})
+    config = _config(tmp_path, {"x": {"provider": "openai", "api_key": "k"}})
+    with pytest.raises(ConfigError):
+        create_model_client(config, "x")
+
+
+def test_invalid_validate_value_raises(monkeypatch, tmp_path):
+    _fake_clients(monkeypatch, {})
+    config = _config(
+        tmp_path,
+        {
+            "x": {
+                "provider": "openai",
+                "api_key": "k",
+                "model": "m",
+                "validate": "maybe",
+            }
+        },
+    )
+    with pytest.raises(ConfigError) as exc:
+        create_model_client(config, "x")
+    assert "validate" in str(exc.value)
+
+
+def test_main_reexports_create_model_client():
+    from neow.cli.main import create_model_client as from_main
+    from neow.models.factory import create_model_client as from_factory
+
+    assert from_main is from_factory

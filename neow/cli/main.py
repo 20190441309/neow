@@ -18,9 +18,7 @@ from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor
 from neow.core.security import SecurityGuard
 from neow.core.prompts import get_system_prompt, get_tool_definitions
-from neow.models.deepseek import DeepSeekClient
-from neow.models.anthropic import AnthropicClient
-from neow.models.openai import OpenAIClient
+from neow.models.factory import create_model_client
 from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file, hashline_edit as hashline_edit_tool
 from neow.tools.command import execute_command
 from neow.tools.search import search_code
@@ -81,36 +79,6 @@ def _run_non_interactive(conversation, prompt):
         except Exception:
             pass
     return response.content or ""
-
-
-def create_model_client(config: Config, model_name: str):
-    """Create model client based on configuration.
-
-    Args:
-        config: Configuration object.
-        model_name: Name of the model to create.
-
-    Returns:
-        Model client instance.
-    """
-    model_config = config.get_model_config(model_name)
-
-    # Determine client type based on model name prefix
-    model_lower = model_name.lower()
-    if "deepseek" in model_lower:
-        return DeepSeekClient(
-            api_key=model_config["api_key"], model=model_config["model"]
-        )
-    elif "anthropic" in model_lower or "claude" in model_lower:
-        return AnthropicClient(
-            api_key=model_config["api_key"], model=model_config["model"]
-        )
-    elif "openai" in model_lower or "gpt" in model_lower:
-        return OpenAIClient(
-            api_key=model_config["api_key"], model=model_config["model"]
-        )
-    else:
-        raise ValueError(f"Unknown model: {model_name}")
 
 
 def setup_tools(executor: ToolExecutor) -> None:

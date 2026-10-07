@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Any, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Mapping, Optional
 
 from neow.core.config import ConfigError
+from neow.models.anthropic import AnthropicClient
+from neow.models.deepseek import DeepSeekClient
+from neow.models.openai import OpenAIClient
+
+if TYPE_CHECKING:
+    from neow.core.config import Config
 
 PROVIDERS = ("openai", "openai-compatible", "anthropic", "deepseek")
 
@@ -74,4 +80,40 @@ __all__ = [
     "normalize_env_name",
     "resolve_provider",
     "resolve_api_key",
+    "client_for",
+    "create_model_client",
 ]
+
+
+def client_for(provider: str):
+    """Return the client class for a resolved provider id."""
+
+    if provider in ("openai", "openai-compatible"):
+        return OpenAIClient
+    if provider == "deepseek":
+        return DeepSeekClient
+    if provider == "anthropic":
+        return AnthropicClient
+    raise ConfigError(f"Unsupported provider: {provider!r}")
+
+
+def create_model_client(config: "Config", model_name: str):
+    """Create the model client for a configured entry (spec §5)."""
+
+    entry = config.get_model_config(model_name)
+    provider = resolve_provider(entry, model_name)
+    model = entry.get("model")
+    if not model:
+        raise ConfigError(f'Model entry {model_name!r} is missing "model"')
+    validate_value = str(entry.get("validate", "auto") or "auto").strip().lower()
+    if validate_value not in ("auto", "skip"):
+        raise ConfigError(
+            f"Invalid validate value {validate_value!r} for model {model_name!r}. "
+            "Use 'auto' or 'skip'"
+        )
+    return client_for(provider)(
+        api_key=resolve_api_key(entry, model_name),
+        model=model,
+        base_url=entry.get("base_url") or None,
+        validate=validate_value == "auto",
+    )
