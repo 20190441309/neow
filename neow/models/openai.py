@@ -9,6 +9,7 @@ from neow.models.base import (
     BaseModelClient,
     ModelResponse,
     StreamChunk,
+    normalize_finish_reason,
     validate_openai_compatible,
 )
 from neow.utils import sanitize_text as _sanitize_text
@@ -24,6 +25,7 @@ class OpenAIClient(BaseModelClient):
         model: str = "gpt-4o",
         base_url: Optional[str] = None,
         validate: bool = True,
+        max_output_tokens: Optional[int] = None,
     ):
         """Initialize OpenAI client.
 
@@ -32,14 +34,27 @@ class OpenAIClient(BaseModelClient):
             model: Model name (default: gpt-4o).
             base_url: Optional custom endpoint.
             validate: Whether to run the startup connection probe.
+            max_output_tokens: Optional output cap (default: the model maximum).
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
+        self.max_output_tokens = max_output_tokens
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
         self.client = openai.OpenAI(**kwargs)
+
+    def _limit_kwargs(self) -> Dict[str, Any]:
+        """Output cap parameter, only when one is configured.
+
+        OpenAI's current name is ``max_completion_tokens`` (required by
+        reasoning models); compatible endpoints mostly know ``max_tokens``.
+        """
+        if not self.max_output_tokens:
+            return {}
+        key = "max_tokens" if self.base_url else "max_completion_tokens"
+        return {key: self.max_output_tokens}
 
     def chat(
         self,
@@ -73,6 +88,7 @@ class OpenAIClient(BaseModelClient):
 
         if tools:
             kwargs["tools"] = tools
+        kwargs.update(self._limit_kwargs())
 
         try:
             response = self.client.chat.completions.create(**kwargs)  # type: ignore
@@ -102,7 +118,10 @@ class OpenAIClient(BaseModelClient):
                 }
 
             return ModelResponse(
-                content=choice.message.content or "", tool_calls=tool_calls, usage=usage
+                content=choice.message.content or "",
+                tool_calls=tool_calls,
+                usage=usage,
+                finish_reason=normalize_finish_reason(choice.finish_reason),
             )
         except Exception as e:
             logger.error(f"OpenAI API error: {e}")
@@ -134,6 +153,7 @@ class OpenAIClient(BaseModelClient):
         kwargs = {"model": self.model, "messages": full_messages, "stream": True}
         if tools:
             kwargs["tools"] = tools
+        kwargs.update(self._limit_kwargs())
         # Request usage stats in the final stream chunk so token tracking works.
         kwargs["stream_options"] = {"include_usage": True}
 
@@ -182,7 +202,7 @@ class OpenAIClient(BaseModelClient):
                             "function": {"name": tc["name"], "arguments": tc["arguments"]},
                         })
                     yield StreamChunk(
-                        finish_reason=choice.finish_reason,
+                        finish_reason=normalize_finish_reason(choice.finish_reason),
                         tool_call_delta={"tool_calls": final_tool_calls} if final_tool_calls else None,
                     )
 

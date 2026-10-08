@@ -11,13 +11,18 @@ import threading
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional
 
-from neow.models.base import ModelResponse, StreamChunk
+from neow.models.base import ModelResponse, StreamChunk, normalize_finish_reason
 from neow.utils import sanitize_text
 from neow.utils.logger import logger
 
 DEFAULT_MAX_TURNS = 50
 CANCELLED_RESULT = "Error: cancelled before execution"
 MAX_TURNS_RESULT = "Error: not executed (tool call limit reached)"
+TRUNCATED_RESULT = (
+    "Error: not executed: your reply hit the output token limit "
+    "(max_output_tokens) and the tool arguments were cut off. "
+    "Split the change into smaller edits."
+)
 
 # Tools whose successful run should refresh a file held in conversation context.
 FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file"}
@@ -102,6 +107,11 @@ def _tool_message(call_id: str, result: str) -> Dict[str, Any]:
     }
 
 
+def _notice(message: str, level: str = "warn") -> StreamChunk:
+    logger.warning(message)
+    return StreamChunk(progress={"type": "notice", "level": level, "message": message})
+
+
 def _chunks_from_response(response: ModelResponse) -> Iterable[StreamChunk]:
     """Present a blocking ``chat()`` reply as a one-chunk stream."""
 
@@ -110,6 +120,7 @@ def _chunks_from_response(response: ModelResponse) -> Iterable[StreamChunk]:
         content_delta=response.content or "",
         tool_call_delta={"tool_calls": tool_calls} if tool_calls else None,
         usage=response.usage or None,
+        finish_reason=getattr(response, "finish_reason", None),
     )
 
 
@@ -142,19 +153,30 @@ class AgentLoop:
                 response = yield from self._request(user_input, stream)
                 if cancel.cancelled():
                     break
+                truncated = response.finish_reason == "length"
                 if not response.tool_calls or conv.tool_executor is None:
                     self._append_assistant(response.content)
+                    if truncated:
+                        yield _notice(
+                            "回复达到输出上限（max_output_tokens）被截断，"
+                            "可让模型继续，或在配置中调高该值"
+                        )
                     break
                 self._append_assistant(response.content, response.tool_calls)
+                if truncated:
+                    # The last call's arguments are cut off; run none of them
+                    # and let the model retry with smaller edits.
+                    for call in response.tool_calls:
+                        conv.add_tool_result(call["id"], TRUNCATED_RESULT)
+                    yield _notice(
+                        "输出达到上限（max_output_tokens），已让模型拆分后重试"
+                    )
+                    continue
                 if request_number == self.max_turns:
                     reason = MAX_TURNS_RESULT
-                    message = (
-                        f"Stopped after {self.max_turns} model requests in one turn "
-                        "(agent.max_turns)."
-                    )
-                    logger.warning(message)
-                    yield StreamChunk(
-                        progress={"type": "notice", "level": "warn", "message": message}
+                    yield _notice(
+                        f"本轮已请求模型 {self.max_turns} 次，达到上限"
+                        "（agent.max_turns），已停止"
                     )
                     break
                 yield from self._run_tools(response.tool_calls, cancel)
@@ -190,6 +212,7 @@ class AgentLoop:
 
         tool_calls: List[Dict[str, Any]] = []
         usage: Dict[str, int] = {}
+        finish_reason: Optional[str] = None
         reasoning_active = False
         self._unsaved_content = ""
         for chunk in chunks:
@@ -205,6 +228,8 @@ class AgentLoop:
                 tool_calls = chunk.tool_call_delta.get("tool_calls") or []
             if chunk.usage:
                 usage = chunk.usage
+            if chunk.finish_reason:
+                finish_reason = normalize_finish_reason(chunk.finish_reason)
             yield chunk
         if reasoning_active:
             yield StreamChunk(progress={"type": "reasoning_end"})
@@ -214,7 +239,10 @@ class AgentLoop:
                 usage, getattr(conv.model_client, "model", "unknown")
             )
         response = ModelResponse(
-            content=self._unsaved_content, tool_calls=tool_calls, usage=usage
+            content=self._unsaved_content,
+            tool_calls=tool_calls,
+            usage=usage,
+            finish_reason=finish_reason,
         )
         self.result = ModelResponse(content=response.content, usage=usage)
         return response

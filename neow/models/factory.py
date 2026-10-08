@@ -112,11 +112,23 @@ def create_model_client(config: "Config", model_name: str):
             f"Invalid validate value {validate_value!r} for model {model_name!r}. "
             "Use 'auto' or 'skip'"
         )
+    max_output_tokens = entry.get("max_output_tokens")
+    if max_output_tokens is not None and (
+        not isinstance(max_output_tokens, int)
+        or isinstance(max_output_tokens, bool)
+        or max_output_tokens < 1
+    ):
+        raise ConfigError(
+            f"Invalid max_output_tokens {max_output_tokens!r} for model "
+            f"{model_name!r}. Use a positive integer"
+        )
+    extra = {"max_output_tokens": max_output_tokens} if max_output_tokens else {}
     return client_for(provider)(
         api_key=resolve_api_key(entry, model_name),
         model=model,
         base_url=entry.get("base_url") or None,
         validate=validate_value == "auto",
+        **extra,
     )
 
 

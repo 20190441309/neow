@@ -9,6 +9,7 @@ from neow.models.base import (
     BaseModelClient,
     ModelResponse,
     StreamChunk,
+    normalize_finish_reason,
     validate_openai_compatible,
 )
 from neow.utils import sanitize_text as _sanitize_text
@@ -17,6 +18,7 @@ from neow.utils.logger import logger
 # Kept on top of the OpenAI schema: thinking mode needs reasoning_content
 # passed back, and tool messages have always carried "type".
 DEEPSEEK_EXTRA_KEYS = ("reasoning_content", "type")
+DEFAULT_MAX_OUTPUT_TOKENS = 8192
 
 
 class DeepSeekClient(BaseModelClient):
@@ -28,6 +30,7 @@ class DeepSeekClient(BaseModelClient):
         model: str = "deepseek-v4-flash",
         base_url: Optional[str] = None,
         validate: bool = True,
+        max_output_tokens: Optional[int] = None,
     ):
         """Initialize DeepSeek client.
 
@@ -36,14 +39,19 @@ class DeepSeekClient(BaseModelClient):
             model: Model name (default: deepseek-v4-flash).
             base_url: Optional custom endpoint (defaults to DeepSeek's).
             validate: Whether to run the startup connection probe.
+            max_output_tokens: Output cap (default 8192; the API default is 4096).
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
+        self.max_output_tokens = max_output_tokens or DEFAULT_MAX_OUTPUT_TOKENS
         self.client = openai.OpenAI(
             api_key=api_key, base_url=base_url or "https://api.deepseek.com"
         )
         self._last_reasoning_content = None
+
+    def _limit_kwargs(self) -> Dict[str, Any]:
+        return {"max_tokens": self.max_output_tokens}
 
     def chat(
         self,
@@ -77,6 +85,7 @@ class DeepSeekClient(BaseModelClient):
 
         if tools:
             kwargs["tools"] = tools
+        kwargs.update(self._limit_kwargs())
 
         try:
             logger.debug(f"Sending request to DeepSeek API with {len(full_messages)} messages")
@@ -116,7 +125,10 @@ class DeepSeekClient(BaseModelClient):
                 logger.debug("No reasoning_content in response")
 
             return ModelResponse(
-                content=choice.message.content or "", tool_calls=tool_calls, usage=usage
+                content=choice.message.content or "",
+                tool_calls=tool_calls,
+                usage=usage,
+                finish_reason=normalize_finish_reason(choice.finish_reason),
             )
         except Exception as e:
             logger.error(f"DeepSeek API error: {e}")
@@ -148,6 +160,7 @@ class DeepSeekClient(BaseModelClient):
         kwargs = {"model": self.model, "messages": full_messages, "stream": True}
         if tools:
             kwargs["tools"] = tools
+        kwargs.update(self._limit_kwargs())
         # Request usage stats in the final stream chunk so token tracking works.
         kwargs["stream_options"] = {"include_usage": True}
 
@@ -210,7 +223,7 @@ class DeepSeekClient(BaseModelClient):
                             "function": {"name": tc["name"], "arguments": tc["arguments"]},
                         })
                     yield StreamChunk(
-                        finish_reason=choice.finish_reason,
+                        finish_reason=normalize_finish_reason(choice.finish_reason),
                         tool_call_delta={"tool_calls": final_tool_calls} if final_tool_calls else None,
                     )
 

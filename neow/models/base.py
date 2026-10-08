@@ -24,6 +24,23 @@ def validate_openai_compatible(client: Any, label: str) -> bool:
         return False
 
 
+# Provider stop reasons -> "stop" | "tool_calls" | "length".
+_FINISH_REASONS = {
+    "end_turn": "stop",
+    "stop_sequence": "stop",
+    "tool_use": "tool_calls",
+    "max_tokens": "length",
+}
+
+
+def normalize_finish_reason(reason: Any) -> Optional[str]:
+    """Map a provider stop reason onto OpenAI's vocabulary."""
+
+    if not isinstance(reason, str) or not reason:
+        return None
+    return _FINISH_REASONS.get(reason, reason)
+
+
 class ModelResponse:
     """Response from AI model."""
 
@@ -32,6 +49,7 @@ class ModelResponse:
         content: str,
         tool_calls: Optional[List[Dict[str, Any]]] = None,
         usage: Optional[Dict[str, int]] = None,
+        finish_reason: Optional[str] = None,
     ):
         """Initialize model response.
 
@@ -39,10 +57,13 @@ class ModelResponse:
             content: Response content.
             tool_calls: List of tool calls requested by the model.
             usage: Token usage statistics.
+            finish_reason: Normalised stop reason ("stop", "tool_calls",
+                "length"), when the provider reports one.
         """
         self.content = content
         self.tool_calls = tool_calls or []
         self.usage = usage or {}
+        self.finish_reason = finish_reason
 
     @property
     def has_tool_calls(self) -> bool:
@@ -80,6 +101,8 @@ class BaseModelClient(ABC):
         self.model = model
         self.base_url: Optional[str] = None
         self.validate_enabled: bool = True
+        # Output token cap sent with each request (None = provider default).
+        self.max_output_tokens: Optional[int] = None
 
     @abstractmethod
     def chat(

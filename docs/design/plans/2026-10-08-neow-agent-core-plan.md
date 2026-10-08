@@ -206,6 +206,8 @@ class AgentLoop:
 - 顺带修复：Anthropic 流式下无参数工具（如 `git_status`）没有参数增量，旧代码产出空字符串参数，后续 `json.loads("")` 失败；现在默认 `"{}"`。
 - `max_tokens` 仍为 4096（任务 1.2）。
 
+**提交：** `7c13a7b`
+
 ### 任务 1.2 · 输出上限可配置 + 截断处理
 
 **修复：** E3。
@@ -219,7 +221,20 @@ class AgentLoop:
   - 若有未完成的工具调用 → 不执行，写入工具结果 `"Error: output was truncated (max_output_tokens). Split the change into smaller edits."`，继续循环让模型重试；
   - 若是纯文本 → 发出警告事件（TUI 显示 SystemCard），不自动续写。
 
-**测试：** `test_max_output_tokens_from_config`、`test_length_finish_with_tool_call_returns_error_result`、`test_length_finish_text_emits_warning`
+**测试：** `tests/test_output_limits.py`（`test_anthropic_default_output_limit` ×3、`test_max_output_tokens_from_config`、`test_invalid_max_output_tokens_is_rejected`、`test_openai_style_output_limit_parameters` ×4、`test_anthropic_reports_normalised_finish_reasons`、`test_length_finish_with_tool_call_returns_error_result` ×2（流式/非流式）、`test_length_finish_text_emits_warning`、`test_normal_tool_turn_has_no_truncation_notice`）
+
+- [x] 已完成（670 passed）
+
+**实现记录（与设计的差异）：**
+- 默认值不按 provider 一刀切：
+  - Anthropic 必须传 `max_tokens`：Claude 4 及以后 16000；`claude-3-5/3-7` 8192；其余 `claude-3` 4096（这些型号的硬上限，超出会 400）。
+  - DeepSeek 8192（API 不传时默认只有 4096）。
+  - OpenAI 与兼容端点**默认不传**：API 默认就是模型自身上限，硬塞 16000 会让输出上限更小的模型报错。配置后 OpenAI 用 `max_completion_tokens`（推理模型只认这个），设置了 `base_url` 的兼容端点用 `max_tokens`。
+- 只有配置了 `max_output_tokens` 时工厂才向客户端传这个参数，旧配置的构造调用与改动前完全一致（`test_legacy_config_behavior_unchanged` 不需要修改）。
+- Anthropic 流式改为从最终消息读取真实的 `stop_reason`（旧代码根据“有没有工具调用”自己拼 `tool_use/end_turn`，看不到 `max_tokens`）。各客户端统一用 `normalize_finish_reason()` 输出 `stop | tool_calls | length`。
+- 截断且带工具调用时，这一批调用**全部**不执行（最后一个必然残缺，不去猜其余是否完整），写入 `TRUNCATED_RESULT` 后继续循环，计入 `agent.max_turns`。
+- 面向用户的提示改为中文（包括任务 0.2 的轮数上限提示）；给模型看的工具结果保持英文。
+- README 补充 `max_output_tokens` 与 `agent.max_turns`。
 
 ### 任务 1.3 · 工具调用容错
 

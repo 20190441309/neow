@@ -1,14 +1,34 @@
 """Anthropic Claude model client."""
 
 import json
+import re
 from typing import Any, Dict, Generator, List, Optional
 
 import anthropic
 
 from neow.models.adapters import to_anthropic
-from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
+from neow.models.base import (
+    BaseModelClient,
+    ModelResponse,
+    StreamChunk,
+    normalize_finish_reason,
+)
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
+
+
+def default_max_output_tokens(model: str) -> int:
+    """Output cap that every model in the family accepts.
+
+    Claude 3 Opus/Sonnet/Haiku stop at 4096, 3.5/3.7 at 8192; later
+    generations allow far more, 16000 keeps long edits in one reply.
+    """
+
+    if re.search(r"claude-3-[57]", model):
+        return 8192
+    if "claude-3" in model:
+        return 4096
+    return 16000
 
 
 class AnthropicClient(BaseModelClient):
@@ -20,6 +40,7 @@ class AnthropicClient(BaseModelClient):
         model: str = "claude-sonnet-4-6",
         base_url: Optional[str] = None,
         validate: bool = True,
+        max_output_tokens: Optional[int] = None,
     ):
         """Initialize Anthropic client.
 
@@ -28,10 +49,12 @@ class AnthropicClient(BaseModelClient):
             model: Model name (default: claude-sonnet-4-6).
             base_url: Optional custom endpoint.
             validate: Whether to run the startup connection probe.
+            max_output_tokens: Required by the API; defaults by model family.
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
+        self.max_output_tokens = max_output_tokens or default_max_output_tokens(model)
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
@@ -47,7 +70,7 @@ class AnthropicClient(BaseModelClient):
         api_messages, api_tools = to_anthropic(messages, tools)
         kwargs: Dict[str, Any] = {
             "model": self.model,
-            "max_tokens": 4096,
+            "max_tokens": self.max_output_tokens,
             "messages": api_messages,
         }
         if system_prompt:
@@ -113,7 +136,12 @@ class AnthropicClient(BaseModelClient):
                     + response.usage.output_tokens,
                 }
 
-            return ModelResponse(content=content, tool_calls=tool_calls, usage=usage)
+            return ModelResponse(
+                content=content,
+                tool_calls=tool_calls,
+                usage=usage,
+                finish_reason=normalize_finish_reason(response.stop_reason),
+            )
         except Exception as e:
             logger.error(f"Anthropic API error: {e}")
             raise
@@ -175,19 +203,29 @@ class AnthropicClient(BaseModelClient):
                                     "arguments": tinfo["input_buffer"] or "{}",
                                 },
                             })
-                        yield StreamChunk(
-                            finish_reason="tool_use" if final_tool_calls else "end_turn",
-                            tool_call_delta={"tool_calls": final_tool_calls} if final_tool_calls else None,
-                        )
+                        if final_tool_calls:
+                            yield StreamChunk(
+                                tool_call_delta={"tool_calls": final_tool_calls}
+                            )
 
+                # The real stop reason (e.g. max_tokens) is only on the
+                # final message.
                 final_message = stream.get_final_message()
-                if final_message and final_message.usage:
-                    yield StreamChunk(
-                        usage={
-                            "prompt_tokens": final_message.usage.input_tokens,
-                            "completion_tokens": final_message.usage.output_tokens,
-                            "total_tokens": final_message.usage.input_tokens + final_message.usage.output_tokens,
+                if final_message:
+                    usage = None
+                    if final_message.usage:
+                        tokens_in = final_message.usage.input_tokens
+                        tokens_out = final_message.usage.output_tokens
+                        usage = {
+                            "prompt_tokens": tokens_in,
+                            "completion_tokens": tokens_out,
+                            "total_tokens": tokens_in + tokens_out,
                         }
+                    yield StreamChunk(
+                        usage=usage,
+                        finish_reason=normalize_finish_reason(
+                            final_message.stop_reason
+                        ),
                     )
 
         except Exception as e:

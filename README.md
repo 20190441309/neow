@@ -148,6 +148,15 @@ Model entry fields:
 | `api_key_env` | environment variable name | Keeps keys out of the config file |
 | `base_url` | URL | Custom endpoint (supported by all providers) |
 | `validate` | `auto` (default) · `skip` | `skip` disables the startup probe (local servers, gateways without `/models`) |
+| `max_output_tokens` | positive integer | Cap on one reply. Defaults: Anthropic 16000 (Claude 3.x: 4096 / 8192), DeepSeek 8192, OpenAI and compatible endpoints send nothing (the model's own maximum) |
+
+If a reply hits `max_output_tokens` while writing tool arguments, the half-written calls are not run; the model is told to split the change and tries again.
+
+`agent.max_turns` (default 50) caps how many model requests one user turn may make, so a tool loop cannot run forever:
+
+```json
+{ "agent": { "max_turns": 50 } }
+```
 
 **Key resolution order:** `api_key` → `api_key_env` → `NEOW_<MODEL_NAME>_API_KEY` → `NEOW_DEEPSEEK_API_KEY` / `NEOW_ANTHROPIC_API_KEY` / `NEOW_OPENAI_API_KEY`. Keys are never logged or echoed.
 
