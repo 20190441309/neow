@@ -2,10 +2,46 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from neow.tui.effects.gradient import gradient_text
+from neow.tui.theme import widget_palette
 from neow.tui.widgets.cards.base import CardBase
+
+WORDMARK = "█▄ █ █▀▀ █▀█ █ █ █\n█ ▀█ ██▄ █▄█ ▀▄▀▄▀"
+
+WELCOME_TIPS = (
+    ("/", "命令"),
+    ("@", "引用文件"),
+    ("F1", "帮助"),
+    ("Ctrl+B", "侧栏"),
+    ("Ctrl+P", "命令面板"),
+)
+
+
+class Welcome(Static):
+    """Empty-timeline splash: gradient wordmark, tagline and key tips."""
+
+    def on_mount(self) -> None:
+        self.update(self.render_welcome())
+
+    def render_welcome(self) -> Text:
+        palette = widget_palette(self)
+        out = gradient_text(WORDMARK, 0.0, palette["gradient"])
+        out.append("\n\n")
+        out.append("从一个问题开始", f"bold {palette['text']}")
+        out.append("\n")
+        out.append("分析代码、定位问题，或一起实现一个功能", palette["dim"])
+        out.append("\n\n")
+        keycap = f"bold {palette['accent1']} on {palette['elevated']}"
+        for index, (key, label) in enumerate(WELCOME_TIPS):
+            if index:
+                out.append("   ")
+            out.append(f" {key} ", keycap)
+            out.append(f" {label}", palette["muted"])
+        return out
 
 
 class NewMessagesBanner(Static):
@@ -18,13 +54,14 @@ class NewMessagesBanner(Static):
         height: 1;
         color: $secondary;
         background: $panel;
+        text-style: bold;
         padding: 0 1;
         text-align: center;
     }
     """
 
     def __init__(self):
-        super().__init__("↓ 新消息", classes="new-messages-banner")
+        super().__init__("↓ 有新消息 · 点击回到底部", classes="new-messages-banner")
 
     def on_click(self) -> None:
         self.parent.jump_to_bottom()
@@ -46,13 +83,7 @@ class TimelineScroll(VerticalScroll):
         self._follow_dirty = False
         self._follow_wanted = False
         self._auto_follow = True
-        self._welcome = Static(
-            "[bold]从一个问题开始[/bold]\n\n"
-            "分析代码、定位问题，或一起实现一个功能。\n"
-            "输入 / 查看命令，@ 补全文件路径。\n\n"
-            "[dim]F1 帮助    Ctrl+B 侧栏    Ctrl+P 命令面板[/dim]",
-            id="welcome",
-        )
+        self._welcome = Welcome(id="welcome")
 
     def compose(self):
         yield self._banner
@@ -149,4 +180,4 @@ class TimelineScroll(VerticalScroll):
             self._banner.display = False
 
 
-__all__ = ["TimelineScroll", "NewMessagesBanner"]
+__all__ = ["TimelineScroll", "NewMessagesBanner", "Welcome"]

@@ -26,7 +26,16 @@ class ThinkingCard(CardBase):
     ``subtle`` (10 fps spinner strip) or ``off`` (static dim text).
     """
 
+    DEFAULT_CSS = """
+    ThinkingCard .card-body {
+        padding: 0 0 0 1;
+        text-style: italic;
+    }
+    """
+
     accent_key = "role_thinking"
+    title_key = "dim"
+    title_bold = False
 
     def __init__(
         self,

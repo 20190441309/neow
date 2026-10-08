@@ -1,23 +1,35 @@
-
 Screen {
     background: $neow-bg;
     color: $neow-text;
     layout: vertical;
 }
 
+* {
+    scrollbar-size-vertical: 1;
+    scrollbar-background: $neow-bg;
+    scrollbar-background-hover: $neow-bg;
+    scrollbar-background-active: $neow-bg;
+    scrollbar-color: $neow-border_strong;
+    scrollbar-color-hover: $neow-muted;
+    scrollbar-color-active: $neow-accent2;
+    scrollbar-corner-color: $neow-bg;
+}
+
 ChatScreen {
     overflow: hidden;
 }
 
+/* -- top bar ------------------------------------------------------- */
+
 #topbar {
-    height: 3;
+    height: 1;
     background: $neow-surface;
     color: $neow-muted;
-    padding: 1 2;
+    padding: 0 2;
 }
 
 NeowLogo {
-    width: 9;
+    width: auto;
     height: 1;
 }
 
@@ -25,6 +37,14 @@ NeowLogo {
     width: 1fr;
     height: 1;
 }
+
+#topbar-cwd {
+    width: auto;
+    height: 1;
+    padding: 0 0 0 2;
+}
+
+/* -- body ---------------------------------------------------------- */
 
 #body {
     height: 1fr;
@@ -34,22 +54,69 @@ NeowLogo {
 
 #timeline {
     width: 1fr;
-    padding: 1 2;
+    padding: 0 2 1 2;
 }
 
 #welcome {
+    width: 1fr;
     height: auto;
-    margin: 2 1;
-    color: $neow-dim;
+    margin: 3 1 1 1;
+    content-align: center top;
+    text-align: center;
 }
 
-CardBase {
-    background: transparent;
-    padding: 0 1;
+/* -- cards (theme colours; layout lives in each widget's DEFAULT_CSS) */
+
+CardBase .card-title:hover {
+    background: $neow-selection 60%;
 }
 
 CardBase:focus .card-title {
+    background: $neow-selection;
+}
+
+UserCard {
+    background: $neow-user_bg;
+}
+
+ThinkingCard .card-body,
+CompactionCard .card-body {
+    border-left: solid $neow-border;
+}
+
+SystemCard .card-body,
+ErrorCard .card-body,
+CompactionCard .card-body {
+    color: $neow-dim;
+}
+
+ErrorCard {
+    background: $neow-error_bg;
+}
+
+ToolCard .card-body {
+    background: $neow-code_bg;
+    border-left: outer $neow-border_strong;
+}
+
+AssistantCard MarkdownBlock:dark > .code_inline,
+AssistantCard MarkdownBlock:light > .code_inline {
+    background: $neow-code_bg;
+    color: $neow-accent3;
+}
+
+AssistantCard MarkdownFence {
+    background: $neow-code_bg;
+    border-left: outer $neow-border_strong;
+}
+
+AssistantCard MarkdownBullet {
+    color: $neow-accent2;
+}
+
+NewMessagesBanner {
     color: $neow-accent1;
+    background: $neow-elevated;
 }
 
 .truncation-hint {
@@ -57,21 +124,12 @@ CardBase:focus .card-title {
     color: $neow-muted;
 }
 
-UserCard {
-    background: $neow-surface;
-}
-
-AssistantCard Markdown {
-    padding: 0;
-    margin: 0;
-}
-
 #sidebar {
     width: 42;
     display: none;
     background: $neow-surface;
-    border-left: solid $neow-border;
-    padding: 1;
+    border-left: tall $neow-border;
+    padding: 1 1 1 2;
 }
 
 #sidebar.visible {
@@ -81,13 +139,14 @@ AssistantCard Markdown {
 #queuestrip {
     display: none;
     height: auto;
-    color: $neow-warn;
-    padding: 0 1;
+    padding: 0 3;
 }
 
 #queuestrip.visible {
     display: block;
 }
+
+/* -- input --------------------------------------------------------- */
 
 #inputdock {
     height: auto;
@@ -98,32 +157,43 @@ AssistantCard Markdown {
 #inputdock PromptArea,
 #inputdock PromptArea:focus {
     border: round $neow-accent1;
-    background: $neow-surface;
+    border-title-color: $neow-accent1;
+    border-title-style: bold;
+    border-subtitle-color: $neow-muted;
+    background: $neow-bg;
     color: $neow-text;
+    padding: 0 1;
+}
+
+#inputdock PromptArea .text-area--cursor-line {
+    background: transparent;
+}
+
+#inputdock PromptArea .text-area--placeholder {
+    color: $neow-muted;
 }
 
 #inputdock #completions {
-    max-height: 4;
+    max-height: 6;
+    margin: 0 1;
     padding: 0 1;
     background: $neow-elevated;
 }
 
 #inputdock #completions > .option-list--option-highlighted {
-    background: $neow-border;
+    background: $neow-selection;
     color: $neow-accent1;
     text-style: bold;
 }
 
-#inputdock #input-hint {
-    color: $neow-muted;
-}
-
 #statusbar {
     height: 1;
-    background: $neow-surface;
+    background: $neow-bg;
     color: $neow-muted;
-    padding: 0 1;
+    padding: 0 3;
 }
+
+/* -- responsive ---------------------------------------------------- */
 
 ChatScreen.small-sidebar #sidebar {
     width: 36;
@@ -134,20 +204,27 @@ ChatScreen.no-sidebar #sidebar {
 }
 
 ChatScreen.narrow #timeline {
-    padding: 0 1;
+    padding: 0 1 1 1;
 }
 
 ChatScreen.narrow #inputdock {
-    padding: 0 1;
-}
-
-ChatScreen.narrow #statusbar {
     padding: 0;
 }
 
-ChatScreen.short #topbar {
-    height: 1;
+ChatScreen.narrow #statusbar {
     padding: 0 1;
+}
+
+ChatScreen.narrow #topbar {
+    padding: 0 1;
+}
+
+ChatScreen.narrow #topbar-cwd {
+    display: none;
+}
+
+ChatScreen.short #welcome {
+    margin: 1 1 0 1;
 }
 
 ChatScreen.short #inputdock PromptArea {
@@ -156,6 +233,87 @@ ChatScreen.short #inputdock PromptArea {
 
 ChatScreen.short #inputdock #completions {
     max-height: 3;
+}
+
+/* -- dialogs ------------------------------------------------------- */
+
+ApprovalModal {
+    background: $neow-bg 70%;
+}
+
+ApprovalModal .approval-box {
+    border: round $neow-warn;
+    border-title-color: $neow-warn;
+    border-title-style: bold;
+    background: $neow-surface;
+}
+
+ApprovalModal .approval-command {
+    background: $neow-code_bg;
+    border-left: outer $neow-warn;
+}
+
+.dialog-backdrop {
+    background: $neow-bg 70%;
+    align: center middle;
+}
+
+.dialog {
+    width: 84;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    background: $neow-surface;
+    border: round $neow-border_strong;
+    border-title-color: $neow-accent2;
+    border-title-style: bold;
+    border-subtitle-color: $neow-muted;
+    padding: 1 2;
+}
+
+.dialog.tall {
+    height: 90%;
+}
+
+.dialog.wide {
+    width: 120;
+}
+
+.dialog OptionList,
+.dialog Tree {
+    height: auto;
+    max-height: 24;
+    border: none;
+    background: $neow-surface;
+    padding: 0;
+}
+
+.dialog.tall Tree,
+.dialog.tall VerticalScroll {
+    height: 1fr;
+    max-height: 100%;
+}
+
+.dialog VerticalScroll {
+    height: auto;
+    max-height: 100%;
+}
+
+.dialog OptionList > .option-list--option-highlighted,
+.dialog OptionList:focus > .option-list--option-highlighted {
+    background: $neow-selection;
+    color: $neow-text;
+    text-style: bold;
+}
+
+.dialog Tree > .tree--cursor {
+    background: $neow-selection;
+    text-style: bold;
+}
+
+.dialog-empty {
+    color: $neow-muted;
+    text-style: italic;
 }
 
 .picker-title {
@@ -167,11 +325,11 @@ ChatScreen.short #inputdock #completions {
 }
 
 #help-text {
-    padding: 1 2;
+    padding: 0;
 }
 
 #diff-body,
 #cost-body {
-    padding: 1 2;
+    padding: 0;
     color: $neow-dim;
 }

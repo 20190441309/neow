@@ -206,7 +206,7 @@ async def test_tool_denied_icon():
     card = ToolCard(effects="off")
     card.start("write_file", {"file_path": "a.py"})
     card.finish(result="Error: User denied: write_file", is_error=True)
-    assert card.status_icon == "⛔"
+    assert card.status_icon == "⊘"
 
 
 async def test_user_toggle_during_run_disables_auto_collapse():
@@ -249,3 +249,29 @@ def test_tool_spinner_off_mode_is_static():
     card.start("edit_file", {"file_path": "a.py"})
     assert card._spinner_timer is None
     assert card.status_icon == "⟳"
+
+
+async def test_tool_finished_before_mount_still_renders_body():
+    card = ToolCard(effects="off")
+    card.start("execute_command", {"command": "false"})
+    card.finish(result="Error: exit 1", is_error=True)
+    async with _host(card) as pilot:
+        await pilot.pause()
+        assert "exit 1" in str(card._body_widget.render())
+
+
+async def test_running_tool_shows_placeholder_not_empty_output():
+    card = ToolCard(effects="off")
+    async with _host(card) as pilot:
+        card.start("execute_command", {"command": "pytest"})
+        await pilot.pause()
+        body = str(card._body_widget.render())
+        assert "$ pytest" in body and "运行中" in body
+        assert "(no output)" not in body
+
+
+def test_tool_title_splits_summary_and_duration():
+    card = ToolCard(effects="off")
+    card.start("read_file", {"path": "a.py"})
+    card.finish(result="x", is_error=False, duration=0.25)
+    assert card.title_text() == "✓ read_file  a.py   250ms"

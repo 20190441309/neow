@@ -64,6 +64,14 @@ def _tool_summary(name: str, args: Dict[str, Any]) -> str:
     return _first_str(args)[:60]
 
 
+def _format_duration(seconds: float) -> str:
+    if seconds < 1:
+        return f"{seconds * 1000:.0f}ms"
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    return f"{int(seconds // 60)}m{int(seconds % 60):02d}s"
+
+
 def render_tool_body(
     name: str,
     args: Dict[str, Any],
@@ -132,6 +140,16 @@ def render_tool_body(
 class ToolCard(CardBase):
     """A tool invocation: expanded while running, auto-collapsed when done."""
 
+    DEFAULT_CSS = """
+    ToolCard.follows {
+        margin-top: 0;
+    }
+    ToolCard .card-body {
+        margin: 0 0 0 2;
+        padding: 0 1;
+    }
+    """
+
     def __init__(self, *, effects: str = "full"):
         super().__init__(
             title="Tool",
@@ -160,13 +178,18 @@ class ToolCard(CardBase):
             self.set_accent(palette[key])
         self._render_body()
 
+    def on_mount(self) -> None:
+        super().on_mount()
+        # Fast tools can start and finish before the card is mounted.
+        self.call_after_refresh(self._render_body)
+
     # -- lifecycle -----------------------------------------------------
 
     def start(self, name: str, args: Dict[str, Any]) -> None:
         self._name = name
         self._args = dict(args or {})
         self._status = "running"
-        self.set_title(title=name, icon="⟳", meta=_tool_summary(name, self._args))
+        self.set_title(title=name, icon="⟳", subtitle=_tool_summary(name, self._args))
         self.set_accent(widget_palette(self)["tool_running"])
         self._render_body()
         if self.collapsed:
@@ -203,12 +226,12 @@ class ToolCard(CardBase):
         else:
             self._status = "done"
 
-        icon = {"done": "✓", "error": "✗", "denied": "⛔"}[self._status]
+        icon = {"done": "✓", "error": "✗", "denied": "⊘"}[self._status]
         palette = widget_palette(self)
         accent = palette[_STATUS_ACCENT_KEYS[self._status]]
-        meta = _tool_summary(self._name, self._args)
+        meta = "denied" if self._status == "denied" else ""
         if duration is not None:
-            meta = f"{meta} · {duration:.1f}s"
+            meta = _format_duration(duration)
         self.set_title(icon=icon, meta=meta)
         self.set_accent(accent)
         try:
@@ -227,8 +250,7 @@ class ToolCard(CardBase):
 
     def set_duration(self, seconds: float) -> None:
         self._duration = seconds
-        meta = _tool_summary(self._name, self._args)
-        self.set_title(meta=f"{meta} · {seconds:.1f}s")
+        self.set_title(meta=_format_duration(seconds))
 
     # -- interaction ---------------------------------------------------
 
@@ -253,15 +275,24 @@ class ToolCard(CardBase):
     # -- rendering -----------------------------------------------------
 
     def _render_body(self) -> None:
-        body = render_tool_body(
-            self._name, self._args, self._result, palette=widget_palette(self)
-        )
+        palette = widget_palette(self)
+        if self._status in ("pending", "running"):
+            body = Text()
+            if self._name == "execute_command":
+                body.append(
+                    f"$ {self._args.get('command', '')}\n", f"bold {palette['text']}"
+                )
+            body.append("运行中…", f"italic {palette['muted']}")
+            if self.is_mounted:
+                self._body_widget.update(body)
+            return
+        body = render_tool_body(self._name, self._args, self._result, palette=palette)
         lines = body.split("\n")
         if len(lines) > MAX_BODY_LINES:
             body = Text("\n").join(lines[:MAX_BODY_LINES])
             body.append(
                 f"\n… (+{len(lines) - MAX_BODY_LINES} 行)",
-                style=widget_palette(self)["muted"],
+                style=palette["muted"],
             )
         if self.is_mounted:
             self._body_widget.update(body)

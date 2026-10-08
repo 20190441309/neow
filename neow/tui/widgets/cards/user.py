@@ -9,15 +9,17 @@ from neow.tui.widgets.cards.base import CardBase
 
 
 class UserCard(CardBase):
-    """User prompt: cyan accent, multiline text preserved."""
+    """User prompt: tinted block with a cyan rule, multiline text preserved."""
 
     accent_key = "role_user"
+    title_key = "role_user"
+    rule = "outer"
 
     def __init__(self, text: str, *, number: int, timestamp: str):
         super().__init__(
-            title=f"You #{number}",
+            title="You",
             icon="❯",
-            meta=f"· {timestamp}",
+            meta=f"#{number} · {timestamp}",
             accent="#22d3ee",
         )
         self.text = text

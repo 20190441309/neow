@@ -9,11 +9,15 @@ from typing import Any, Dict
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import RadioButton, RadioSet, Static
 
 from neow.tui.theme import get_palette
+
+
+def _clip(text: str, limit: int = 400) -> str:
+    return text if len(text) <= limit else text[:limit] + "…"
 
 
 class ApprovalDecision(Enum):
@@ -53,8 +57,8 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
         align: center middle;
     }
     .approval-box {
-        width: 74;
-        max-width: 100%;
+        width: 76;
+        max-width: 94%;
         max-height: 90%;
         height: auto;
         border: round $warning;
@@ -63,6 +67,12 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
     }
     .approval-title {
         padding: 0 0 1 0;
+    }
+    .approval-command {
+        padding: 0 1;
+    }
+    .approval-reason {
+        padding: 1 0 0 0;
     }
     .approval-hint {
         padding: 1 0 0 0;
@@ -91,9 +101,13 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
         self.tier = tier
 
     def compose(self) -> ComposeResult:
-        with VerticalScroll(classes="approval-box"):
+        box = VerticalScroll(classes="approval-box")
+        box.border_title = "⚠ 审批请求"
+        with box:
             yield Static(self._title_text(), classes="approval-title")
-            yield Static(self._detail_text())
+            yield Static(self._detail_text(), classes="approval-command")
+            if self.reason:
+                yield Static(self._reason_text(), classes="approval-reason")
             yield Static(self._hint_text(), classes="approval-hint")
 
     def on_mount(self) -> None:
@@ -104,34 +118,47 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
     def _title_text(self) -> Text:
         palette = get_palette(self.app)
         out = Text()
-        out.append("⚠ 审批请求", style=f"{palette['warn']} bold")
-        segment = self.tool
+        out.append("neow 想要运行 ", palette["dim"])
+        out.append(self.tool, f"bold {palette['text']}")
         if self.tier:
-            segment += f" · tier: {self.tier}"
-        out.append(f"   {segment}", style=palette["muted"])
+            out.append(f"  · {self.tier}", palette["muted"])
         return out
 
     def _detail_text(self) -> Text:
         palette = get_palette(self.app)
-        summary = str(self.params)
-        if len(summary) > 200:
-            summary = summary[:200] + "…"
         out = Text()
-        out.append("$ ", style=palette["muted"])
-        out.append(summary, style=palette["text"])
-        out.append("\n\n原因：", style=palette["dim"])
-        out.append(self.reason, style=palette["settled"])
+        command = self.params.get("command")
+        if isinstance(command, str) and len(self.params) == 1:
+            out.append("$ ", f"bold {palette['warn']}")
+            out.append(_clip(command), f"bold {palette['text']}")
+            return out
+        for index, (key, value) in enumerate(self.params.items()):
+            if index:
+                out.append("\n")
+            out.append(f"{key}  ", palette["muted"])
+            out.append(_clip(str(value)), palette["text"])
+        if not self.params:
+            out.append("(no parameters)", palette["muted"])
         return out
+
+    def _reason_text(self) -> Text:
+        palette = get_palette(self.app)
+        return Text.assemble(
+            ("原因  ", palette["muted"]),
+            (self.reason, palette["dim"]),
+        )
 
     def _hint_text(self) -> Text:
         palette = get_palette(self.app)
+        on = palette["surface"]
         return Text.assemble(
-            ("[y]", f"{palette['success']} bold"),
-            (" 允许一次    ", palette["dim"]),
-            ("[a]", f"{palette['accent1']} bold"),
-            (" 本会话总是允许    ", palette["dim"]),
-            ("[n/Esc]", f"{palette['error']} bold"),
+            (" y ", f"bold {on} on {palette['success']}"),
+            (" 允许一次     ", palette["dim"]),
+            (" a ", f"bold {on} on {palette['accent1']}"),
+            (" 本会话总是允许     ", palette["dim"]),
+            (" n ", f"bold {on} on {palette['error']}"),
             (" 拒绝", palette["dim"]),
+            ("  (esc)", palette["muted"]),
         )
 
     # -- actions -------------------------------------------------------
@@ -152,6 +179,7 @@ __all__ = ["ApprovalDecision", "ApprovalModal", "ApprovalPicker", "apply_decisio
 class ApprovalPicker(ModalScreen):
     """Pick an approval mode; changes apply immediately."""
 
+    DEFAULT_CLASSES = "dialog-backdrop"
     BINDINGS = [("escape", "app.pop_screen", "返回")]
 
     def __init__(self, *, policy: Any, on_change=None):
@@ -160,8 +188,11 @@ class ApprovalPicker(ModalScreen):
         self.on_change = on_change
 
     def compose(self) -> ComposeResult:
-        yield Static("审批模式 · 选择后立即生效", classes="picker-title")
-        yield RadioSet("always-ask", "write", "yolo", id="approval-modes")
+        box = Vertical(classes="dialog")
+        box.border_title = "审批模式"
+        box.border_subtitle = "选择后立即生效 · esc 返回"
+        with box:
+            yield RadioSet("always-ask", "write", "yolo", id="approval-modes")
 
     def on_mount(self) -> None:
         order = {"always-ask": 0, "write": 1, "yolo": 2}

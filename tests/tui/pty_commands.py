@@ -16,11 +16,11 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[=>]")
 
 STEPS = [
-    ("/help\t\r", "斜杠命令"),
+    ("/help\t\r", "esc 关闭"),
     ("\x1b", None),  # escape help screen
     ("/diff\t\r", "c 提交"),
     ("\x1b", None),  # escape diff screen
-    ("/model\t\r", "Enter 切换"),
+    ("/model\t\r", "enter 切换"),
     ("\x1b", None),  # escape picker
 ]
 
@@ -62,14 +62,14 @@ def main() -> int:
         os.close(master)
         raise AssertionError(f"missing {needle!r}; tail={text[-600:]!r}")
 
-    read_until("Enter")
+    read_until("enter")
     for payload, needle in STEPS:
         # Send each command once, and inspect only newly painted output.
         os.write(master, payload.encode("utf-8"))
         if needle is not None:
             read_until(needle)
         else:
-            read_until("Enter")
+            read_until("enter")
         time.sleep(0.2)
 
     os.write(master, b"\x11")  # Ctrl+Q

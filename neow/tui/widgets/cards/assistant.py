@@ -14,13 +14,41 @@ MAX_LINES = 300
 class AssistantCard(CardBase):
     """One assistant content segment; streamed markdown plus ``▊`` cursor."""
 
-    accent_key = "role_assistant"
+    DEFAULT_CSS = """
+    AssistantCard Markdown {
+        padding: 0;
+        margin: 0;
+    }
+    AssistantCard Markdown > MarkdownParagraph:last-child,
+    AssistantCard Markdown > MarkdownFence:last-child {
+        margin-bottom: 0;
+    }
+    AssistantCard MarkdownFence > Label {
+        padding: 1 2 1 1;
+    }
+    AssistantCard MarkdownHeader {
+        margin: 1 0 1 0;
+    }
+    AssistantCard .stream-cursor {
+        height: 1;
+    }
+    """
 
-    def __init__(self, *, number: int, timestamp: str, effects: str = "full"):
+    accent_key = "role_assistant"
+    title_key = "role_assistant"
+
+    def __init__(
+        self,
+        *,
+        number: int,
+        timestamp: str,
+        effects: str = "full",
+        label: str = "Assistant",
+    ):
         super().__init__(
-            title=f"Assistant #{number}",
-            icon="●",
-            meta=f"· {timestamp}",
+            title=label,
+            icon="◆",
+            meta=timestamp,
             accent=MIDNIGHT["role_assistant"],
         )
         self.number = number

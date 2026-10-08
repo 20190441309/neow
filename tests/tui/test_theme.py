@@ -123,3 +123,18 @@ async def test_light_palette_reaches_status_bar():
         rendered = status._render_text()
         styles = " ".join(str(span.style) for span in rendered._spans)
         assert LIGHT["success"] in styles
+
+
+def test_status_helpers_shorten_numbers_and_paths(monkeypatch):
+    from pathlib import Path
+
+    from neow.tui.widgets.status_bar import human_tokens, short_path
+
+    assert human_tokens(932) == "932"
+    assert human_tokens(12840) == "12.8k"
+    assert human_tokens(2_500_000) == "2.50M"
+    monkeypatch.setenv("HOME", "/home/me")
+    assert short_path(Path("/home/me/proj")) == "~/proj"
+    assert short_path(Path("/a/very/long/path/that/keeps/going/to/repo"), 12) == (
+        "…/to/repo"
+    )

@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 from rich.text import Text
-from textual.screen import Screen
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import Static
 
 
-class CostScreen(Screen):
+class CostScreen(ModalScreen):
     """Token usage and session cost summary."""
 
+    DEFAULT_CLASSES = "dialog-backdrop"
     BINDINGS = [("escape", "app.pop_screen", "返回")]
 
     def __init__(self, *, summary: str):
@@ -18,9 +19,12 @@ class CostScreen(Screen):
         self.summary = summary or "(no usage recorded)"
 
     def compose(self):
-        yield Static("COST · Esc 返回", classes="picker-title")
-        with VerticalScroll():
-            yield Static(Text(self.summary), id="cost-body")
+        box = Vertical(classes="dialog")
+        box.border_title = "用量与费用"
+        box.border_subtitle = "esc 返回"
+        with box:
+            with VerticalScroll():
+                yield Static(Text(self.summary), id="cost-body")
 
     def on_mount(self) -> None:
         self.query_one(VerticalScroll).focus()

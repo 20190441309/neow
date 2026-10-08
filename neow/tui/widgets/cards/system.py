@@ -20,6 +20,9 @@ _SYSTEM_LEVELS = {
 class SystemCard(CardBase):
     """Info/warn message; short messages live in the title row."""
 
+    title_key = "dim"
+    title_bold = False
+
     def __init__(self, message: str, *, level: str = "info"):
         icon, key = _SYSTEM_LEVELS.get(level, _SYSTEM_LEVELS["info"])
         short = len(message) <= 80 and "\n" not in message
@@ -39,6 +42,8 @@ class ErrorCard(CardBase):
     """Error with a title and optional detail body."""
 
     accent_key = "error"
+    title_key = "error"
+    rule = "outer"
 
     def __init__(self, title: str, detail: str = ""):
         super().__init__(title=title, icon="✗", accent=MIDNIGHT["error"])
@@ -50,7 +55,15 @@ class ErrorCard(CardBase):
 class CompactionCard(CardBase):
     """Context compaction event (design spec §5.2); collapsed by default."""
 
+    DEFAULT_CSS = """
+    CompactionCard .card-body {
+        padding: 0 0 0 1;
+    }
+    """
+
     accent_key = "compaction"
+    title_key = "dim"
+    title_bold = False
 
     def __init__(self, message: str, *, saved_tokens: Optional[int] = None):
         meta = f"-{saved_tokens:,} tokens" if saved_tokens else ""

@@ -11,7 +11,7 @@ from typing import List, Optional
 from rich.text import Text
 from textual.containers import Vertical
 from textual.message import Message
-from textual.widgets import OptionList, Static, TextArea
+from textual.widgets import OptionList, TextArea
 from textual.widgets.option_list import Option
 
 SKIP_DIRS = {
@@ -90,9 +90,9 @@ COMMAND_HINTS = {
     "/verbose": "工具详情",
 }
 
-HINT_IDLE = "Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断"
-HINT_BUSY = "生成中 · Enter 排队 · Ctrl+O 折叠 · Esc 中断"
-HINT_COMPLETION = "↑↓ 选择 · Tab / Enter 补全 · Esc 收起"
+HINT_IDLE = "enter 发送 · ctrl+j 换行 · @ 文件 · / 命令"
+HINT_BUSY = "enter 排队 · ctrl+o 折叠 · esc 中断"
+HINT_COMPLETION = "↑↓ 选择 · tab 补全 · esc 收起"
 
 
 class PromptArea(TextArea):
@@ -202,10 +202,6 @@ class InputDock(Vertical):
         border: none;
         background: $panel;
     }
-    InputDock #input-hint {
-        height: 1;
-        color: $text-muted;
-    }
     """
 
     def __init__(self, *, history_path: Optional[Path] = None, **kwargs):
@@ -227,16 +223,22 @@ class InputDock(Vertical):
         self._area = PromptArea(self)
         self._completions = OptionList(id="completions")
         self._completions.can_focus = False
-        self._hint = Static(HINT_IDLE, id="input-hint")
 
     def compose(self):
         yield self._completions
         yield self._area
-        yield self._hint
 
     def on_mount(self) -> None:
         self._completions.display = False
+        self._area.border_title = "❯"
+        self._update_hint()
         self._area.focus()
+
+    @property
+    def hint(self) -> str:
+        """Key hint shown in the prompt's bottom border."""
+
+        return str(self._area.border_subtitle or "")
 
     # -- text ----------------------------------------------------------
 
@@ -359,7 +361,7 @@ class InputDock(Vertical):
         return bool(self._options) and self._completions.display
 
     def _update_hint(self) -> None:
-        self._hint.update(
+        self._area.border_subtitle = (
             HINT_COMPLETION
             if self.completion_open
             else HINT_BUSY if self._busy else HINT_IDLE

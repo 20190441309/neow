@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from rich.table import Table
 from rich.text import Text
 from textual.containers import Vertical
 from textual.widgets import Static
@@ -14,27 +15,37 @@ DEFAULT_ACCENT = "#334155"
 
 
 class CardBase(Vertical, can_focus=True):
-    """A collapsible timeline card."""
+    """A collapsible timeline card.
+
+    The title row is a two-column grid: ``icon title subtitle`` on the left
+    (truncated with an ellipsis) and ``meta`` right-aligned.  The icon carries
+    the accent colour; cards opt into a visible left rule via ``rule``.
+    """
 
     DEFAULT_CSS = """
     CardBase {
-        background: $panel;
-        border-left: heavy $border;
-        padding: 0 2;
-        margin: 0 0 1 0;
+        background: transparent;
+        padding: 0 1;
+        margin: 1 0 0 0;
         height: auto;
     }
     CardBase .card-title {
-        height: auto;
-        text-style: bold;
+        height: 1;
     }
     CardBase .card-body {
         height: auto;
+        padding: 0 0 0 2;
     }
     """
 
     #: Palette key used by :meth:`apply_palette` for the accent rule.
     accent_key = None
+    #: Left border kind; ``blank`` keeps alignment without drawing a bar.
+    rule = "blank"
+    #: Palette key for the title text (``None`` = regular text colour).
+    title_key: Optional[str] = None
+    #: Whether the title text is bold (low-emphasis cards turn this off).
+    title_bold = True
 
     def __init__(
         self,
@@ -44,12 +55,14 @@ class CardBase(Vertical, can_focus=True):
         meta: str = "",
         accent: str = DEFAULT_ACCENT,
         card_id: Optional[str] = None,
+        subtitle: str = "",
     ):
         super().__init__()
         self.card_id = card_id or f"card-{id(self):x}"
         self._title = title
         self._icon = icon
         self._meta = meta
+        self._subtitle = subtitle
         self.accent = accent
         self._collapsed = False
         self._body_widgets: List = []
@@ -64,7 +77,7 @@ class CardBase(Vertical, can_focus=True):
         yield self.body
 
     def on_mount(self) -> None:
-        self.styles.border_left = ("heavy", self.accent)
+        self.styles.border_left = (self.rule, self.accent)
         self._title_widget.update(self._render_title())
         for widget in self._body_widgets:
             self.body.mount(widget)
@@ -79,17 +92,27 @@ class CardBase(Vertical, can_focus=True):
 
     # -- title ---------------------------------------------------------
 
-    def _render_title(self) -> Text:
-        out = Text()
+    def _render_title(self) -> Table:
+        palette = widget_palette(self)
+        left = Text(no_wrap=True, overflow="ellipsis")
         if self._icon:
-            out.append(f"{self._icon} ")
-        out.append(self._title)
-        if self._meta:
-            out.append(f"   {self._meta}", style=widget_palette(self)["muted"])
-        return out
+            left.append(f"{self._icon} ", style=f"bold {self.accent}")
+        title_color = palette[self.title_key] if self.title_key else palette["text"]
+        weight = "bold " if self.title_bold else ""
+        left.append(self._title, style=f"{weight}{title_color}")
+        if self._subtitle:
+            left.append(f"  {self._subtitle}", style=palette["dim"])
+        grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
+        grid.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
+        grid.add_column(justify="right", no_wrap=True)
+        grid.add_row(left, Text(self._meta, style=palette["muted"]))
+        return grid
 
     def title_text(self) -> str:
-        parts = [f"{self._icon} {self._title}" if self._icon else self._title]
+        head = f"{self._icon} {self._title}" if self._icon else self._title
+        if self._subtitle:
+            head = f"{head}  {self._subtitle}"
+        parts = [head]
         if self._meta:
             parts.append(self._meta)
         return "   ".join(parts)
@@ -100,6 +123,7 @@ class CardBase(Vertical, can_focus=True):
         title: Optional[str] = None,
         icon: Optional[str] = None,
         meta: Optional[str] = None,
+        subtitle: Optional[str] = None,
     ) -> None:
         if title is not None:
             self._title = title
@@ -107,6 +131,8 @@ class CardBase(Vertical, can_focus=True):
             self._icon = icon
         if meta is not None:
             self._meta = meta
+        if subtitle is not None:
+            self._subtitle = subtitle
         if self.is_mounted:
             self._title_widget.update(self._render_title())
 
@@ -141,7 +167,9 @@ class CardBase(Vertical, can_focus=True):
 
     def set_accent(self, color: str) -> None:
         self.accent = color
-        self.styles.border_left = ("heavy", color)
+        self.styles.border_left = (self.rule, color)
+        if self.is_mounted:
+            self._title_widget.update(self._render_title())
 
     def apply_palette(self, palette) -> None:
         """Adopt role colours from the active palette."""

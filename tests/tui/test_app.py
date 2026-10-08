@@ -271,7 +271,7 @@ async def test_completion_and_multiline_editor_stay_inside_screen(size):
         for text in ("/", "line\n" * 10 + "@"):
             screen.input_dock.set_text(text)
             await pilot.pause()
-            for selector in ("PromptArea", "#input-hint", "#statusbar", "#completions"):
+            for selector in ("PromptArea", "#statusbar", "#completions"):
                 widget = screen.query_one(selector)
                 if widget.display:
                     assert widget.region.y >= 0

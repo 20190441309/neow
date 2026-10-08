@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from typing import Any, Dict, List, Optional
 
+from rich.text import Text
 from textual import work
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
@@ -231,7 +232,7 @@ class ChatScreen(Screen):
         self._add_card(
             UserCard(text, number=self._turn_number, timestamp=self._timestamp())
         )
-        self.status_bar.set_activity("✻ thinking")
+        self.status_bar.set_activity("thinking")
         self.input_dock.set_busy(True)
         self._run_turn(text)
 
@@ -268,13 +269,15 @@ class ChatScreen(Screen):
             self._running_tools[event.name] = card
             self._tool_started[event.name] = time.monotonic()
             self._add_card(card)
-            self.status_bar.set_activity(f"⟳ {event.name}")
+            self.status_bar.set_activity(f"running {event.name}")
         elif isinstance(event, ToolFinished):
             card = self._running_tools.pop(event.name, None)
             started = self._tool_started.pop(event.name, None)
             if card is not None:
                 duration = (time.monotonic() - started) if started else None
                 card.finish(event.result, event.is_error, duration=duration)
+            if not self._running_tools:
+                self.status_bar.set_activity("thinking")
         elif isinstance(event, TurnCompleted):
             self._finish_turn(event.content)
         elif isinstance(event, TurnFailed):
@@ -284,6 +287,11 @@ class ChatScreen(Screen):
     def _add_card(self, card: CardBase) -> None:
         """Add a card, playing its entrance animation in full effects mode."""
 
+        if isinstance(card, ToolCard):
+            cards = self.timeline.cards()
+            previous = cards[-1] if cards else None
+            # Consecutive tool calls stack into one tight group.
+            card.set_class(isinstance(previous, ToolCard), "follows")
         card.apply_palette(get_palette(self.app))
         self.timeline.add_card(card)
         if getattr(self.app, "effects", "full") == "full":
@@ -303,10 +311,16 @@ class ChatScreen(Screen):
                 number=self._turn_number,
                 timestamp=self._timestamp(),
                 effects=getattr(self.app, "effects", "full"),
+                label=self._model_label(),
             )
             self._current_assistant = card
             self._add_card(card)
+            self.status_bar.set_activity("writing")
         return self._current_assistant
+
+    def _model_label(self) -> str:
+        client = getattr(self.app.conversation, "model_client", None)
+        return str(getattr(client, "model", "") or "Assistant")
 
     def _finish_turn(self, content: str) -> None:
         duration = time.monotonic() - self._turn_started
@@ -353,7 +367,14 @@ class ChatScreen(Screen):
         strip = self.query_one("#queuestrip", Static)
         count = self.input_dock.queued_count()
         if count:
-            strip.update(f"⏳ 排队 {count} · ↑ 取回")
+            palette = get_palette(self.app)
+            strip.update(
+                Text.assemble(
+                    ("◷ ", palette["warn"]),
+                    (f"已排队 {count} 条", palette["warn"]),
+                    ("  ·  ↑ 取回编辑", palette["muted"]),
+                )
+            )
         strip.set_class(bool(count), "visible")
 
     def on_input_dock_submitted(self, message: InputDock.Submitted) -> None:
@@ -427,7 +448,10 @@ class ChatScreen(Screen):
                 labels = {}
         self.app.push_screen(
             ModelPickerScreen(
-                models=models, labels=labels, on_select=self._switch_model
+                models=models,
+                labels=labels,
+                on_select=self._switch_model,
+                current=self._model_label(),
             )
         )
         return None
@@ -595,48 +619,88 @@ class ChatScreen(Screen):
             return
         for child in list(sidebar.children):
             child.remove()
+        palette = get_palette(self.app)
         tab = self.sidebar_tab
-        lines = []
+        out = Text(no_wrap=True, overflow="ellipsis")
+        labels = {"context": "Context", "tree": "Sessions", "git": "Git"}
+        active = f"bold {palette['bg']} on {palette['accent1']}"
+        for index, name in enumerate(SIDEBAR_TABS):
+            if index:
+                out.append("  ")
+            if name == tab:
+                out.append(f" {labels[name]} ", active)
+            else:
+                out.append(f" {labels[name]} ", palette["muted"])
+        out.append("\n\n")
+
+        def heading(text: str) -> None:
+            out.append(f"{text}\n", f"bold {palette['dim']}")
+
+        def item(icon: str, text: str, color: str, note: str = "") -> None:
+            out.append(f" {icon} ", color)
+            out.append(text, palette["text"])
+            if note:
+                out.append(f"  {note}", palette["muted"])
+            out.append("\n")
+
+        def empty(text: str) -> None:
+            out.append(f" {text}\n", f"italic {palette['muted']}")
+
         if tab == "context":
             files = []
             try:
                 files = self.app.conversation.list_context_files()
             except Exception:
                 files = []
-            lines = [f"CONTEXT · {len(files)} files"]
-            lines.extend(f"  {path}" for path in files)
+            heading(f"FILES IN CONTEXT · {len(files)}")
+            for path in files:
+                item("▪", str(path), palette["accent1"])
             if not files:
-                lines.append("  (empty)")
+                empty("暂无文件 · /add <file> 或 @ 引用")
         elif tab == "tree":
-            lines = ["SESSION TREE"]
+            heading("RECENT SESSIONS")
             manager = getattr(self.app, "session_manager", None)
             if manager is None:
-                lines.append("  (no session manager)")
+                empty("(no session manager)")
             else:
                 try:
                     sessions = manager.list_sessions()
-                    if sessions:
-                        lines.extend(
-                            f"  {s.get('name')} ({s.get('message_count', 0)})"
-                            for s in sessions[:5]
+                    for session in sessions[:8]:
+                        item(
+                            "◇",
+                            str(session.get("name")),
+                            palette["accent2"],
+                            f"{session.get('message_count', 0)} msgs",
                         )
-                    else:
-                        lines.append("  (no sessions)")
+                    if not sessions:
+                        empty("(no sessions)")
                 except Exception as exc:  # noqa: BLE001
-                    lines.append(f"  {exc}")
+                    empty(str(exc))
         else:
-            lines = ["GIT"]
+            heading("STATUS")
             try:
                 from neow.tools.git import git_log, git_status
 
-                status = git_status()
-                lines.append(status or "  clean")
-                log = git_log(3)
+                status = git_status() or "Working tree clean"
+                clean = "clean" in status.lower()
+                for line in status.splitlines():
+                    item(
+                        "●",
+                        line.strip(),
+                        palette["success"] if clean else palette["warn"],
+                    )
+                log = git_log(5)
                 if log:
-                    lines.append(log)
+                    out.append("\n")
+                    heading("RECENT COMMITS")
+                    for line in log.splitlines():
+                        sha, _, subject = line.partition(" ")
+                        out.append(f" {sha[:7]} ", palette["accent4"])
+                        out.append(f"{subject}\n", palette["dim"])
             except Exception as exc:  # noqa: BLE001
-                lines.append(f"  {exc}")
-        sidebar.mount(Static("\n".join(lines)))
+                empty(str(exc))
+        out.rstrip()
+        sidebar.mount(Static(out))
 
     def on_input_dock_queue_changed(self, message: InputDock.QueueChanged) -> None:
         self._update_queue_strip()
