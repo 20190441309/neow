@@ -124,6 +124,8 @@ class ToolRegistry:
 - 顺带修复：`search_code` 的 schema 标明 `directory` 可选，但函数要求必填，模型省略时必然失败；`builtin.py` 用适配函数默认 `"."`。
 - `hashline_edit` 的 tier 由“未登记→exec”改为 `write`；三种审批模式下的行为不变。
 
+**提交：** `8a8dec0`
+
 ### 任务 0.2 · 抽出统一的 agent 循环
 
 **为什么：** 修复 E14；为取消、参数容错、截断、hooks、并行执行提供唯一挂载点。
@@ -146,13 +148,25 @@ class AgentLoop:
 - 最大迭代数 `agent.max_turns`（默认 50）防止死循环，触发时以 SystemCard/警告结束。
 
 **步骤：**
-- [ ] 先为现有两条路径写行为测试（工具往返、多工具、无工具、异常工具），确保迁移前后都绿
-- [ ] 实现 `AgentLoop`、`CancelToken`、`repair_history`、`validate_history`
-- [ ] `ConversationManager.get_response/get_response_stream` 委托给 `AgentLoop`
-- [ ] TUI controller 用 `CancelToken`；`ChatScreen` 按 `call_id` 追踪卡片
-- [ ] 全量回归 + 4 个 PTY 脚本（`tests/tui/pty_*.py`）
+- [x] 先为现有两条路径写行为测试（工具往返、多工具、无工具、异常工具），确保迁移前后都绿
+- [x] 实现 `AgentLoop`、`CancelToken`、`repair_history`、`validate_history`
+- [x] `ConversationManager.get_response/get_response_stream` 委托给 `AgentLoop`
+- [x] TUI controller 用 `CancelToken`；`ChatScreen` 按 `call_id` 追踪卡片
+- [x] 全量回归（643 passed）+ 4 个 PTY 脚本
 
-**测试：** `test_loop_single_implementation_parity`、`test_cancel_mid_tools_repairs_history`、`test_generator_close_repairs_history`、`test_max_turns_stops_loop`、`test_tui_same_tool_twice_tracks_by_id`
+**测试：** `tests/test_agent_loop.py`（`test_loop_single_implementation_parity`、`test_tool_events_carry_call_ids`、`test_tool_exception_becomes_error_result`、`test_cancel_mid_tools_repairs_history`、`test_generator_close_repairs_history`、`test_cancel_during_content_keeps_partial_answer`、`test_max_turns_stops_loop`、`test_usage_recorded_for_every_request`、`test_validate_and_repair_history`、`test_validate_history_flags_orphan_results`、`test_agent_config_max_turns`）；`tests/tui/test_controller.py::test_controller_passes_cancel_token_and_ids`；`tests/tui/test_app.py::test_same_tool_twice_tracks_cards_by_call_id`
+
+**实现记录（与设计的差异）：**
+- 非流式 `get_response()` 不是“消费流式 run()”，而是同一个循环换一个请求适配器：`chat()` 的结果被包装成单个 chunk。原因：大量测试只 mock 了 `client.chat`，`MagicMock().chat_stream()` 迭代为空。
+- `run()` 是生成器，最终回复放在 `loop.result`（不用 `StopIteration.value`）。
+- `CancelToken` 通过 `get_response_stream(..., cancel=token)` 传入；TUI 的 Esc 同时设置令牌并关闭生成器。正在执行的命令本身仍要等它结束（真正终止进程是任务 1.5）。
+- 新增 `agent.max_turns` 配置（默认 50）；达到上限时发出 `progress.type == "notice"`，TUI 显示为 SystemCard，REPL 用 `print_warning`。
+- 行为修正（有测试锁住）：
+  - **token 用量按每次请求累计**。旧代码只记录工具循环中最后一次请求的用量，带工具的回合费用被低估。
+  - 流式输出中途取消时，已收到的部分回复作为 assistant 消息保留，避免连续两条 user 消息。
+  - 推理在一次请求结束时若仍未闭合，补发 `reasoning_end`（之前推理后直接调用工具时，TUI 的思考卡片会一直挂着）。
+  - `reasoning_content` 只在客户端提供字符串时回传（旧代码对 MagicMock 等对象也会写入）。
+- 工具参数 `json.loads` 仍未加保护（任务 1.3）；但现在解析失败时历史会被修复为合法状态。
 
 ---
 

@@ -352,3 +352,30 @@ async def test_escape_dismisses_completion_before_cancelling_turn():
         assert cancelled == []
         await pilot.press("escape")
         assert cancelled == [True]
+
+
+async def test_same_tool_twice_tracks_cards_by_call_id():
+    from neow.tui.bridge.events import Notice, ToolFinished, ToolStarted
+    from neow.tui.widgets.cards import SystemCard, ToolCard
+
+    app = _chat_app(effects="off")
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.screen
+        screen.handle_event(ToolStarted(name="read_file", args={}, call_id="c1"))
+        screen.handle_event(ToolStarted(name="read_file", args={}, call_id="c2"))
+        screen.handle_event(
+            ToolFinished(
+                name="read_file",
+                result="ok",
+                is_error=False,
+                denied=False,
+                call_id="c1",
+            )
+        )
+        screen.handle_event(Notice(message="Stopped after 50 requests", level="warn"))
+        await pilot.pause()
+
+        first, second = list(screen.query(ToolCard))
+        assert first.status_icon == "✓"
+        assert second.status_icon == "⟳"
+        assert any("Stopped" in c.message for c in screen.query(SystemCard))

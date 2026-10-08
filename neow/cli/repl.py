@@ -1186,6 +1186,11 @@ class REPL:
                             if all_reasoning:
                                 chars = sum(len(r) for r in all_reasoning)
                                 spinner_text = f"Thinking... ({chars:,} chars)"
+                        elif ptype == "notice":
+                            _finalize_segment()
+                            status.stop()
+                            print_warning(chunk.progress.get("message", ""))
+                            status.start()
                         status.update(spinner_text)
                         continue
 

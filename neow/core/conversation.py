@@ -1,13 +1,12 @@
 """Conversation manager for Neow CLI."""
 
-import json
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, List, Optional
 
+from neow.core.agent_loop import DEFAULT_MAX_TURNS, AgentLoop, CancelToken
 from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
-FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file"}
 
 
 class ConversationManager:
@@ -48,6 +47,7 @@ class ConversationManager:
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent
         self.pending_lint_feedback: Optional[str] = None
         self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
+        self.max_turns = DEFAULT_MAX_TURNS  # model requests allowed per user turn
 
     def set_system_prompt(self, prompt: str) -> None:
         """Set system prompt.
@@ -135,216 +135,40 @@ class ConversationManager:
         content.extend(self._pending_images)
         self._pending_images.clear()
         return content
-    def get_response(self, user_input: str) -> ModelResponse:
-        """Get AI response for user input.
+    def get_response(
+        self, user_input: str, *, cancel: Optional[CancelToken] = None
+    ) -> ModelResponse:
+        """Get AI response for user input (blocking).
 
-        Handles tool calls by executing them and getting follow-up responses.
+        Runs the full tool loop; see :class:`~neow.core.agent_loop.AgentLoop`.
 
         Args:
             user_input: User input text.
+            cancel: Optional token to stop the turn early.
 
         Returns:
-            ModelResponse object.
+            ModelResponse with the final reply text and last usage.
         """
-        # Add user message
-        content = self._build_vision_content(user_input)
-        self.messages.append({"role": "user", "content": content})
-        logger.debug(f"Added user message ({len(user_input)} chars)")
+        loop = AgentLoop(self, max_turns=self.max_turns)
+        for _ in loop.run(user_input, stream=False, cancel=cancel):
+            pass
+        logger.info(f"Response generated ({loop.result.usage.get('total_tokens', 0)} tokens)")
+        return loop.result
 
-        # Sanitize messages to remove surrogate characters
-        sanitized_messages = []
-        for msg in self.messages:
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
-            sanitized_messages.append(sanitized_msg)
-
-        # Get response from model
-        response = self.model_client.chat(
-            messages=sanitized_messages,
-            system_prompt=self._get_effective_system_prompt(user_input),
-            tools=self._tool_definitions(),
-        )
-
-        # Handle tool calls if present
-        while response.has_tool_calls and self.tool_executor:
-            # Format tool_calls with type field for API compatibility
-            formatted_tool_calls = []
-            for tc in response.tool_calls:
-                formatted_tc = {
-                    "id": tc["id"],
-                    "type": "function",
-                    "function": tc["function"],
-                }
-                formatted_tool_calls.append(formatted_tc)
-            # Add assistant message with tool calls
-            assistant_msg = {
-                "role": "assistant",
-                "content": response.content,
-                "tool_calls": formatted_tool_calls,
-            }
-            # DeepSeek thinking mode: reasoning_content must be passed back
-            if hasattr(self.model_client, '_last_reasoning_content') and self.model_client._last_reasoning_content:
-                assistant_msg["reasoning_content"] = self.model_client._last_reasoning_content
-            self.messages.append(assistant_msg)
-            # Execute each tool call
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["function"]["name"]
-                arguments = json.loads(tool_call["function"]["arguments"])
-
-                try:
-                    result = self.tool_executor.execute(tool_name, arguments)
-                except Exception as e:
-                    result = f"Error: {e}"
-
-                # Auto-refresh context files after file mutations
-                if tool_name in FILE_MUTATING_TOOLS:
-                    edited_path = arguments.get("file_path", "")
-                    if edited_path:
-                        abs_path = str(Path(edited_path).resolve())
-                        if abs_path in self.context_files:
-                            if tool_name == "delete_file":
-                                del self.context_files[abs_path]
-                            else:
-                                self.refresh_context_file(abs_path)
-
-                # Add tool result to messages
-                self.add_tool_result(tool_call["id"], result)
-
-            # Get next response from model
-            # Sanitize messages before sending
-            sanitized_messages = []
-            for msg in self.messages:
-                sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
-                sanitized_messages.append(sanitized_msg)
-
-            # Debug: log messages being sent
-            logger.debug(f"Sending {len(sanitized_messages)} messages to model")
-            for i, msg in enumerate(sanitized_messages):
-                logger.debug(f"Message {i}: role={msg.get('role')}, keys={list(msg.keys())}")
-
-            response = self.model_client.chat(
-                messages=sanitized_messages,
-                system_prompt=self._get_effective_system_prompt(user_input),
-                tools=self._tool_definitions(),
-            )
-
-        # Add assistant message (with reasoning_content for DeepSeek thinking mode)
-        final_msg: Dict[str, Any] = {"role": "assistant", "content": response.content}
-        if hasattr(self.model_client, '_last_reasoning_content') and self.model_client._last_reasoning_content:
-            final_msg["reasoning_content"] = self.model_client._last_reasoning_content
-        self.messages.append(final_msg)
-        # Record token usage
-        if self.token_tracker and response.usage:
-            self.token_tracker.record(response.usage, getattr(self.model_client, 'model', 'unknown'))
-
-        logger.info(
-            f"Response generated ({response.usage.get('total_tokens', 0)} tokens)"
-        )
-
-        return response
-
-    def get_response_stream(self, user_input: str) -> Generator[StreamChunk, None, None]:
+    def get_response_stream(
+        self, user_input: str, *, cancel: Optional[CancelToken] = None
+    ) -> Generator[StreamChunk, None, None]:
         """Get streaming AI response for user input.
 
         Args:
             user_input: User input text.
+            cancel: Optional token to stop the turn early.
 
         Yields:
-            StreamChunk objects.
+            StreamChunk objects (model output and progress events).
         """
-        vision_content = self._build_vision_content(user_input)
-        self.messages.append({"role": "user", "content": vision_content})
-
-        while True:
-            sanitized_messages = []
-            for msg in self.messages:
-                sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
-                sanitized_messages.append(sanitized_msg)
-
-            content_buffer = ""
-            tool_calls_final = None
-            usage_final = {}
-            reasoning_active = False
-
-            for chunk in self.model_client.chat_stream(
-                messages=sanitized_messages,
-                system_prompt=self._get_effective_system_prompt(user_input),
-                tools=self._tool_definitions(),
-            ):
-                if chunk.reasoning_delta:
-                    if not reasoning_active:
-                        reasoning_active = True
-                        yield StreamChunk(progress={"type": "reasoning_start"})
-                if chunk.content_delta and reasoning_active:
-                    reasoning_active = False
-                    yield StreamChunk(progress={"type": "reasoning_end"})
-
-                if chunk.content_delta:
-                    content_buffer += chunk.content_delta
-                if chunk.tool_call_delta:
-                    tool_calls_final = chunk.tool_call_delta.get("tool_calls")
-                if chunk.usage:
-                    usage_final = chunk.usage
-                yield chunk
-
-            response = ModelResponse(
-                content=content_buffer,
-                tool_calls=tool_calls_final or [],
-                usage=usage_final,
-            )
-
-            if not response.has_tool_calls or not self.tool_executor:
-                break
-
-            # Execute tools with progress notification
-            formatted_tool_calls = []
-            for tc in response.tool_calls:
-                formatted_tool_calls.append({
-                    "id": tc["id"],
-                    "type": "function",
-                    "function": tc["function"],
-                })
-
-            assistant_msg = {
-                "role": "assistant",
-                "content": response.content,
-                "tool_calls": formatted_tool_calls,
-            }
-            # DeepSeek thinking mode: reasoning_content must be passed back
-            if hasattr(self.model_client, '_last_reasoning_content') and self.model_client._last_reasoning_content:
-                assistant_msg["reasoning_content"] = self.model_client._last_reasoning_content
-            self.messages.append(assistant_msg)
-
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["function"]["name"]
-                arguments = json.loads(tool_call["function"]["arguments"])
-
-                yield StreamChunk(progress={"type": "tool_start", "name": tool_name, "args": arguments})
-                try:
-                    result = self.tool_executor.execute(tool_name, arguments)
-                except Exception as e:
-                    result = f"Error: {e}"
-                yield StreamChunk(progress={"type": "tool_end", "name": tool_name, "result": result[:500]})
-
-                # Auto-refresh context files after file mutations
-                if tool_name in FILE_MUTATING_TOOLS:
-                    edited_path = arguments.get("file_path", "")
-                    if edited_path:
-                        abs_path = str(Path(edited_path).resolve())
-                        if abs_path in self.context_files:
-                            if tool_name == "delete_file":
-                                del self.context_files[abs_path]
-                            else:
-                                self.refresh_context_file(abs_path)
-                self.add_tool_result(tool_call["id"], result)
-        # Add final assistant message
-        final_msg: Dict[str, Any] = {"role": "assistant", "content": response.content}
-        if hasattr(self.model_client, '_last_reasoning_content') and self.model_client._last_reasoning_content:
-            final_msg["reasoning_content"] = self.model_client._last_reasoning_content
-        self.messages.append(final_msg)
-
-        # Record token usage
-        if self.token_tracker and usage_final:
-            self.token_tracker.record(usage_final, getattr(self.model_client, 'model', 'unknown'))
+        loop = AgentLoop(self, max_turns=self.max_turns)
+        yield from loop.run(user_input, stream=True, cancel=cancel)
 
     def add_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add tool result to conversation history.

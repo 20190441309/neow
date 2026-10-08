@@ -42,8 +42,9 @@ class FakeConversation:
         for key, value in attrs.items():
             setattr(self, key, value)
 
-    def get_response_stream(self, user_input: str):
+    def get_response_stream(self, user_input: str, cancel=None):
         self.stream_consumed = True
+        self.cancel_token = cancel
         for item in self.script:
             if isinstance(item, BaseException):
                 raise item

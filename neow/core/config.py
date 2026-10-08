@@ -87,6 +87,9 @@ class Config:
             "sidebar_default": False,
             "theme": "midnight",
         },
+        "agent": {
+            "max_turns": 50,
+        },
     }
 
     def __init__(self, config_path: Optional[Path] = None):
@@ -239,6 +242,17 @@ class Config:
             "sidebar_default": bool(cfg.get("sidebar_default", False)),
             "theme": theme,
         }
+
+    @property
+    def agent(self) -> Dict[str, Any]:
+        """Get validated agent-loop configuration."""
+        cfg = self._config.get("agent", {})
+        max_turns = cfg.get("max_turns", 50)
+        valid = isinstance(max_turns, int) and not isinstance(max_turns, bool)
+        if not valid or max_turns < 1:
+            logger.warning("Invalid agent.max_turns %r; falling back to 50", max_turns)
+            max_turns = 50
+        return {"max_turns": max_turns}
 
     def resolve_model_alias(self, alias: str) -> str:
         """Resolve model alias to canonical name. Returns input if no alias found."""

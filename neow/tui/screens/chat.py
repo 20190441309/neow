@@ -16,6 +16,7 @@ from neow.cli.commands import Command, parse_command
 from neow.tui.bridge.controller import ChatController
 from neow.tui.bridge.events import (
     ContentDelta,
+    Notice,
     ReasoningDelta,
     ReasoningEnd,
     ReasoningStarted,
@@ -266,18 +267,23 @@ class ChatScreen(Screen):
             self._current_assistant = None
             card = ToolCard(effects=self.app.effects)
             card.start(event.name, event.args)
-            self._running_tools[event.name] = card
-            self._tool_started[event.name] = time.monotonic()
+            key = event.call_id or event.name
+            self._running_tools[key] = card
+            self._tool_started[key] = time.monotonic()
             self._add_card(card)
             self.status_bar.set_activity(f"running {event.name}")
         elif isinstance(event, ToolFinished):
-            card = self._running_tools.pop(event.name, None)
-            started = self._tool_started.pop(event.name, None)
+            key = event.call_id or event.name
+            card = self._running_tools.pop(key, None)
+            started = self._tool_started.pop(key, None)
             if card is not None:
                 duration = (time.monotonic() - started) if started else None
                 card.finish(event.result, event.is_error, duration=duration)
             if not self._running_tools:
                 self.status_bar.set_activity("thinking")
+        elif isinstance(event, Notice):
+            level = event.level if event.level in ("info", "warn", "error") else "info"
+            self._add_card(SystemCard(event.message, level=level))
         elif isinstance(event, TurnCompleted):
             self._finish_turn(event.content)
         elif isinstance(event, TurnFailed):

@@ -17,8 +17,10 @@ from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Callable, Dict, Optional
 
+from neow.core.agent_loop import CancelToken
 from neow.tui.bridge.events import (
     ContentDelta,
+    Notice,
     ReasoningDelta,
     ReasoningEnd,
     ReasoningStarted,
@@ -64,6 +66,7 @@ class ChatController:
         self._time_fn = time_fn
         self._busy = False
         self._cancel = threading.Event()
+        self._token = CancelToken()
         self._content = ""
         self._reasoning = ""
         self._pending_content = ""
@@ -79,12 +82,14 @@ class ChatController:
 
     def cancel(self) -> None:
         self._cancel.set()
+        self._token.cancel()
 
     def run_turn(self, user_input: str) -> None:
         """Consume the conversation stream; blocking (call from a worker)."""
 
         self._busy = True
         self._cancel.clear()
+        self._token = CancelToken()
         self._content = ""
         self._reasoning = ""
         self._pending_content = ""
@@ -104,7 +109,9 @@ class ChatController:
             if hasattr(self._conversation, "on_cancel"):
                 self._conversation.on_cancel = self.cancel
 
-            stream = self._conversation.get_response_stream(user_input)
+            stream = self._conversation.get_response_stream(
+                user_input, cancel=self._token
+            )
             cancelled = False
             usage: Optional[Dict[str, int]] = None
             try:
@@ -168,6 +175,7 @@ class ChatController:
                 ToolStarted(
                     name=progress.get("name", ""),
                     args=progress.get("args", {}) or {},
+                    call_id=progress.get("id", ""),
                 )
             )
         elif ptype == "tool_end":
@@ -179,6 +187,15 @@ class ChatController:
                     result=result,
                     is_error=_is_error(result),
                     denied=_is_denied(result),
+                    call_id=progress.get("id", ""),
+                )
+            )
+        elif ptype == "notice":
+            self._flush_all()
+            self._emit(
+                Notice(
+                    message=progress.get("message", ""),
+                    level=progress.get("level", "info"),
                 )
             )
         if getattr(chunk, "reasoning_delta", ""):

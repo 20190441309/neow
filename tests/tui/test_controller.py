@@ -135,3 +135,31 @@ def test_url_autofetch_and_token_limit_parity():
     ctrl2.run_turn("hi")
     assert isinstance(events[-1], TurnFailed)
     assert conv2.stream_consumed is False
+
+
+def test_controller_passes_cancel_token_and_ids():
+    from neow.tui.bridge.events import Notice, ToolFinished, ToolStarted
+
+    conv = FakeConversation(
+        script=[
+            Chunk(progress={"type": "tool_start", "name": "t", "args": {}, "id": "c1"}),
+            Chunk(
+                progress={"type": "tool_end", "name": "t", "result": "ok", "id": "c1"}
+            ),
+            Chunk(progress={"type": "notice", "level": "warn", "message": "limit"}),
+        ]
+    )
+    events = []
+    ctrl = ChatController(conv, event_callback=events.append, time_fn=lambda: 0.0)
+    ctrl.run_turn("hi")
+
+    started = [e for e in events if isinstance(e, ToolStarted)]
+    finished = [e for e in events if isinstance(e, ToolFinished)]
+    notices = [e for e in events if isinstance(e, Notice)]
+    assert started[0].call_id == finished[0].call_id == "c1"
+    assert notices == [Notice(message="limit", level="warn")]
+
+    token = conv.cancel_token
+    assert not token.cancelled()
+    ctrl.cancel()
+    assert token.cancelled()

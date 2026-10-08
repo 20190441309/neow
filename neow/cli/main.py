@@ -167,6 +167,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         # Setup conversation manager (must be created before on_file_change callback)
         token_tracker = TokenTracker(cfg)
         conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
+        conversation.max_turns = cfg.agent["max_turns"]
 
         # Initialize plugin system (must be created before on_file_change callback)
         event_bus = EventBus()

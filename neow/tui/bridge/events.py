@@ -31,6 +31,7 @@ class ContentDelta:
 class ToolStarted:
     name: str
     args: Dict[str, Any]
+    call_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,15 @@ class ToolFinished:
     result: str
     is_error: bool
     denied: bool
+    call_id: str = ""
+
+
+@dataclass(frozen=True)
+class Notice:
+    """Out-of-band message from the agent loop (e.g. a turn limit)."""
+
+    message: str
+    level: str = "info"
 
 
 @dataclass(frozen=True)
@@ -60,6 +70,7 @@ TuiEvent = Union[
     ContentDelta,
     ToolStarted,
     ToolFinished,
+    Notice,
     TurnCompleted,
     TurnFailed,
 ]
@@ -71,6 +82,7 @@ __all__ = [
     "ContentDelta",
     "ToolStarted",
     "ToolFinished",
+    "Notice",
     "TurnCompleted",
     "TurnFailed",
     "TuiEvent",
