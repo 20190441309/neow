@@ -5,6 +5,7 @@ from typing import Any, Dict, Generator, List, Optional
 
 import anthropic
 
+from neow.models.adapters import to_anthropic
 from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
@@ -36,6 +37,25 @@ class AnthropicClient(BaseModelClient):
             kwargs["base_url"] = base_url
         self.client = anthropic.Anthropic(**kwargs)
 
+    def _request_kwargs(
+        self,
+        messages: List[Dict[str, Any]],
+        system_prompt: Optional[str],
+        tools: Optional[List[Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        """Messages API kwargs; converts neow's OpenAI-style history."""
+        api_messages, api_tools = to_anthropic(messages, tools)
+        kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": 4096,
+            "messages": api_messages,
+        }
+        if system_prompt:
+            kwargs["system"] = _sanitize_text(system_prompt)
+        if api_tools:
+            kwargs["tools"] = api_tools
+        return kwargs
+
     def chat(
         self,
         messages: List[Dict[str, str]],
@@ -58,18 +78,7 @@ class AnthropicClient(BaseModelClient):
             sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
             sanitized_messages.append(sanitized_msg)
 
-        # Prepare request kwargs
-        kwargs = {
-            "model": self.model,
-            "max_tokens": 4096,
-            "messages": sanitized_messages,
-        }
-
-        if system_prompt:
-            kwargs["system"] = _sanitize_text(system_prompt)
-
-        if tools:
-            kwargs["tools"] = tools
+        kwargs = self._request_kwargs(sanitized_messages, system_prompt, tools)
 
         try:
             response = self.client.messages.create(  # type: ignore[call-overload]
@@ -130,24 +139,19 @@ class AnthropicClient(BaseModelClient):
             sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
             sanitized_messages.append(sanitized_msg)
 
-        kwargs = {
-            "model": self.model,
-            "max_tokens": 4096,
-            "messages": sanitized_messages,
-        }
-        if system_prompt:
-            kwargs["system"] = _sanitize_text(system_prompt)
-        if tools:
-            kwargs["tools"] = tools
+        kwargs = self._request_kwargs(sanitized_messages, system_prompt, tools)
 
         try:
-            tool_inputs: Dict[str, Dict] = {}
+            # Content block index -> tool_use being assembled.  Argument
+            # deltas name their block by index, so parallel calls stay apart.
+            tool_inputs: Dict[int, Dict[str, str]] = {}
 
             with self.client.messages.stream(**kwargs) as stream:
                 for event in stream:
                     if event.type == "content_block_start":
                         if event.content_block.type == "tool_use":
-                            tool_inputs[event.content_block.id] = {
+                            tool_inputs[event.index] = {
+                                "id": event.content_block.id,
                                 "name": event.content_block.name,
                                 "input_buffer": "",
                             }
@@ -155,16 +159,20 @@ class AnthropicClient(BaseModelClient):
                         if event.delta.type == "text_delta":
                             yield StreamChunk(content_delta=event.delta.text)
                         elif event.delta.type == "input_json_delta":
-                            for tid in tool_inputs:
-                                tool_inputs[tid]["input_buffer"] += event.delta.partial_json
+                            if event.index in tool_inputs:
+                                tool_inputs[event.index]["input_buffer"] += (
+                                    event.delta.partial_json
+                                )
                     elif event.type == "message_stop":
                         final_tool_calls = []
-                        for tid, tinfo in tool_inputs.items():
+                        for index in sorted(tool_inputs):
+                            tinfo = tool_inputs[index]
                             final_tool_calls.append({
-                                "id": tid,
+                                "id": tinfo["id"],
                                 "function": {
                                     "name": tinfo["name"],
-                                    "arguments": tinfo["input_buffer"],
+                                    # Tools without arguments stream no deltas.
+                                    "arguments": tinfo["input_buffer"] or "{}",
                                 },
                             })
                         yield StreamChunk(

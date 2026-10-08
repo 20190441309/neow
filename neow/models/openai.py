@@ -4,6 +4,7 @@ from typing import Any, Dict, Generator, List, Optional
 
 import openai
 
+from neow.models.adapters import to_openai
 from neow.models.base import (
     BaseModelClient,
     ModelResponse,
@@ -60,7 +61,7 @@ class OpenAIClient(BaseModelClient):
         full_messages = []
         if system_prompt:
             full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
-        for msg in messages:
+        for msg in to_openai(messages):
             sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
             full_messages.append(sanitized_msg)
 
@@ -126,7 +127,7 @@ class OpenAIClient(BaseModelClient):
         full_messages = []
         if system_prompt:
             full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
-        for msg in messages:
+        for msg in to_openai(messages):
             sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
             full_messages.append(sanitized_msg)
 

@@ -168,6 +168,8 @@ class AgentLoop:
   - `reasoning_content` 只在客户端提供字符串时回传（旧代码对 MagicMock 等对象也会写入）。
 - 工具参数 `json.loads` 仍未加保护（任务 1.3）；但现在解析失败时历史会被修复为合法状态。
 
+**提交：** `0d6fe51`
+
 ---
 
 ## 阶段 1 · 正确性
@@ -189,13 +191,20 @@ class AgentLoop:
 - 契约测试**不 mock 转换逻辑**：构造包含文本、单工具、并行双工具、工具错误、图片的标准对话，断言转换结果满足各 API 的结构约束（用手写的最小 schema 校验器；可选：设置 `NEOW_LIVE_TESTS=1` 时对真实 API 跑一次冒烟）。
 
 **步骤：**
-- [ ] 先写失败测试：当前 `AnthropicClient` 发出的 kwargs 中 `tools[0]` 没有 `input_schema`、消息里存在 `role:"tool"`
-- [ ] 实现 `adapters.py` 与三个客户端接入
-- [ ] 修复流式多工具缓冲；测试两个并发 `tool_use` 的参数各自正确
-- [ ] `/image` 在 OpenAI 路径上的转换测试
-- [ ] 可选 live 冒烟测试（默认跳过）
+- [x] 先写失败测试：旧代码发给 Anthropic 的请求有 34 处结构问题（OpenAI 格式工具、`role:"tool"`、空文本块、角色重复）；OpenAI/DeepSeek 收到 Anthropic 格式图片
+- [x] 实现 `adapters.py` 与三个客户端接入
+- [x] 修复流式多工具缓冲；测试并发 `tool_use` 的参数各自正确（旧代码抛 `JSONDecodeError`）
+- [x] `/image` 在 OpenAI 路径上的转换测试
+- [ ] 可选 live 冒烟测试（默认跳过）——未做：本环境没有 API key，留到有 key 时补
 
-**测试：** `test_anthropic_tools_have_input_schema`、`test_tool_results_merged_into_single_user_message`、`test_anthropic_stream_parallel_tool_inputs`、`test_openai_image_block_converted`、`test_contract_all_providers_accept_reference_conversation`
+**测试：** `tests/test_provider_contract.py`（参考对话 × Anthropic/OpenAI/DeepSeek × chat/chat_stream，共 7 个）；`tests/test_adapters.py`（`test_anthropic_tools_have_input_schema`、`test_tool_results_merged_into_single_user_message`、`test_empty_assistant_text_and_empty_results_are_normalised`、`test_malformed_arguments_become_empty_input`、`test_openai_image_block_converted_and_extra_keys_dropped`、`test_anthropic_stream_parallel_tool_inputs`）
+
+**实现记录：**
+- 契约校验器是手写的结构规则（角色、交替、tool_use/tool_result 配对与顺序、空文本块、多余字段），不是官方 schema；它能抓住本次发现的全部问题，但不能替代真实 API 冒烟。
+- OpenAI 客户端现在会去掉非标准字段（`reasoning_content`、工具消息上的 `type`）；DeepSeek 保留这两个（思考模式需要回传 `reasoning_content`）。
+- 发给 Anthropic 的工具结果以 `Error:` 开头时带 `is_error: true`；空结果填 `(no output)`；内容为空的 assistant 消息被丢弃，相邻同角色消息合并。
+- 顺带修复：Anthropic 流式下无参数工具（如 `git_status`）没有参数增量，旧代码产出空字符串参数，后续 `json.loads("")` 失败；现在默认 `"{}"`。
+- `max_tokens` 仍为 4096（任务 1.2）。
 
 ### 任务 1.2 · 输出上限可配置 + 截断处理
 

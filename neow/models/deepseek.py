@@ -4,6 +4,7 @@ from typing import Any, Dict, Generator, List, Optional
 
 import openai
 
+from neow.models.adapters import to_openai
 from neow.models.base import (
     BaseModelClient,
     ModelResponse,
@@ -12,6 +13,10 @@ from neow.models.base import (
 )
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
+
+# Kept on top of the OpenAI schema: thinking mode needs reasoning_content
+# passed back, and tool messages have always carried "type".
+DEEPSEEK_EXTRA_KEYS = ("reasoning_content", "type")
 
 
 class DeepSeekClient(BaseModelClient):
@@ -60,7 +65,7 @@ class DeepSeekClient(BaseModelClient):
         full_messages = []
         if system_prompt:
             full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
-        for msg in messages:
+        for msg in to_openai(messages, extra_keys=DEEPSEEK_EXTRA_KEYS):
             sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
             full_messages.append(sanitized_msg)
 
@@ -136,7 +141,7 @@ class DeepSeekClient(BaseModelClient):
         full_messages = []
         if system_prompt:
             full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
-        for msg in messages:
+        for msg in to_openai(messages, extra_keys=DEEPSEEK_EXTRA_KEYS):
             sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
             full_messages.append(sanitized_msg)
 
