@@ -9,8 +9,9 @@ history valid: each assistant ``tool_call`` has a matching tool result.
 import json
 import threading
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional
+from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
+from neow.core.executor import ToolDenied
 from neow.models.base import ModelResponse, StreamChunk, normalize_finish_reason
 from neow.utils import sanitize_text
 from neow.utils.logger import logger
@@ -105,6 +106,35 @@ def _tool_message(call_id: str, result: str) -> Dict[str, Any]:
         "content": sanitize_text(str(result)),
         "type": "tool_result",
     }
+
+
+def parse_tool_arguments(raw: Any) -> Tuple[Any, Optional[str]]:
+    """Decode a tool call's JSON arguments.
+
+    Returns ``(arguments, None)`` or ``(None, error result for the model)``.
+    An empty string means "no arguments" (some providers send that).
+    """
+
+    if isinstance(raw, dict):
+        return raw, None
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return {}, None
+    try:
+        arguments = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        detail = getattr(exc, "msg", str(exc))
+        position = getattr(exc, "pos", None)
+        where = f" at character {position}" if position is not None else ""
+        return None, (
+            f"Error: invalid JSON in tool arguments ({detail}{where}). "
+            "Re-issue the call with valid JSON arguments."
+        )
+    if not isinstance(arguments, dict):
+        return None, (
+            "Error: tool arguments must be a JSON object, got "
+            f"{type(arguments).__name__}. Re-issue the call with an object."
+        )
+    return arguments, None
 
 
 def _notice(message: str, level: str = "warn") -> StreamChunk:
@@ -257,29 +287,41 @@ class AgentLoop:
             if cancel.cancelled():
                 return
             name = call["function"]["name"]
-            arguments = json.loads(call["function"]["arguments"])
             call_id = call["id"]
+            arguments, parse_error = parse_tool_arguments(
+                call["function"].get("arguments")
+            )
             yield StreamChunk(
                 progress={
                     "type": "tool_start",
                     "name": name,
-                    "args": arguments,
+                    "args": arguments if isinstance(arguments, dict) else {},
                     "id": call_id,
                 }
             )
-            try:
-                result = conv.tool_executor.execute(name, arguments)
-            except Exception as e:
-                result = f"Error: {e}"
+            status = "ok"
+            if parse_error:
+                result, status = parse_error, "error"
+            else:
+                try:
+                    result = str(conv.tool_executor.execute(name, arguments))
+                except ToolDenied as e:
+                    result, status = f"Error: {e}", "denied"
+                except Exception as e:
+                    result, status = f"Error: {e}", "error"
+                if status == "ok" and result.startswith("Error:"):
+                    status = "error"
             yield StreamChunk(
                 progress={
                     "type": "tool_end",
                     "name": name,
                     "result": result[:500],
                     "id": call_id,
+                    "status": status,
                 }
             )
-            self._refresh_context(name, arguments)
+            if status == "ok":
+                self._refresh_context(name, arguments)
             conv.add_tool_result(call_id, result)
 
     def _refresh_context(self, tool_name: str, arguments: Dict[str, Any]) -> None:

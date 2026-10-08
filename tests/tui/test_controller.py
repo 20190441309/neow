@@ -163,3 +163,29 @@ def test_controller_passes_cancel_token_and_ids():
     assert not token.cancelled()
     ctrl.cancel()
     assert token.cancelled()
+
+
+def test_tool_status_drives_error_and_denied_flags():
+    from neow.tui.bridge.events import ToolFinished
+
+    conv = FakeConversation(
+        script=[
+            Chunk(
+                progress={
+                    "type": "tool_end",
+                    "name": "t",
+                    "result": "Error: Security: blocked",
+                    "id": "c1",
+                    "status": "denied",
+                }
+            ),
+            Chunk(progress={"type": "tool_end", "name": "t", "result": "Error: boom"}),
+        ]
+    )
+    events = []
+    ChatController(conv, event_callback=events.append, time_fn=lambda: 0.0).run_turn(
+        "hi"
+    )
+    denied, failed = [e for e in events if isinstance(e, ToolFinished)]
+    assert denied.denied and denied.is_error
+    assert failed.is_error and not failed.denied

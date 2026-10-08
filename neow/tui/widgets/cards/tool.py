@@ -212,6 +212,7 @@ class ToolCard(CardBase):
         result: str,
         is_error: bool,
         duration: Optional[float] = None,
+        denied: bool = False,
     ) -> None:
         self._result = result or ""
         self._duration = duration
@@ -219,7 +220,7 @@ class ToolCard(CardBase):
         if self._spinner_timer is not None:
             self._spinner_timer.stop()
             self._spinner_timer = None
-        if tool_is_denied(self._result):
+        if denied or tool_is_denied(self._result):
             self._status = "denied"
         elif is_error or tool_is_error(self._result):
             self._status = "error"

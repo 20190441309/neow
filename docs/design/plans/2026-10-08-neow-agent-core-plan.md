@@ -236,6 +236,8 @@ class AgentLoop:
 - 面向用户的提示改为中文（包括任务 0.2 的轮数上限提示）；给模型看的工具结果保持英文。
 - README 补充 `max_output_tokens` 与 `agent.max_turns`。
 
+**提交：** `ed7508a`
+
 ### 任务 1.3 · 工具调用容错
 
 **修复：** E4。
@@ -246,7 +248,16 @@ class AgentLoop:
 - 参数不匹配（`TypeError`）→ 用 schema 的 `required` 字段生成提示
 - 统一使用 `ToolError` 子类区分 `denied / invalid / failed`，TUI 用它决定图标（denied 走 ⊘）
 
-**测试：** `test_bad_json_arguments_become_tool_error`、`test_unknown_tool_lists_available`、`test_missing_required_param_message`
+**测试：** `tests/test_tool_errors.py`（`test_bad_json_arguments_become_tool_error`、`test_empty_arguments_mean_no_arguments`、`test_non_object_arguments_are_rejected`、`test_unknown_tool_lists_available`、`test_missing_required_param_message`、`test_unexpected_param_message`、`test_valid_call_still_runs`、`test_denied_call_is_reported_as_denied`、`test_tool_end_reports_status` ×2）；`tests/tui/test_controller.py::test_tool_status_drives_error_and_denied_flags`；`tests/tui/test_cards.py::test_tool_denied_flag_overrides_result_text`
+
+- [x] 已完成（682 passed）
+
+**实现记录（与设计的差异）：**
+- 参数校验放在 `ToolExecutor.execute()` 而不是循环里（`check_arguments()`），所有调用方都受益；用 schema 的 `required` 加 `inspect.signature` 判断缺失/多余参数，**在安全检查和审批之前**完成，不会为必然失败的调用弹审批窗。函数接受 `**kwargs` 时不报“多余参数”。
+- 新增 `ToolNotFound` / `ToolInvalidArguments` / `ToolDenied`（都继承 `ToolError`，原有 `pytest.raises(ToolError, match=...)` 不受影响）。安全拦截、用户拒绝、无审批回调都归为 `ToolDenied`。
+- 循环解析参数：空字符串视为无参数；非法 JSON、非对象 JSON 都变成给模型的错误结果，回合继续。
+- `tool_end` 进度事件新增 `status: ok | error | denied`；TUI 控制器优先用它（缺省时回退到旧的字符串判断），安全拦截现在也显示 ⊘。
+- 只有 `status == ok` 时才刷新上下文文件。
 
 ### 任务 1.4 · 重试与退避
 

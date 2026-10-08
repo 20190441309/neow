@@ -275,3 +275,10 @@ def test_tool_title_splits_summary_and_duration():
     card.start("read_file", {"path": "a.py"})
     card.finish(result="x", is_error=False, duration=0.25)
     assert card.title_text() == "✓ read_file  a.py   250ms"
+
+
+def test_tool_denied_flag_overrides_result_text():
+    card = ToolCard(effects="off")
+    card.start("execute_command", {"command": "rm -rf /"})
+    card.finish(result="Error: Security: blocked", is_error=True, denied=True)
+    assert card.status_icon == "⊘"

@@ -181,12 +181,19 @@ class ChatController:
         elif ptype == "tool_end":
             self._flush_all()
             result = progress.get("result", "")
+            status = progress.get("status")
+            if status is None:  # producers without a status field
+                status = (
+                    "denied"
+                    if _is_denied(result)
+                    else ("error" if _is_error(result) else "ok")
+                )
             self._emit(
                 ToolFinished(
                     name=progress.get("name", ""),
                     result=result,
-                    is_error=_is_error(result),
-                    denied=_is_denied(result),
+                    is_error=status != "ok",
+                    denied=status == "denied",
                     call_id=progress.get("id", ""),
                 )
             )

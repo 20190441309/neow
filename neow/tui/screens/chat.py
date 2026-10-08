@@ -278,7 +278,9 @@ class ChatScreen(Screen):
             started = self._tool_started.pop(key, None)
             if card is not None:
                 duration = (time.monotonic() - started) if started else None
-                card.finish(event.result, event.is_error, duration=duration)
+                card.finish(
+                    event.result, event.is_error, duration=duration, denied=event.denied
+                )
             if not self._running_tools:
                 self.status_bar.set_activity("thinking")
         elif isinstance(event, Notice):
