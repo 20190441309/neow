@@ -2,10 +2,10 @@
 
 from typing import Any, Callable, Dict, List, Optional
 
+from neow.core.approval import ApprovalTier
+from neow.core.tools_registry import ToolRegistry, ToolSpec
+from neow.tools.builtin import builtin_specs
 from neow.utils.logger import logger
-
-FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file", "hashline_edit"}
-APPROVAL_REQUIRED_TOOLS = {"write_file", "edit_file", "create_file", "delete_file", "hashline_edit", "execute_command"}
 
 
 class ToolError(Exception):
@@ -14,73 +14,81 @@ class ToolError(Exception):
     pass
 
 
+def _not_implemented(name: str) -> Callable[..., str]:
+    def stub(**_: Any) -> str:
+        raise NotImplementedError(f"{name} not yet implemented")
+
+    return stub
+
+
 class ToolExecutor:
-    """Executes tools requested by AI models."""
+    """Executes tools requested by AI models.
+
+    Tools live in :attr:`registry`. A fresh executor knows every built-in
+    tool's schema but binds placeholder implementations; ``cli.main.setup_tools``
+    binds the real ones.
+    """
 
     def __init__(self):
         """Initialize tool executor."""
-        self.tools: Dict[str, Callable] = {}
+        self.registry = ToolRegistry(
+            [spec.with_func(_not_implemented(spec.name)) for spec in builtin_specs()]
+        )
         self.on_file_change: Optional[Callable[[str, str], None]] = None
         self.security_guard: Optional[Any] = None
         self.allowed_commands: List[str] = []
         self.approval_policy: Optional[Any] = None  # ApprovalPolicy
         self.approval_callback: Optional[Callable[[str, Dict[str, Any], str], bool]] = None
-        self._register_default_tools()
 
-    def _register_default_tools(self) -> None:
-        """Register default tool stubs."""
+    @property
+    def tools(self) -> Dict[str, Callable]:
+        """Tool name -> implementation (read-only view)."""
+        return {spec.name: spec.func for spec in self.registry}
 
-        def read_file(path: str) -> str:
-            """Read file contents. Stub implementation."""
-            raise NotImplementedError("read_file not yet implemented")
+    def register_spec(self, spec: ToolSpec) -> None:
+        """Register a fully described tool."""
+        self.registry.register(spec)
+        logger.debug(f"Registered tool: {spec.name} ({spec.source})")
 
-        def write_file(path: str, content: str) -> str:
-            """Write content to file. Stub implementation."""
-            raise NotImplementedError("write_file not yet implemented")
-
-        def edit_file(path: str, old_text: str, new_text: str) -> str:
-            """Edit file contents. Stub implementation."""
-            raise NotImplementedError("edit_file not yet implemented")
-
-        def execute_command(command: str) -> str:
-            """Execute shell command. Stub implementation."""
-            raise NotImplementedError("execute_command not yet implemented")
-
-        def search_code(pattern: str, path: str = ".") -> str:
-            """Search code with pattern. Stub implementation."""
-            raise NotImplementedError("search_code not yet implemented")
-
-        def create_file(file_path: str, content: str = "") -> str:
-            """Create file. Stub implementation."""
-            raise NotImplementedError("create_file not yet implemented")
-
-        def delete_file(file_path: str) -> str:
-            """Delete file. Stub implementation."""
-            raise NotImplementedError("delete_file not yet implemented")
-
-        self.register_tool("read_file", read_file)
-        self.register_tool("write_file", write_file)
-        self.register_tool("edit_file", edit_file)
-        self.register_tool("create_file", create_file)
-        self.register_tool("delete_file", delete_file)
-        self.register_tool("execute_command", execute_command)
-        self.register_tool("search_code", search_code)
-
-        def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
-            """Hashline-anchored edit. Stub implementation."""
-            raise NotImplementedError("hashline_edit not yet implemented")
-
-        self.register_tool("hashline_edit", hashline_edit)
-
-    def register_tool(self, name: str, func: Callable) -> None:
+    def register_tool(
+        self,
+        name: str,
+        func: Callable,
+        *,
+        description: str = "",
+        parameters: Optional[Dict[str, Any]] = None,
+        tier: Optional[ApprovalTier] = None,
+        read_only: bool = False,
+        mutates_files: bool = False,
+        source: str = "builtin",
+    ) -> None:
         """Register a tool.
+
+        With only ``name`` and ``func``, a known tool keeps its schema and
+        policy and just gets a new implementation; an unknown tool gets a
+        schema inferred from the function signature.
 
         Args:
             name: Tool name.
             func: Tool function.
         """
-        self.tools[name] = func
-        logger.debug(f"Registered tool: {name}")
+        described = description or parameters or tier is not None
+        if name in self.registry and not described:
+            self.registry.bind(name, func)
+            logger.debug(f"Bound tool: {name}")
+            return
+        self.register_spec(
+            ToolSpec.from_function(
+                name,
+                func,
+                description=description,
+                parameters=parameters,
+                tier=tier or ApprovalTier.EXEC,
+                read_only=read_only,
+                mutates_files=mutates_files,
+                source=source,
+            )
+        )
 
     def execute(self, tool_name: str, parameters: Dict[str, Any]) -> str:
         """Execute a tool.
@@ -95,7 +103,8 @@ class ToolExecutor:
         Raises:
             ToolError: If tool not found or execution fails.
         """
-        if tool_name not in self.tools:
+        spec = self.registry.get(tool_name)
+        if spec is None:
             raise ToolError(f"Tool '{tool_name}' not found")
 
         # Security checks
@@ -106,7 +115,7 @@ class ToolExecutor:
                 )
                 if not check.allowed:
                     raise ToolError(f"Security: {check.reason}")
-            elif tool_name in FILE_MUTATING_TOOLS:
+            elif spec.mutates_files:
                 operation = tool_name.removesuffix("_file")
                 check = self.security_guard.check_file_access(
                     parameters.get("file_path", ""), operation
@@ -120,7 +129,7 @@ class ToolExecutor:
             if self.security_guard and tool_name == "execute_command":
                 is_dangerous = self.security_guard.is_dangerous(parameters.get("command", ""))
             approval = self.approval_policy.check_approval(
-                tool_name, parameters, is_dangerous=is_dangerous,
+                tool_name, parameters, is_dangerous=is_dangerous, tier=spec.tier,
             )
             if approval.needs_approval:
                 if self.approval_callback:
@@ -132,11 +141,11 @@ class ToolExecutor:
                     raise ToolError(f"Approval required but no callback: {approval.reason}")
 
         try:
-            result = self.tools[tool_name](**parameters)
+            result = spec.func(**parameters)
             logger.debug(f"Tool '{tool_name}' executed successfully")
 
             # Fire callback for file-mutating tools
-            if tool_name in FILE_MUTATING_TOOLS and self.on_file_change:
+            if spec.mutates_files and self.on_file_change:
                 file_path = parameters.get("file_path", "")
                 if file_path:
                     try:
@@ -150,10 +159,9 @@ class ToolExecutor:
             raise ToolError(f"Tool execution failed: {e}")
 
     def get_tool_definitions(self) -> list:
-        """Get tool definitions for AI models.
+        """Get tool definitions for AI models (every registered tool).
 
         Returns:
             List of tool definitions.
         """
-        from neow.core.prompts import get_tool_definitions
-        return get_tool_definitions()
+        return self.registry.definitions()

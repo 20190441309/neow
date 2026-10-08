@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional
 
 from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils import sanitize_text as _sanitize_text
@@ -39,6 +39,8 @@ class ConversationManager:
         self.messages: List[Dict[str, Any]] = []
         self.system_prompt: str = ""
         self.tools: List[Dict[str, Any]] = []
+        # When set, called on every request instead of using ``self.tools``.
+        self.tool_provider: Optional[Callable[[], List[Dict[str, Any]]]] = None
         self.context_files: Dict[str, str] = {}  # abs_path -> content
         self.context_manager = context_manager
         self.token_tracker = token_tracker
@@ -64,6 +66,11 @@ class ConversationManager:
         """
         self.tools = tools
         logger.debug(f"Set {len(tools)} tools")
+
+    def _tool_definitions(self) -> Optional[List[Dict[str, Any]]]:
+        """Tools to offer the model for the next request (None if none)."""
+        tools = self.tool_provider() if self.tool_provider else self.tools
+        return tools or None
 
     def add_message(self, role: str, content: str) -> None:
         """Add message to conversation history.
@@ -154,7 +161,7 @@ class ConversationManager:
         response = self.model_client.chat(
             messages=sanitized_messages,
             system_prompt=self._get_effective_system_prompt(user_input),
-            tools=self.tools if self.tools else None,
+            tools=self._tool_definitions(),
         )
 
         # Handle tool calls if present
@@ -217,7 +224,7 @@ class ConversationManager:
             response = self.model_client.chat(
                 messages=sanitized_messages,
                 system_prompt=self._get_effective_system_prompt(user_input),
-                tools=self.tools if self.tools else None,
+                tools=self._tool_definitions(),
             )
 
         # Add assistant message (with reasoning_content for DeepSeek thinking mode)
@@ -261,7 +268,7 @@ class ConversationManager:
             for chunk in self.model_client.chat_stream(
                 messages=sanitized_messages,
                 system_prompt=self._get_effective_system_prompt(user_input),
-                tools=self.tools if self.tools else None,
+                tools=self._tool_definitions(),
             ):
                 if chunk.reasoning_delta:
                     if not reasoning_active:

@@ -1,0 +1,293 @@
+"""Built-in tool specs: schema, implementation and approval policy in one place."""
+
+from typing import Any, List
+
+from neow.core.approval import ApprovalTier
+from neow.core.tools_registry import ToolSpec
+from neow.tools.command import execute_command
+from neow.tools.file_ops import (
+    create_file,
+    delete_file,
+    edit_file,
+    hashline_edit,
+    read_file,
+    write_file,
+)
+from neow.tools.git import git_commit, git_diff, git_log, git_status
+from neow.tools.search import search_code
+
+
+def _search_code(query: str, directory: str = ".", file_pattern: str = "*") -> Any:
+    """Adapter: the schema makes ``directory`` optional, the function does not."""
+
+    return search_code(query, directory, file_pattern)
+
+
+def builtin_specs() -> List[ToolSpec]:
+    """Specs for every built-in tool, in the order the model sees them."""
+
+    return [
+        ToolSpec(
+            name="read_file",
+            description="Read the contents of a file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to read",
+                    }
+                },
+                "required": ["file_path"],
+            },
+            func=read_file,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="write_file",
+            description=(
+                "Write content to a file. Creates the file if it doesn't exist, "
+                "overwrites if it does."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to write",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to write to the file",
+                    },
+                },
+                "required": ["file_path", "content"],
+            },
+            func=write_file,
+            tier=ApprovalTier.WRITE,
+            mutates_files=True,
+        ),
+        ToolSpec(
+            name="edit_file",
+            description=(
+                "Replace specific text in a file. Supports line-range targeting "
+                "and first-only replacement."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "old_text": {
+                        "type": "string",
+                        "description": "Text to search for (must match " "exactly)",
+                    },
+                    "new_text": {
+                        "type": "string",
+                        "description": "Text to replace with",
+                    },
+                    "first_only": {
+                        "type": "boolean",
+                        "description": "If true, only replace the first "
+                        "occurrence (default: false, "
+                        "replaces all)",
+                    },
+                    "start_line": {
+                        "type": "integer",
+                        "description": "Start line number (1-indexed, "
+                        "inclusive). Restricts edit to a "
+                        "line range.",
+                    },
+                    "end_line": {
+                        "type": "integer",
+                        "description": "End line number (1-indexed, "
+                        "inclusive). Restricts edit to a "
+                        "line range.",
+                    },
+                },
+                "required": ["file_path", "old_text", "new_text"],
+            },
+            func=edit_file,
+            tier=ApprovalTier.WRITE,
+            mutates_files=True,
+        ),
+        ToolSpec(
+            name="create_file",
+            description=(
+                "Create a new file. Fails if the file already exists "
+                "(use write_file to overwrite)."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to create",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Initial file content (default: " "empty)",
+                    },
+                },
+                "required": ["file_path"],
+            },
+            func=create_file,
+            tier=ApprovalTier.WRITE,
+            mutates_files=True,
+        ),
+        ToolSpec(
+            name="delete_file",
+            description="Delete a file permanently.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to delete",
+                    }
+                },
+                "required": ["file_path"],
+            },
+            func=delete_file,
+            tier=ApprovalTier.WRITE,
+            mutates_files=True,
+        ),
+        ToolSpec(
+            name="execute_command",
+            description="Run a shell command",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string", "description": "Command to execute"},
+                    "timeout": {
+                        "type": "integer",
+                        "description": "Timeout in seconds (default: 30)",
+                    },
+                },
+                "required": ["command"],
+            },
+            func=execute_command,
+            tier=ApprovalTier.EXEC,
+        ),
+        ToolSpec(
+            name="search_code",
+            description="Search for text patterns in the codebase",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query or pattern",
+                    },
+                    "directory": {
+                        "type": "string",
+                        "description": "Directory to search in (default: "
+                        "current directory)",
+                    },
+                    "file_pattern": {
+                        "type": "string",
+                        "description": "File pattern to match (e.g., " "'*.py')",
+                    },
+                },
+                "required": ["query"],
+            },
+            func=_search_code,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="git_status",
+            description="Get the current git working tree status",
+            parameters={"type": "object", "properties": {}},
+            func=git_status,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="git_diff",
+            description="Show git diff of uncommitted changes",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "staged": {
+                        "type": "boolean",
+                        "description": "If true, show staged changes "
+                        "(default: false)",
+                    }
+                },
+            },
+            func=git_diff,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="git_commit",
+            description="Stage all changes and commit with a message",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string", "description": "Commit message"}
+                },
+                "required": ["message"],
+            },
+            func=git_commit,
+            tier=ApprovalTier.WRITE,
+        ),
+        ToolSpec(
+            name="git_log",
+            description="Show recent git commit history",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of commits to show (default: " "10)",
+                    }
+                },
+            },
+            func=git_log,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="hashline_edit",
+            description=(
+                "Edit a file using hash-anchored line ranges. Safer than edit_file "
+                "because it detects if the file was modified since it was last "
+                "read. Edits are applied from bottom to top. Format: ¶PATH#HASH."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the file to edit",
+                    },
+                    "expected_hash": {
+                        "type": "string",
+                        "description": "Expected content hash "
+                        "(8-char hex from "
+                        "¶PATH#HASH). Fails if file "
+                        "changed.",
+                    },
+                    "edits": {
+                        "type": "string",
+                        "description": "JSON array of edit operations. Each: "
+                        '{"start_line": int, "end_line": int, '
+                        '"new_content": str, "insert_before": '
+                        'bool, "insert_after": bool}',
+                    },
+                },
+                "required": ["file_path", "expected_hash", "edits"],
+            },
+            func=hashline_edit,
+            tier=ApprovalTier.WRITE,
+            mutates_files=True,
+        ),
+    ]
+
+
+__all__ = ["builtin_specs"]

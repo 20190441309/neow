@@ -17,12 +17,10 @@ from neow.core.config import Config
 from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor
 from neow.core.security import SecurityGuard
-from neow.core.prompts import get_system_prompt, get_tool_definitions
+from neow.core.prompts import get_system_prompt
 from neow.models.factory import create_model_client
-from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file, hashline_edit as hashline_edit_tool
-from neow.tools.command import execute_command
-from neow.tools.search import search_code
-from neow.tools.git import git_status, git_diff, git_commit, git_log, auto_commit, GitError
+from neow.tools.builtin import builtin_specs
+from neow.tools.git import auto_commit, GitError
 from neow.cli.mode import ModeError, RunMode, select_run_mode, tui_available
 from neow.cli.repl import REPL
 from neow.utils.logger import setup_logger, logger
@@ -82,23 +80,13 @@ def _run_non_interactive(conversation, prompt):
 
 
 def setup_tools(executor: ToolExecutor) -> None:
-    """Register tools with executor.
+    """Bind the real built-in tool implementations.
 
     Args:
         executor: ToolExecutor instance.
     """
-    executor.register_tool("read_file", read_file)
-    executor.register_tool("write_file", write_file)
-    executor.register_tool("edit_file", edit_file)
-    executor.register_tool("create_file", create_file)
-    executor.register_tool("delete_file", delete_file)
-    executor.register_tool("execute_command", execute_command)
-    executor.register_tool("search_code", search_code)
-    executor.register_tool("git_status", git_status)
-    executor.register_tool("git_diff", git_diff)
-    executor.register_tool("git_commit", git_commit)
-    executor.register_tool("git_log", git_log)
-    executor.register_tool("hashline_edit", hashline_edit_tool)
+    for spec in builtin_specs():
+        executor.register_spec(spec)
 
 
 @click.command(context_settings={"ignore_unknown_options": True})
@@ -219,9 +207,10 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
             executor.on_file_change = _on_file_change
 
 
-        # Set system prompt and tools
+        # Set system prompt; tools come from the registry on every request so
+        # plugin (and later MCP) tools are visible to the model.
         conversation.set_system_prompt(get_system_prompt())
-        conversation.set_tools(get_tool_definitions())
+        conversation.tool_provider = executor.get_tool_definitions
 
         # Read message from file if specified
         if message_file:

@@ -3,7 +3,9 @@
 import importlib.util
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
+
+from neow.core.approval import ApprovalTier
 from neow.utils.logger import logger
 
 
@@ -53,16 +55,39 @@ class PluginAPI:
         self._executor = executor
         self._events = event_bus
         self.plugin_commands: Dict[str, Callable] = {}
+        self.current_plugin: Optional[str] = None
 
-    def register_tool(self, name: str, func: Callable, description: str = "") -> None:
-        """Register an AI-callable tool.
+    def register_tool(
+        self,
+        name: str,
+        func: Callable,
+        description: str = "",
+        *,
+        parameters: Optional[Dict[str, Any]] = None,
+        tier: str = "exec",
+        read_only: bool = False,
+    ) -> None:
+        """Register an AI-callable tool, visible to the model.
 
         Args:
             name: Tool name.
             func: Tool function (func(**kwargs) -> str).
-            description: Human-readable description.
+            description: Description shown to the model (defaults to the
+                function's docstring).
+            parameters: JSON Schema for the arguments (inferred from the
+                function signature when omitted).
+            tier: Approval tier: "read", "write" or "exec".
+            read_only: True if the tool has no side effects.
         """
-        self._executor.register_tool(name, func)
+        self._executor.register_tool(
+            name,
+            func,
+            description=description,
+            parameters=parameters,
+            tier=ApprovalTier(tier),
+            read_only=read_only,
+            source=f"plugin:{self.current_plugin}" if self.current_plugin else "plugin",
+        )
         logger.info(f"Plugin registered tool: {name}")
 
     def register_command(self, name: str, handler: Callable, description: str = "") -> None:
@@ -146,7 +171,11 @@ class PluginManager:
                 logger.warning(f"Plugin '{plugin_name}' has no register() function, skipping")
                 return False
 
-            module.register(self.api)
+            self.api.current_plugin = plugin_name
+            try:
+                module.register(self.api)
+            finally:
+                self.api.current_plugin = None
             self.loaded_plugins[plugin_name] = module
             return True
 

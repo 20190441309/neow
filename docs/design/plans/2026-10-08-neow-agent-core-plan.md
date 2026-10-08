@@ -109,13 +109,20 @@ class ToolRegistry:
 - `PluginAPI.register_tool(name, func, description="", parameters=None, tier="exec", read_only=False)`；`conversation.set_tools()` 改为每次请求从 registry 取（插件加载后自动可见）。
 
 **步骤：**
-- [ ] 快照测试：当前 `get_tool_definitions()` 输出写入 `tests/fixtures/tool_definitions.json`，断言重构后不变
-- [ ] 实现 `ToolSpec` / `ToolRegistry`，内建工具在 `neow/tools/__init__.py:builtin_specs()` 声明
-- [ ] `ToolExecutor` 改走 registry，删除 `_register_default_tools` 里的 stub
-- [ ] 插件 API 支持 schema；测试：插件注册的工具出现在发给模型的 `tools` 里
-- [ ] 全量回归
+- [x] 快照测试：当前 `get_tool_definitions()` 输出写入 `tests/fixtures/tool_definitions.json`，断言重构后不变
+- [x] 实现 `ToolSpec` / `ToolRegistry`，内建工具在 `neow/tools/builtin.py:builtin_specs()` 声明
+- [x] `ToolExecutor` 改走 registry
+- [x] 插件 API 支持 schema；测试：插件注册的工具出现在发给模型的 `tools` 里
+- [x] 全量回归（630 passed）+ PTY 脚本
 
-**测试：** `test_registry_definitions_match_snapshot`、`test_legacy_register_tool_infers_schema`、`test_plugin_tool_visible_to_model`、`test_tier_from_spec_overrides_table`
+**测试：** `test_registry_definitions_match_snapshot`、`test_legacy_register_tool_infers_schema`、`test_register_tool_rebinds_known_tool_keeps_schema`、`test_plugin_tool_visible_to_model`、`test_tier_from_spec_overrides_table`、`test_search_code_directory_is_optional`、`test_registry_subset_and_copy_are_independent`（`tests/test_tools_registry.py`）
+
+**实现记录（与设计的差异）：**
+- 内建 spec 放在 `neow/tools/builtin.py` 而不是 `neow/tools/__init__.py`，避免导入任意 `neow.tools.*` 子模块时连带加载全部工具。
+- `ToolExecutor()` 仍然注册**占位实现**（调用即 `NotImplementedError`），只有 `setup_tools()` 绑定真实实现。原因：大量测试用默认 executor 构造 `ConversationManager`，改成真实实现会让它们真的读写文件。
+- 会话改为通过 `conversation.tool_provider = executor.get_tool_definitions` 每次请求取工具；`set_tools()` 仍可用（子 agent 继续用它）。
+- 顺带修复：`search_code` 的 schema 标明 `directory` 可选，但函数要求必填，模型省略时必然失败；`builtin.py` 用适配函数默认 `"."`。
+- `hashline_edit` 的 tier 由“未登记→exec”改为 `write`；三种审批模式下的行为不变。
 
 ### 任务 0.2 · 抽出统一的 agent 循环
 

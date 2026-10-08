@@ -96,6 +96,7 @@ class ApprovalPolicy:
         tool_name: str,
         parameters: Optional[Dict[str, Any]] = None,
         is_dangerous: bool = False,
+        tier: Optional[ApprovalTier] = None,
     ) -> ApprovalCheck:
         """Check whether a tool call requires user approval.
 
@@ -104,11 +105,13 @@ class ApprovalPolicy:
             parameters: Tool parameters (used for display in the reason).
             is_dangerous: Whether the SecurityGuard flagged this call
                 as dangerous (e.g. rm -rf).  If True, *always* prompt.
+            tier: The tool's declared tier; falls back to ``TOOL_TIERS``.
 
         Returns:
             ApprovalCheck indicating whether the user must confirm.
         """
-        tier = TOOL_TIERS.get(tool_name, ApprovalTier.EXEC)
+        if tier is None:
+            tier = TOOL_TIERS.get(tool_name, ApprovalTier.EXEC)
 
         # 1. Forced-dangerous always prompts, regardless of mode.
         if is_dangerous:

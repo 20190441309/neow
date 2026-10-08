@@ -73,16 +73,20 @@ class TestPluginAPI:
         assert api.plugin_commands == {}
 
     def test_register_tool(self):
+        from neow.core.executor import ToolExecutor
         from neow.core.plugin import PluginAPI
-        executor = MagicMock()
-        bus = EventBus()
-        api = PluginAPI(executor, bus)
+        executor = ToolExecutor()
+        api = PluginAPI(executor, EventBus())
 
         def my_tool(param: str) -> str:
             return f"result: {param}"
 
         api.register_tool("my_tool", my_tool, "A test tool")
-        executor.register_tool.assert_called_once_with("my_tool", my_tool)
+
+        assert executor.execute("my_tool", {"param": "x"}) == "result: x"
+        spec = executor.registry.get("my_tool")
+        assert spec.description == "A test tool"
+        assert spec.source == "plugin"
 
     def test_register_command(self):
         from neow.core.plugin import PluginAPI

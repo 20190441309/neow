@@ -29,7 +29,7 @@ class SubAgent:
         agent_executor = ToolExecutor()
         if tool_executor:
             # Copy real tool implementations from the shared executor
-            agent_executor.tools = dict(tool_executor.tools)
+            agent_executor.registry = tool_executor.registry.copy()
             agent_executor.security_guard = tool_executor.security_guard
             agent_executor.allowed_commands = list(tool_executor.allowed_commands)
             agent_executor.on_file_change = tool_executor.on_file_change
