@@ -129,6 +129,18 @@ async def test_assistant_truncates_after_300_lines():
         assert card.truncation_hint().startswith("… (+")
 
 
+async def test_assistant_keeps_last_visible_line_across_stream_chunks():
+    card = AssistantCard(number=1, timestamp="t", effects="off")
+    async with _host(card) as pilot:
+        await card.append_content("line\n" * 299 + "par")
+        await card.append_content("tial\nhidden")
+        await pilot.pause()
+        assert card.markdown_text().endswith("partial")
+        assert "hidden" not in card.markdown_text()
+        assert card._truncation.display
+        assert "+1" in card.truncation_hint()
+
+
 async def test_assistant_buffers_content_before_mount():
     card = AssistantCard(number=1, timestamp="12:04")
     await card.append_content("early")  # card not mounted yet

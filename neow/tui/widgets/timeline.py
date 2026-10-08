@@ -26,6 +26,9 @@ class NewMessagesBanner(Static):
     def __init__(self):
         super().__init__("↓ 新消息", classes="new-messages-banner")
 
+    def on_click(self) -> None:
+        self.parent.jump_to_bottom()
+
 
 class TimelineScroll(VerticalScroll):
     """Card timeline: appends cards and follows the tail when stuck."""
@@ -42,14 +45,46 @@ class TimelineScroll(VerticalScroll):
         self._follow_pending = False
         self._follow_dirty = False
         self._follow_wanted = False
+        self._auto_follow = True
+        self._welcome = Static(
+            "[bold]从一个问题开始[/bold]\n\n"
+            "分析代码、定位问题，或一起实现一个功能。\n"
+            "输入 / 查看命令，@ 补全文件路径。\n\n"
+            "[dim]F1 帮助    Ctrl+B 侧栏    Ctrl+P 命令面板[/dim]",
+            id="welcome",
+        )
 
     def compose(self):
         yield self._banner
+        yield self._welcome
+
+    def on_mount(self) -> None:
+        self.watch(self, "virtual_size", self._content_resized)
+        self.watch(self, "size", self._content_resized)
+
+    def _content_resized(self) -> None:
+        if self._auto_follow:
+            self._follow_wanted = True
+            self._schedule_follow()
+        elif self.cards():
+            self._banner.display = True
+
+    def release_anchor(self) -> None:
+        self._auto_follow = False
+        self._follow_wanted = False
+        self._follow_dirty = False
+        super().release_anchor()
+
+    def clear_cards(self) -> None:
+        self.query(CardBase).remove()
+        self._welcome.display = True
+        self.jump_to_bottom()
 
     def add_card(self, card: CardBase) -> None:
         """Append a card; keep the view pinned if the user is at the bottom."""
 
         was_stuck = self.stuck_to_bottom
+        self._welcome.display = False
         self.mount(card)
         if was_stuck:
             self._follow_wanted = True
@@ -103,8 +138,15 @@ class TimelineScroll(VerticalScroll):
         return self.scroll_offset.y >= self.max_scroll_y - 0.01
 
     def jump_to_bottom(self) -> None:
+        self._auto_follow = True
         self.scroll_end(animate=False)
         self._banner.display = False
+
+    def watch_scroll_y(self, old_value: float, new_value: float) -> None:
+        super().watch_scroll_y(old_value, new_value)
+        if self.stuck_to_bottom:
+            self._auto_follow = True
+            self._banner.display = False
 
 
 __all__ = ["TimelineScroll", "NewMessagesBanner"]

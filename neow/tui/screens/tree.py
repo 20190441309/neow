@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional
 
+from rich.text import Text
 from textual.screen import Screen
 from textual.widgets import Tree
 
@@ -43,7 +44,7 @@ class SessionTreeScreen(Screen):
             info = nodes.get(node_id)
             if info is None:
                 return
-            child = parent.add(info["label"], data=node_id, expand=True)
+            child = parent.add(Text(info["label"]), data=node_id, expand=True)
             for next_id in info["children"]:
                 add(child, next_id)
 
@@ -59,8 +60,9 @@ class SessionTreeScreen(Screen):
             self.on_goto(node_id)
 
     def action_branch(self) -> None:
-        if self.on_branch is not None:
-            self.on_branch("")
+        node = self.query_one(Tree).cursor_node
+        if self.on_branch is not None and node is not None and node.data:
+            self.on_branch(node.data)
 
 
 __all__ = ["SessionTreeScreen"]

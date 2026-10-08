@@ -92,3 +92,18 @@ async def test_approval_flow_end_to_end():
         await pilot.pause(0.2)
         thread.join(timeout=5)
         assert result["approved"] is True
+
+
+async def test_approval_fits_narrow_terminal():
+    app = _modal_host(
+        lambda decision: None,
+        tool="execute_command",
+        params={"command": "x" * 200},
+        reason="review",
+    )
+    async with app.run_test(size=(40, 14)) as pilot:
+        await pilot.pause()
+        box = app.screen.query_one(".approval-box")
+        assert box.region.x >= 0
+        assert box.region.right <= 40
+        assert box.region.bottom <= 14

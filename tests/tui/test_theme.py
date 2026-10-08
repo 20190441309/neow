@@ -2,6 +2,9 @@
 
 from types import SimpleNamespace
 
+import pytest
+from textual.color import Color
+
 from neow.core.config import Config
 from neow.tui.theme import PALETTES, get_palette
 from tests.tui.conftest import FakeConversation, _chat_app
@@ -26,6 +29,36 @@ def test_midnight_values_are_frozen():
 
 def test_get_palette_falls_back_to_midnight():
     assert get_palette(None)["bg"] == "#0b0d12"
+
+
+@pytest.mark.parametrize("theme", ["midnight", "light"])
+async def test_input_border_stays_visible_without_focus(theme):
+    config = SimpleNamespace(tui={"effects": "off", "theme": theme})
+    app = _chat_app(config=config)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        area = app.screen.input_dock._area
+        expected = ("round", Color.parse(PALETTES[theme]["accent1"]))
+
+        def assert_border():
+            for edge in ("top", "right", "bottom", "left"):
+                assert getattr(area.styles.border, edge) == expected
+
+        assert area.has_focus
+        assert_border()
+        original_region = area.region
+
+        app.screen.timeline.focus()
+        await pilot.pause()
+        assert not area.has_focus
+        assert_border()
+        assert area.region == original_region
+
+        await pilot.click(area)
+        await pilot.pause()
+        assert area.has_focus
+        assert_border()
+        assert area.region == original_region
 
 
 def test_config_accepts_light_theme(tmp_path):

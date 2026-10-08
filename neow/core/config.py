@@ -2,6 +2,7 @@
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -94,7 +95,7 @@ class Config:
         Args:
             config_path: Path to configuration file. If None, uses default location.
         """
-        self._config: Dict[str, Any] = self.DEFAULT_CONFIG.copy()
+        self._config: Dict[str, Any] = deepcopy(self.DEFAULT_CONFIG)
         self._load_config(config_path)
         self._load_env_vars()
 

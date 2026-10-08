@@ -2,6 +2,8 @@
 
 from types import SimpleNamespace
 
+import pytest
+
 from neow.tui.app import resolve_effects
 from neow.tui.screens.approval import ApprovalModal
 from neow.tui.screens.chat import ChatScreen
@@ -259,3 +261,94 @@ async def test_split_assistant_segments_finish_their_cursors():
         cards = list(screen.query(AssistantCard))
         assert len(cards) == 2
         assert all(not card.cursor_visible for card in cards)
+
+
+@pytest.mark.parametrize("size", [(120, 40), (80, 24), (60, 16), (40, 12)])
+async def test_completion_and_multiline_editor_stay_inside_screen(size):
+    app = _chat_app(effects="off")
+    async with app.run_test(size=size) as pilot:
+        screen = app.screen
+        for text in ("/", "line\n" * 10 + "@"):
+            screen.input_dock.set_text(text)
+            await pilot.pause()
+            for selector in ("PromptArea", "#input-hint", "#statusbar", "#completions"):
+                widget = screen.query_one(selector)
+                if widget.display:
+                    assert widget.region.y >= 0
+                    assert widget.region.bottom <= size[1]
+            assert screen.scroll_y == 0
+
+
+async def test_topbar_model_visible_and_status_initialized():
+    app = _chat_app(effects="off")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        info = app.screen.query_one("#topbar-info")
+        assert info.region.width > 20
+        assert info.region.right <= 80
+        assert "fake" in str(info.render())
+        assert "idle" in str(app.screen.status_bar.render())
+
+
+async def test_tab_completes_in_app_without_opening_sidebar():
+    app = _chat_app(effects="off")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press(*"/mo", "tab")
+        assert app.screen.input_dock.text() == "/model "
+        assert not app.screen.sidebar_visible
+        await pilot.press("ctrl+b")
+        assert app.screen.sidebar_visible
+
+
+async def test_page_keys_scroll_timeline_while_editing():
+    from tests.tui.test_timeline import _settle
+
+    app = _chat_app(effects="off")
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = app.screen
+        for n in range(30):
+            screen.timeline.add_card(UserCard(str(n), number=n, timestamp="t"))
+        assert await _settle(pilot, lambda: screen.timeline.stuck_to_bottom)
+        await pilot.press("pageup")
+        await pilot.pause()
+        assert not screen.timeline.stuck_to_bottom
+        assert screen.input_dock._area.has_focus
+
+
+async def test_clear_removes_visible_conversation():
+    conv = FakeConversation()
+    conv.clear_history = lambda: conv.messages.clear()
+    app = _chat_app(conv, effects="off")
+    async with app.run_test() as pilot:
+        app.screen.submit_prompt("hello")
+        await pilot.pause(0.3)
+        assert list(app.screen.query(UserCard))
+        app.screen.dispatch_command("/clear")
+        await pilot.pause()
+        assert not list(app.screen.query(UserCard))
+
+
+async def test_click_card_title_then_toggle_with_keyboard():
+    app = _chat_app(effects="off")
+    async with app.run_test(size=(80, 24)) as pilot:
+        card = UserCard("hello", number=1, timestamp="t")
+        app.screen.timeline.add_card(card)
+        await pilot.pause()
+        await pilot.click(card._title_widget)
+        assert card.collapsed
+        await pilot.press("ctrl+o")
+        assert not card.collapsed
+
+
+async def test_escape_dismisses_completion_before_cancelling_turn():
+    app = _chat_app(effects="off")
+    async with app.run_test() as pilot:
+        screen = app.screen
+        cancelled = []
+        screen._busy = True
+        screen.cancel_turn = lambda: cancelled.append(True)
+        await pilot.press("/", "escape")
+        assert not screen.input_dock.completion_open
+        assert cancelled == []
+        await pilot.press("escape")
+        assert cancelled == [True]

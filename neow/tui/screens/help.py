@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from textual.screen import Screen
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 HELP_TEXT = """\
@@ -33,7 +34,8 @@ NEOW · 斜杠命令
 
 键位
   Enter 发送 · Ctrl+J 换行 · Esc 中断
-  Tab 侧栏 · Ctrl+T 侧栏页 · Ctrl+O 折叠卡片
+  ↑↓ 选择候选 · Tab/Enter 补全 · Esc 收起候选
+  Ctrl+B 侧栏 · Ctrl+T 侧栏页 · Ctrl+O 折叠卡片
   PgUp/PgDn 滚动 · Ctrl+P 命令面板 · Ctrl+Q 退出
 """
 
@@ -47,7 +49,11 @@ class HelpScreen(Screen):
     ]
 
     def compose(self):
-        yield Static(HELP_TEXT, id="help-text")
+        with VerticalScroll():
+            yield Static(HELP_TEXT, id="help-text")
+
+    def on_mount(self) -> None:
+        self.query_one(VerticalScroll).focus()
 
 
 __all__ = ["HelpScreen", "HELP_TEXT"]

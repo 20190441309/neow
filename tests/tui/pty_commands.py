@@ -16,11 +16,11 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[=>]")
 
 STEPS = [
-    ("/help\r", "斜杠命令"),
+    ("/help\t\r", "斜杠命令"),
     ("\x1b", None),  # escape help screen
-    ("/diff\r", "DIFF"),
+    ("/diff\t\r", "c 提交"),
     ("\x1b", None),  # escape diff screen
-    ("/model\r", "选择模型"),
+    ("/model\t\r", "Enter 切换"),
     ("\x1b", None),  # escape picker
 ]
 
@@ -41,37 +41,36 @@ def main() -> int:
     )
     os.close(slave)
     raw = bytearray()
-    for payload, needle in STEPS:
-        deadline = time.time() + 12.0
-        sent = False
-        last_send = 0.0
+
+    def read_until(needle: str, timeout: float = 12.0) -> None:
+        start_offset = len(raw)
+        deadline = time.time() + timeout
         while time.time() < deadline:
-            ready, _, _ = select.select([master], [], [], 0.2)
+            ready, _, _ = select.select([master], [], [], 0.1)
             if ready:
                 try:
                     raw.extend(os.read(master, 65536))
                 except OSError:
                     break
-            text = strip_ansi(raw.decode("utf-8", errors="replace"))
-            if needle is None:
-                break
+            text = strip_ansi(raw[start_offset:].decode("utf-8", errors="replace"))
             if needle in text:
-                break
-            # Resend until raw mode is ready / command lands.
-            if time.time() - last_send > 3.0:
-                os.write(master, payload.encode("utf-8"))
-                last_send = time.time()
-                sent = True
+                return
             if proc.poll() is not None:
                 break
+        proc.kill()
+        proc.wait()
+        os.close(master)
+        raise AssertionError(f"missing {needle!r}; tail={text[-600:]!r}")
+
+    read_until("Enter")
+    for payload, needle in STEPS:
+        # Send each command once, and inspect only newly painted output.
+        os.write(master, payload.encode("utf-8"))
         if needle is not None:
-            text = strip_ansi(raw.decode("utf-8", errors="replace"))
-            if needle not in text:
-                proc.kill()
-                raise AssertionError(f"missing {needle!r}; tail={text[-400:]!r}")
-        if needle is None and not sent:
-            os.write(master, payload.encode("utf-8"))
-        time.sleep(0.5)
+            read_until(needle)
+        else:
+            read_until("Enter")
+        time.sleep(0.2)
 
     os.write(master, b"\x11")  # Ctrl+Q
     for _ in range(25):

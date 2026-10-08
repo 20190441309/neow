@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from rich.text import Text
 from textual.screen import Screen
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 
@@ -34,7 +35,13 @@ class DiffScreen(Screen):
 
     def compose(self):
         yield Static("DIFF · c 提交 · u 回退 · Esc 返回", classes="picker-title")
-        yield Static(Text(self.diff_text or "(no uncommitted changes)"), id="diff-body")
+        with VerticalScroll():
+            yield Static(
+                Text(self.diff_text or "(no uncommitted changes)"), id="diff-body"
+            )
+
+    def on_mount(self) -> None:
+        self.query_one(VerticalScroll).focus()
 
     def action_commit(self) -> None:
         self.committed = True

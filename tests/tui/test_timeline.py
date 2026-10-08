@@ -2,7 +2,7 @@
 
 import time
 
-from neow.tui.widgets.cards import CardBase, UserCard
+from neow.tui.widgets.cards import AssistantCard, CardBase, UserCard
 from neow.tui.widgets.timeline import NewMessagesBanner, TimelineScroll
 from tests.tui.conftest import _host
 
@@ -28,6 +28,8 @@ async def test_cards_keep_insertion_order():
         assert [card.card_id for card in timeline.query(CardBase)] == [
             card.card_id for card in made
         ]
+        assert timeline.scroll_y >= 0
+        assert not timeline._banner.display
 
 
 async def test_stick_to_bottom_and_banner():
@@ -46,3 +48,23 @@ async def test_stick_to_bottom_and_banner():
         timeline.jump_to_bottom()
         assert await _settle(pilot, lambda: timeline.stuck_to_bottom)
         assert not timeline.query_one(NewMessagesBanner).display
+
+
+async def test_stream_growth_follows_until_user_scrolls():
+    timeline = TimelineScroll()
+    async with _host(timeline) as pilot:
+        card = AssistantCard(number=1, timestamp="t", effects="off")
+        timeline.add_card(card)
+        await pilot.pause()
+        for n in range(40):
+            await card.append_content(f"paragraph {n}\n\n")
+        assert await _settle(
+            pilot, lambda: timeline.max_scroll_y > 0 and timeline.stuck_to_bottom
+        )
+        timeline.scroll_page_up(animate=False)
+        await pilot.pause()
+        y = timeline.scroll_y
+        await card.append_content("more content\n\n" * 10)
+        await pilot.pause()
+        assert timeline.scroll_y == y
+        assert not timeline.stuck_to_bottom

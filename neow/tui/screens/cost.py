@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from rich.text import Text
 from textual.screen import Screen
+from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 
@@ -18,7 +19,11 @@ class CostScreen(Screen):
 
     def compose(self):
         yield Static("COST · Esc 返回", classes="picker-title")
-        yield Static(Text(self.summary), id="cost-body")
+        with VerticalScroll():
+            yield Static(Text(self.summary), id="cost-body")
+
+    def on_mount(self) -> None:
+        self.query_one(VerticalScroll).focus()
 
 
 __all__ = ["CostScreen"]

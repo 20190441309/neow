@@ -9,7 +9,7 @@ from typing import Any, Dict
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import RadioButton, RadioSet, Static
 
@@ -54,6 +54,8 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
     }
     .approval-box {
         width: 74;
+        max-width: 100%;
+        max-height: 90%;
         height: auto;
         border: round $warning;
         background: $surface;
@@ -89,26 +91,13 @@ class ApprovalModal(ModalScreen[ApprovalDecision]):
         self.tier = tier
 
     def compose(self) -> ComposeResult:
-        with Vertical(classes="approval-box"):
+        with VerticalScroll(classes="approval-box"):
             yield Static(self._title_text(), classes="approval-title")
             yield Static(self._detail_text())
             yield Static(self._hint_text(), classes="approval-hint")
 
     def on_mount(self) -> None:
-        self._pulse_on = False
-        self._pulse_timer = self.set_interval(0.4, self._pulse)
-
-    def _pulse(self) -> None:
-        self._pulse_on = not self._pulse_on
-        palette = get_palette(self.app)
-        try:
-            box = self.query_one(".approval-box")
-            box.styles.border = (
-                "round",
-                palette["warn"] if self._pulse_on else palette["muted"],
-            )
-        except Exception:
-            pass
+        self.query_one(VerticalScroll).focus()
 
     # -- content -------------------------------------------------------
 

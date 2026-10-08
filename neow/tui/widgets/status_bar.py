@@ -78,6 +78,9 @@ class StatusBar(Static):
         self._context_pct: Optional[float] = None
         self._activity = "idle"
 
+    def on_mount(self) -> None:
+        self._refresh()
+
     def set_tokens(
         self,
         input_tokens: int,

@@ -35,8 +35,11 @@ class AssistantCard(CardBase):
         self._cursor_timer = None
         self._blink_on = True
         self._md = Markdown("")
+        self._truncation = Static("", classes="truncation-hint")
+        self._truncation.display = False
         self._cursor = Static(CURSOR, classes="stream-cursor")
         self.add_body(self._md, "")
+        self.add_body(self._truncation, "")
         self.add_body(self._cursor, "")
 
     async def append_content(self, text: str) -> None:
@@ -67,24 +70,17 @@ class AssistantCard(CardBase):
     async def _flush_pending(self) -> None:
         if not self._pending:
             return
-        text, self._pending = self._pending, ""
+        self._pending = ""
         total_lines = self._content.count("\n") + 1
-        if self._appended_lines >= MAX_LINES:
-            self._dropped_lines = max(total_lines - MAX_LINES, 0)
-            return
-        if total_lines <= MAX_LINES:
-            self._appended_lines = total_lines
-            self._shown += text
-            await self._md.append(text)
-            return
-        lines = text.split("\n")
-        room = MAX_LINES - self._appended_lines
-        kept = "\n".join(lines[:room])
-        self._appended_lines += min(len(lines), room)
-        self._dropped_lines = max(total_lines - self._appended_lines, 0)
-        if kept:
-            self._shown += kept
-            await self._md.append(kept)
+        visible = "\n".join(self._content.split("\n")[:MAX_LINES])
+        delta = visible[len(self._shown) :]
+        self._shown = visible
+        self._appended_lines = min(total_lines, MAX_LINES)
+        self._dropped_lines = max(total_lines - MAX_LINES, 0)
+        self._truncation.update(self.truncation_hint())
+        self._truncation.display = bool(self._dropped_lines)
+        if delta:
+            await self._md.append(delta)
 
     def finish(self, duration: float) -> None:
         """End the stream: hide the cursor and record the duration."""

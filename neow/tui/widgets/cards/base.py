@@ -13,7 +13,7 @@ from neow.tui.theme import widget_palette
 DEFAULT_ACCENT = "#334155"
 
 
-class CardBase(Vertical):
+class CardBase(Vertical, can_focus=True):
     """A collapsible timeline card."""
 
     DEFAULT_CSS = """
@@ -125,6 +125,11 @@ class CardBase(Vertical):
 
     def toggle(self) -> None:
         self._set_collapsed(not self._collapsed)
+
+    def on_click(self, event) -> None:
+        if event.widget is self._title_widget:
+            self.focus()
+            self.toggle()
 
     def play_entrance(self) -> None:
         """Fade the card in (design spec §6.1; full effects mode only)."""

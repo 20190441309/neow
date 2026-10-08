@@ -5,25 +5,65 @@ Screen {
     layout: vertical;
 }
 
+ChatScreen {
+    overflow: hidden;
+}
+
 #topbar {
-    height: 1;
+    height: 3;
     background: $neow-surface;
     color: $neow-muted;
-    padding: 0 1;
+    padding: 1 2;
+}
+
+NeowLogo {
+    width: 9;
+    height: 1;
 }
 
 #topbar-info {
     width: 1fr;
+    height: 1;
 }
 
 #body {
     height: 1fr;
+    min-height: 0;
     layout: horizontal;
 }
 
 #timeline {
     width: 1fr;
     padding: 1 2;
+}
+
+#welcome {
+    height: auto;
+    margin: 2 1;
+    color: $neow-dim;
+}
+
+CardBase {
+    background: transparent;
+    padding: 0 1;
+}
+
+CardBase:focus .card-title {
+    color: $neow-accent1;
+}
+
+.truncation-hint {
+    height: auto;
+    color: $neow-muted;
+}
+
+UserCard {
+    background: $neow-surface;
+}
+
+AssistantCard Markdown {
+    padding: 0;
+    margin: 0;
 }
 
 #sidebar {
@@ -51,10 +91,31 @@ Screen {
 
 #inputdock {
     height: auto;
-    min-height: 2;
-    max-height: 8;
-    border-top: solid $neow-border;
+    padding: 0 2;
+}
+
+/* Keep the prompt outline and its layout stable across focus changes. */
+#inputdock PromptArea,
+#inputdock PromptArea:focus {
+    border: round $neow-accent1;
+    background: $neow-surface;
+    color: $neow-text;
+}
+
+#inputdock #completions {
+    max-height: 4;
     padding: 0 1;
+    background: $neow-elevated;
+}
+
+#inputdock #completions > .option-list--option-highlighted {
+    background: $neow-border;
+    color: $neow-accent1;
+    text-style: bold;
+}
+
+#inputdock #input-hint {
+    color: $neow-muted;
 }
 
 #statusbar {
@@ -77,18 +138,32 @@ ChatScreen.narrow #timeline {
 }
 
 ChatScreen.narrow #inputdock {
-    padding: 0;
+    padding: 0 1;
 }
 
 ChatScreen.narrow #statusbar {
     padding: 0;
 }
 
-.picker-title {
+ChatScreen.short #topbar {
     height: 1;
+    padding: 0 1;
+}
+
+ChatScreen.short #inputdock PromptArea {
+    max-height: 4;
+}
+
+ChatScreen.short #inputdock #completions {
+    max-height: 3;
+}
+
+.picker-title {
+    height: auto;
+    min-height: 1;
     color: $neow-accent2;
     text-style: bold;
-    padding: 0 1;
+    padding: 1 2;
 }
 
 #help-text {

@@ -11,7 +11,7 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Static
 
-from neow.cli.commands import parse_command
+from neow.cli.commands import Command, parse_command
 from neow.tui.bridge.controller import ChatController
 from neow.tui.bridge.events import (
     ContentDelta,
@@ -65,7 +65,7 @@ class ChatScreen(Screen):
         ("escape", "cancel_or_close", "中断"),
         ("ctrl+o", "toggle_card", "折叠"),
         ("ctrl+t", "cycle_sidebar", "侧栏页"),
-        ("tab", "toggle_sidebar", "侧栏"),
+        ("ctrl+b", "toggle_sidebar", "侧栏"),
         ("f1", "show_help", "帮助"),
         ("ctrl+y", "copy_last_code", "复制代码"),
     ]
@@ -148,6 +148,7 @@ class ChatScreen(Screen):
 
     def on_resize(self, event) -> None:
         self.apply_width_classes(event.size.width)
+        self.set_class(event.size.height < 20, "short")
 
     def on_unmount(self) -> None:
         """Auto-save the session on exit (parity with the classic REPL)."""
@@ -366,7 +367,21 @@ class ChatScreen(Screen):
 
         if self.commands is None:
             return CommandResult("Command dispatcher not ready", kind="error")
-        result = self.commands.dispatch(parse_command(raw))
+        parsed = parse_command(raw)
+        if self._busy and parsed.command in (
+            Command.CLEAR,
+            Command.LOAD,
+            Command.HISTORY,
+            Command.MODEL,
+            Command.BRANCH,
+            Command.TREE,
+            Command.COMPACT,
+        ):
+            self.notify("请先按 Esc 中断当前生成，再修改会话或模型", severity="warning")
+            return CommandResult("Turn in progress", kind="error")
+        result = self.commands.dispatch(parsed)
+        if parsed.command == Command.CLEAR and result.kind != "error":
+            self.timeline.clear_cards()
         if result.should_exit:
             self.app.exit()
             return result
@@ -379,6 +394,8 @@ class ChatScreen(Screen):
                 )
                 self._add_card(SystemCard(result.text, level=level))
         self._maybe_lint_followup()
+        self._refresh_sidebar()
+        self.query_one(TopBar).refresh_info()
         return result
 
     def _maybe_lint_followup(self) -> None:
@@ -423,6 +440,7 @@ class ChatScreen(Screen):
             if client.validate_connection():
                 self.app.conversation.model_client = client
                 self._add_card(SystemCard(f"Switched to model: {name}"))
+                self.query_one(TopBar).refresh_info()
             else:
                 self._add_card(ErrorCard("模型切换失败", f"无法连接 {name}"))
         except Exception as exc:  # noqa: BLE001
@@ -638,6 +656,8 @@ class ChatScreen(Screen):
 
     def action_toggle_card(self) -> None:
         focused = self.focused
+        while focused is not None and not isinstance(focused, CardBase):
+            focused = focused.parent
         if isinstance(focused, CardBase):
             focused.toggle()
             return

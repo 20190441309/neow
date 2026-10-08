@@ -2,6 +2,8 @@
 
 import re
 
+from textual.containers import VerticalScroll
+from textual.widgets import Tree
 from neow.tui.screens.chat import ChatScreen
 from neow.tui.screens.cost import CostScreen
 from neow.tui.screens.diff_view import DiffScreen
@@ -132,7 +134,7 @@ async def test_sidebar_tabs_cycle_and_refresh():
         await pilot.pause()
         screen = app.screen
         assert isinstance(screen, ChatScreen)
-        await pilot.press("tab")
+        await pilot.press("ctrl+b")
         await pilot.pause()
         assert screen.sidebar_visible
         await pilot.press("ctrl+t")
@@ -141,3 +143,33 @@ async def test_sidebar_tabs_cycle_and_refresh():
         await pilot.press("ctrl+t")
         await pilot.pause()
         assert screen.sidebar_tab == "git"
+
+
+async def test_help_scrolls_on_small_terminal():
+    app = _screen_app(HelpScreen())
+    async with app.run_test(size=(60, 16)) as pilot:
+        await pilot.press("pagedown")
+        await pilot.pause()
+        assert app.screen.query_one(VerticalScroll).scroll_y > 0
+
+
+async def test_tree_branch_uses_highlighted_node():
+    branched = []
+    app = _screen_app(
+        SessionTreeScreen(
+            tree={
+                "node1": {
+                    "parentId": None,
+                    "children": [],
+                    "role": "user",
+                    "content_preview": "[bold]literal",
+                }
+            },
+            on_branch=branched.append,
+        )
+    )
+    async with app.run_test() as pilot:
+        tree = app.screen.query_one(Tree)
+        tree.select_node(tree.root.children[0])
+        await pilot.press("b")
+        assert branched == ["node1"]
