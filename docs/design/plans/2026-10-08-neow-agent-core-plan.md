@@ -43,7 +43,7 @@
 | E3 | `max_tokens` 写死 4096，且未处理 `max_tokens` / `length` 停止原因 | `anthropic.py:64,135` | 大文件 `write_file` 参数被截断成非法 JSON |
 | E4 | 工具参数 `json.loads` 无保护 | `neow/core/conversation.py:184, 312` | 模型输出一次坏 JSON 就整轮失败 |
 | E5 | 工具结果不限长；`read_file` 返回全文 | `conversation.py:add_tool_result`、`neow/tools/file_ops.py:16` | 上下文快速膨胀、费用飙升 |
-| E6 | 无重试/退避 | `neow/models/*.py` | 429/5xx/网络抖动直接失败 |
+| E6 | ~~无重试/退避~~ **更正（任务 1.4）：判断有误**。OpenAI/Anthropic SDK 默认已重试 2 次（408/409/429/5xx、连接错误，指数退避，遵守 `retry-after`）。真正缺的只是按模型配置重试次数 | `neow/models/*.py` | 无法按模型调整重试次数 |
 | E7 | 取消只停止消费流；进行中的命令跑到超时；取消点可能留下无结果的 `tool_calls` | `neow/tui/bridge/controller.py:80-118`、`conversation.py:get_response_stream`、`neow/tools/command.py:273` | 卡住 / 历史不合法导致后续请求 400 |
 | E8 | 系统提示每轮变化（按用户输入匹配相关文件拼进 system） | `conversation.py:_get_effective_system_prompt` | 前缀缓存失效 |
 | E9 | 项目结构只在会话第一次请求的 system 里出现，之后消失 | `conversation.py:_build_project_context`（`_structure_injected`） | 模型中途“忘记”项目结构 |
@@ -276,6 +276,14 @@ class AgentLoop:
 
 **测试：** 用假客户端注入异常：`test_retry_on_429_then_success`、`test_no_retry_on_400`、`test_stream_no_retry_after_first_chunk`、`test_retry_after_header_respected`
 
+- [x] 已完成，但**按更正后的范围**（695 passed）：`tests/test_retries.py`（`test_max_retries_reaches_the_sdk` ×3、`test_sdk_default_retries_kept_when_unset` ×3、`test_zero_retries_allowed_and_negative_rejected`）
+
+**实现记录（范围变更）：**
+- 动手前核实发现 openai / anthropic SDK 自带重试：`DEFAULT_MAX_RETRIES = 2`，对 408/409/429/≥500 和连接错误做指数退避并读取 `retry-after(-ms)`；流式请求在建立连接阶段失败同样会重试。再包一层 `retry.py` 会让失败时的请求次数变成 3×3=9，所以**没有**新建 `retry.py`。
+- 实际做的：模型配置新增 `max_retries`（整数 ≥ 0，0 表示不重试），工厂校验后传给 SDK 构造函数；未配置时不传，保持 SDK 默认。
+- 流式输出开始后断线不重试（SDK 也不会），与原设计一致。
+- 未实现“重试中 2/3”的界面提示：SDK 重试是静默的，要显示需要挂 SDK 日志或自定义 HTTP 客户端，收益不大，暂不做。
+
 ### 任务 1.5 · 真正的取消 + 命令执行改造
 
 **修复：** E7。
@@ -298,6 +306,8 @@ class AgentLoop:
 - `stdin` 改为 `DEVNULL`，避免命令在 TUI 里等待终端输入而挂住。
 - 行为修正：失败时返回 `Error: exit code N` 加 **stdout 和 stderr**（旧代码只返回 stderr，`pytest` 等把失败详情写在 stdout 的工具，模型看不到原因）；成功时 stderr 非空也一并返回；超时/取消时附上已产生的输出。
 - `tools.command.max_timeout`（默认 600）通过 `command.configure()` 在启动时生效；“输出超长截断”留给任务 2.1 统一处理。
+
+**提交：** `60a9e18`
 
 ---
 

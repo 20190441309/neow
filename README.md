@@ -148,6 +148,7 @@ Model entry fields:
 | `api_key_env` | environment variable name | Keeps keys out of the config file |
 | `base_url` | URL | Custom endpoint (supported by all providers) |
 | `validate` | `auto` (default) · `skip` | `skip` disables the startup probe (local servers, gateways without `/models`) |
+| `max_retries` | integer ≥ 0 | Retries for rate limits (429), server errors (5xx), timeouts and dropped connections, with exponential backoff and `retry-after`. Default: the SDK's 2 |
 | `max_output_tokens` | positive integer | Cap on one reply. Defaults: Anthropic 16000 (Claude 3.x: 4096 / 8192), DeepSeek 8192, OpenAI and compatible endpoints send nothing (the model's own maximum) |
 
 If a reply hits `max_output_tokens` while writing tool arguments, the half-written calls are not run; the model is told to split the change and tries again.

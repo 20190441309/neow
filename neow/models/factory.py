@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import TYPE_CHECKING, Any, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 from neow.core.config import ConfigError
 from neow.models.anthropic import AnthropicClient
@@ -122,7 +122,21 @@ def create_model_client(config: "Config", model_name: str):
             f"Invalid max_output_tokens {max_output_tokens!r} for model "
             f"{model_name!r}. Use a positive integer"
         )
-    extra = {"max_output_tokens": max_output_tokens} if max_output_tokens else {}
+    max_retries = entry.get("max_retries")
+    if max_retries is not None and (
+        not isinstance(max_retries, int)
+        or isinstance(max_retries, bool)
+        or max_retries < 0
+    ):
+        raise ConfigError(
+            f"Invalid max_retries {max_retries!r} for model {model_name!r}. "
+            "Use an integer >= 0"
+        )
+    extra: Dict[str, Any] = {}
+    if max_output_tokens:
+        extra["max_output_tokens"] = max_output_tokens
+    if max_retries is not None:
+        extra["max_retries"] = max_retries
     return client_for(provider)(
         api_key=resolve_api_key(entry, model_name),
         model=model,

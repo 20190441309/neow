@@ -31,6 +31,7 @@ class DeepSeekClient(BaseModelClient):
         base_url: Optional[str] = None,
         validate: bool = True,
         max_output_tokens: Optional[int] = None,
+        max_retries: Optional[int] = None,
     ):
         """Initialize DeepSeek client.
 
@@ -40,13 +41,16 @@ class DeepSeekClient(BaseModelClient):
             base_url: Optional custom endpoint (defaults to DeepSeek's).
             validate: Whether to run the startup connection probe.
             max_output_tokens: Output cap (default 8192; the API default is 4096).
+            max_retries: SDK retries for 408/409/429/5xx and connection
+                errors (None keeps the SDK default of 2).
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
         self.max_output_tokens = max_output_tokens or DEFAULT_MAX_OUTPUT_TOKENS
+        retries = {} if max_retries is None else {"max_retries": max_retries}
         self.client = openai.OpenAI(
-            api_key=api_key, base_url=base_url or "https://api.deepseek.com"
+            api_key=api_key, base_url=base_url or "https://api.deepseek.com", **retries
         )
         self._last_reasoning_content = None
 

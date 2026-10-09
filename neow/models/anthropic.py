@@ -41,6 +41,7 @@ class AnthropicClient(BaseModelClient):
         base_url: Optional[str] = None,
         validate: bool = True,
         max_output_tokens: Optional[int] = None,
+        max_retries: Optional[int] = None,
     ):
         """Initialize Anthropic client.
 
@@ -50,6 +51,8 @@ class AnthropicClient(BaseModelClient):
             base_url: Optional custom endpoint.
             validate: Whether to run the startup connection probe.
             max_output_tokens: Required by the API; defaults by model family.
+            max_retries: SDK retries for 408/409/429/5xx and connection
+                errors (None keeps the SDK default of 2).
         """
         super().__init__(api_key, model)
         self.base_url = base_url
@@ -58,6 +61,8 @@ class AnthropicClient(BaseModelClient):
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
         self.client = anthropic.Anthropic(**kwargs)
 
     def _request_kwargs(

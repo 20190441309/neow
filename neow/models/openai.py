@@ -26,6 +26,7 @@ class OpenAIClient(BaseModelClient):
         base_url: Optional[str] = None,
         validate: bool = True,
         max_output_tokens: Optional[int] = None,
+        max_retries: Optional[int] = None,
     ):
         """Initialize OpenAI client.
 
@@ -35,6 +36,8 @@ class OpenAIClient(BaseModelClient):
             base_url: Optional custom endpoint.
             validate: Whether to run the startup connection probe.
             max_output_tokens: Optional output cap (default: the model maximum).
+            max_retries: SDK retries for 408/409/429/5xx and connection
+                errors (None keeps the SDK default of 2).
         """
         super().__init__(api_key, model)
         self.base_url = base_url
@@ -43,6 +46,8 @@ class OpenAIClient(BaseModelClient):
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
+        if max_retries is not None:
+            kwargs["max_retries"] = max_retries
         self.client = openai.OpenAI(**kwargs)
 
     def _limit_kwargs(self) -> Dict[str, Any]:
