@@ -590,6 +590,8 @@ class AgentLoop:
 - 子 agent 继承父会话的 hooks：工具 hook 同样约束子 agent；回合级事件（`user_prompt_submit` / `stop`）不对子 agent 触发。
 - 安全：只有用户自己的配置（`~/.neow/config.json` 或 `--config`）能定义 hooks；没有用户配置时读到的仓库 `.neow.json` 里的 hooks 被忽略并提示，因为它们会在每次工具调用时执行任意命令。`session_start` 在启动时运行，会话 id 为每次启动生成的 uuid。
 
+**提交：** `6b5b780`
+
 ### 任务 5.2 · 文件回退点 `/rewind`
 
 **设计：**
@@ -600,6 +602,16 @@ class AgentLoop:
 - 按会话保留最近 50 个检查点，超出自动清理。
 
 **测试：** `test_checkpoint_before_first_mutation_in_turn`、`test_rewind_restores_and_deletes_created_files`、`test_rewind_conversation_branches_session_tree`
+
+- [x] 已完成（791 passed，`tests/test_rewind.py` 7 项）
+
+**实现记录：**
+- 新模块 `neow/core/checkpoints.py`：`CheckpointStore`，目录 `~/.neow/checkpoints/<启动时间-随机串>/<回合号>/`，`meta.json` 记录提示、该回合开始时的消息下标、文件 → 备份（`null` 表示原本不存在）和执行过的命令。
+- 记录点在 `ToolExecutor`：审批通过之后、真正执行之前（被拒绝的调用不产生备份）；`mutates_files` 的工具备份 `file_path` 原内容，同一回合内只备份第一次；`execute_command` 只记下命令。`AgentLoop` 在主会话每回合开始时 `begin_turn`；子 agent 共享父会话的存储，它的改动算在父会话当前回合里。
+- 回退：`/rewind` 列出回合（文件数、命令数、提示摘要）；`/rewind <n> [files|chat|both]`（默认 both）撤销第 n 轮及之后的所有改动——每个文件恢复到这些回合中最早一次修改之前的内容，新建的文件删除，被删的文件恢复。对话部分把 `conversation.messages` 截到该回合开始处，被移除的消息存为 `discarded-<n>.json`，不会丢失。只回退对话时保留检查点，之后仍可再回退文件。
+- 无法回退的改动：涉及回合里执行过命令时结果以警告显示，并列出命令（MCP 工具的改动同样不跟踪，在文档中说明）。不修改 git 历史。
+- 清理：每个会话保留最近 50 个回合，只保留最近 20 个会话目录。
+- 与计划不同：对话回退没有复用 session tree 的分支机制——实际保存会话用的是 JSON `SessionManager`，session tree 只供 `/tree`、`/branch` 使用；改为截断内存中的历史并把被丢弃的部分存档，效果相同且不依赖 session tree 的状态。测试名相应改为 `test_rewind_conversation_back_to_turn`。已知不足：`/clear` 或 `/load` 之后，旧检查点记录的消息下标与新历史不对应（回退对话会截到错误位置或无效果）；文件回退不受影响。
 
 ### 任务 5.3 · 命令沙箱（实验，可选）
 

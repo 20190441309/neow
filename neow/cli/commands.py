@@ -38,6 +38,7 @@ class Command(Enum):
     MEMORY = "memory"
     INIT = "init"
     MCP = "mcp"
+    REWIND = "rewind"
 
 
 @dataclass
@@ -98,6 +99,7 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/memory": Command.MEMORY,
         "/init": Command.INIT,
         "/mcp": Command.MCP,
+        "/rewind": Command.REWIND,
     }
 
     command = command_map.get(command_str)

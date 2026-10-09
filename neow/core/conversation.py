@@ -87,6 +87,9 @@ class ConversationManager:
         self.memory: Optional[Any] = None
         # MCP connections (neow.core.mcp_client.MCPManager), for /mcp.
         self.mcp: Optional[Any] = None
+        # File checkpoints for /rewind (neow.core.checkpoints.CheckpointStore);
+        # the same store is set on the tool executor.
+        self.checkpoints: Optional[Any] = None
         # User hooks (neow.core.hooks.HookRunner), run by the agent loop.
         self.hooks: Optional[Any] = None
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent

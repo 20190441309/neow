@@ -95,6 +95,8 @@ class SubAgent:
         executor.allowed_commands = list(parent.allowed_commands)
         executor.on_file_change = parent.on_file_change
         executor.require_read_before_edit = parent.require_read_before_edit
+        # Edits by the sub-agent belong to the parent's current turn.
+        executor.checkpoints = getattr(parent, "checkpoints", None)
         if approval == "yolo":
             executor.approval_policy = ApprovalPolicy(mode=ApprovalMode.YOLO)
             return executor

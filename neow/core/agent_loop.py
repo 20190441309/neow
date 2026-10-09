@@ -193,6 +193,9 @@ class AgentLoop:
                 return
             if outcome.context:
                 user_input = "\n\n".join([user_input, *outcome.context])
+        checkpoints = getattr(conv, "checkpoints", None)
+        if checkpoints is not None and getattr(conv, "usage_source", "main") == "main":
+            checkpoints.begin_turn(user_input, len(conv.messages))
         build_context = getattr(conv, "build_context_message", None)
         context = build_context(user_input) if build_context else None
         if context:

@@ -60,6 +60,7 @@ SLASH_COMMANDS = [
     "/verbose",
     "/memory",
     "/mcp",
+    "/rewind",
     "/init",
 ]
 
@@ -93,6 +94,7 @@ COMMAND_HINTS = {
     "/verbose": "工具详情",
     "/memory": "记忆文件",
     "/mcp": "MCP 服务器",
+    "/rewind": "回退改动",
     "/init": "生成 AGENTS.md",
 }
 

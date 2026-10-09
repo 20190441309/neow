@@ -137,6 +137,8 @@ class ToolExecutor:
         # Refuse edits to files the agent has not read, or that changed since.
         self.require_read_before_edit = True
         self._known_files: Dict[str, Optional[str]] = {}  # abs path -> hash
+        # neow.core.checkpoints.CheckpointStore: backs up files for /rewind.
+        self.checkpoints: Optional[Any] = None
 
     @property
     def tools(self) -> Dict[str, Callable]:
@@ -249,6 +251,7 @@ class ToolExecutor:
                     )
 
         try:
+            self._checkpoint(spec, parameters)
             result = spec.func(**parameters)
             logger.debug(f"Tool '{tool_name}' executed successfully")
             self._remember_file(tool_name, parameters, result)
@@ -287,6 +290,18 @@ class ToolExecutor:
             if check.needs_approval:
                 return False
         return True
+
+    def _checkpoint(self, spec: ToolSpec, parameters: Dict[str, Any]) -> None:
+        """Back up the file a tool is about to change (approved calls only)."""
+        if self.checkpoints is None:
+            return
+        try:
+            if spec.mutates_files:
+                self.checkpoints.before_mutation(parameters.get("file_path", ""))
+            elif spec.name == "execute_command":
+                self.checkpoints.note_command(str(parameters.get("command", "")))
+        except Exception as exc:  # never let a backup failure stop the tool
+            logger.warning(f"Checkpoint failed for {spec.name}: {exc}")
 
     def runs_in_worker(self, tool_name: str) -> bool:
         spec = self.registry.get(tool_name)

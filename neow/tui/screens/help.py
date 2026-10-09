@@ -54,6 +54,7 @@ HELP_SECTIONS = (
             ("/think", "查看推理内容"),
             ("/memory", "记忆文件"),
             ("/mcp", "MCP 服务器"),
+            ("/rewind", "回退改动"),
             ("/init", "生成 AGENTS.md"),
         ),
     ),

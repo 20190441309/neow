@@ -75,6 +75,7 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/memory":    "Show memory files (AGENTS.md/NEOW.md); /memory add <text>",
     "/init":      "Generate AGENTS.md for this repository",
     "/mcp":       "MCP servers and tools; /mcp reconnect <name>",
+    "/rewind":    "Undo file changes / conversation back to a turn",
 }
 
 def _expand_path(prefix: str) -> Path:
@@ -922,6 +923,15 @@ class REPL:
 
             text, kind = mcp_command(
                 getattr(self.conversation, "mcp", None), (parsed.args or "").strip()
+            )
+            {"error": print_error, "warn": print_warning}.get(kind, print_info)(text)
+        elif parsed.command == Command.REWIND:
+            from neow.core.checkpoints import rewind_command
+
+            text, kind = rewind_command(
+                getattr(self.conversation, "checkpoints", None),
+                (parsed.args or "").strip(),
+                self.conversation,
             )
             {"error": print_error, "warn": print_warning}.get(kind, print_info)(text)
         elif parsed.command == Command.INIT:

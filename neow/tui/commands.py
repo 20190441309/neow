@@ -369,6 +369,13 @@ class CommandDispatcher:
         text, kind = mcp_command(manager, args.strip(), wait=False)
         return CommandResult(text, kind=kind)
 
+    def _cmd_rewind(self, args: str) -> CommandResult:
+        from neow.core.checkpoints import rewind_command
+
+        store = getattr(self.conversation, "checkpoints", None)
+        text, kind = rewind_command(store, args.strip(), self.conversation)
+        return CommandResult(text, kind=kind)
+
     def _cmd_init(self, args: str) -> CommandResult:
         from neow.core.memory import INIT_PROMPT
 

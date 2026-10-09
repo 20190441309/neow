@@ -290,6 +290,9 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
             wait=bool(prompt or message_file),
         )
         conversation.hooks = setup_hooks(cfg, event_bus)
+        from neow.core.checkpoints import CheckpointStore
+
+        executor.checkpoints = conversation.checkpoints = CheckpointStore()
         conversation.tool_provider = executor.get_tool_definitions
 
         # Read message from file if specified
