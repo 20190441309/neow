@@ -55,6 +55,12 @@ REFERENCE_CONVERSATION: List[Dict[str, Any]] = [
     _result("call_1", "print('a')"),
     _result("call_2", "Error: file not found"),
     {"role": "assistant", "content": "a.py prints a; b.py is missing."},
+    # Dynamic context travels as a tagged user message before the user's own.
+    {
+        "role": "user",
+        "content": "<context>\n### File: a.py\n```\nprint('a')\n```\n</context>",
+        "neow_context": {"file:a.py": "abc123"},
+    },
     {"role": "user", "content": "Run the tests"},
     {
         "role": "assistant",
@@ -246,7 +252,7 @@ def _openai_style_request(module: str, cls, stream: bool) -> Dict[str, Any]:
 @pytest.mark.parametrize("stream", [False, True])
 def test_anthropic_request_matches_messages_api(stream):
     kwargs = _anthropic_request(stream)
-    assert kwargs["system"] == "You are neow."
+    assert kwargs["system"][0]["text"] == "You are neow."
     assert anthropic_problems(kwargs) == []
 
 

@@ -41,6 +41,56 @@ def normalize_finish_reason(reason: Any) -> Optional[str]:
     return _FINISH_REASONS.get(reason, reason)
 
 
+def _count(value: Any) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _usage(prompt: int, completion: int, read: int, write: int) -> Dict[str, int]:
+    usage = {
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": prompt + completion,
+    }
+    if read:
+        usage["cache_read_tokens"] = read
+    if write:
+        usage["cache_write_tokens"] = write
+    return usage
+
+
+def openai_usage(raw: Any) -> Dict[str, int]:
+    """Usage dict from an OpenAI-style ``usage`` object.
+
+    ``prompt_tokens`` already includes cached tokens; the cached share is
+    ``prompt_tokens_details.cached_tokens`` (OpenAI) or
+    ``prompt_cache_hit_tokens`` (DeepSeek).
+    """
+
+    details = getattr(raw, "prompt_tokens_details", None)
+    read = _count(getattr(details, "cached_tokens", None)) or _count(
+        getattr(raw, "prompt_cache_hit_tokens", None)
+    )
+    return _usage(
+        _count(getattr(raw, "prompt_tokens", 0)),
+        _count(getattr(raw, "completion_tokens", 0)),
+        read,
+        0,
+    )
+
+
+def anthropic_usage(raw: Any) -> Dict[str, int]:
+    """Usage dict from an Anthropic ``usage`` object.
+
+    Anthropic's ``input_tokens`` excludes cache reads and writes; they are
+    added back so ``prompt_tokens`` is the full context sent.
+    """
+
+    read = _count(getattr(raw, "cache_read_input_tokens", None))
+    write = _count(getattr(raw, "cache_creation_input_tokens", None))
+    prompt = _count(getattr(raw, "input_tokens", 0)) + read + write
+    return _usage(prompt, _count(getattr(raw, "output_tokens", 0)), read, write)
+
+
 class ModelResponse:
     """Response from AI model."""
 

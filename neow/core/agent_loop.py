@@ -179,6 +179,10 @@ class AgentLoop:
 
         conv = self.conversation
         cancel = cancel or CancelToken()
+        build_context = getattr(conv, "build_context_message", None)
+        context = build_context(user_input) if build_context else None
+        if context:
+            conv.messages.append(context)
         conv.messages.append(
             {"role": "user", "content": conv._build_vision_content(user_input)}
         )

@@ -335,6 +335,8 @@ class AgentLoop:
 - 额外加了一道保险：`edit_file` 的 `old_text` 如果整段都带着 `read_file` 的行号前缀、原样匹配不到，就去掉前缀再匹配（`new_text` 同样处理）。模型照抄带行号的内容是常见错误。
 - 空文件返回 `(empty file)`；`offset` 超出总行数时说明文件只有多少行；非 UTF-8 文本仍按原来的方式报错。
 
+**提交：** `41081c9`
+
 ### 任务 2.2 · 稳定系统提示 + 提示缓存
 
 **修复：** E8、E9。
@@ -345,7 +347,18 @@ class AgentLoop:
 - Anthropic：在 tools 末尾、system 末尾、倒数第二条 user 消息上设置 `cache_control: {"type": "ephemeral"}`（最多 4 个断点）。
 - `TokenTracker` 记录 `cache_read_input_tokens` / `cache_creation_input_tokens`（Anthropic）与 `prompt_cache_hit_tokens`（DeepSeek），计价分开；`/cost` 显示缓存命中率。
 
-**测试：** `test_system_prompt_stable_across_turns`、`test_context_files_attached_to_user_turn_once`、`test_project_structure_persists_after_first_turn`、`test_anthropic_cache_control_breakpoints`、`test_tracker_counts_cached_tokens`
+**测试：** `tests/test_prompt_cache.py`（`test_system_prompt_stable_across_turns`、`test_project_structure_persists_after_first_turn`、`test_context_files_attached_to_user_turn_once`、`test_relevant_files_and_web_content_go_to_the_user_turn`、`test_anthropic_cache_control_breakpoints`、`test_anthropic_usage_includes_cached_input`、`test_openai_and_deepseek_cached_tokens`、`test_tracker_counts_cached_tokens`）；契约测试的参考对话加入一条上下文消息
+
+- [x] 已完成（715 passed）
+
+**实现记录（与设计的差异）：**
+- 动态上下文不是拼在用户消息正文里，而是**单独一条** `role: user` 消息，带内部字段 `neow_context: {key: hash}`，紧挨在用户本轮消息之前。好处：用户消息保持原样（会话树预览、导出不被污染）；去重直接扫描历史里的这些字段，`/clear`、压缩、恢复会话后自动重发，无需额外状态。适配层会去掉这个字段（OpenAI/DeepSeek），Anthropic 会把它与后面的用户消息合并。
+- 项目结构摘要缓存在 `_structure_text`，每次请求都在系统提示里（修复 E9）；会话恢复时 `_structure_injected = False` 会触发重新生成。
+- Anthropic 缓存断点放在：工具定义最后一个、系统提示、**最后一条**消息的最后一个块（设计里写的是“倒数第二条 user 消息”；放在最后一条是官方推荐的增量缓存方式，下一次请求正好复用到这里），共 3 个，未超过 4 个的上限。
+- 用量：Anthropic 的 `input_tokens` 不含缓存部分，现在 `prompt_tokens = input + cache_read + cache_write`，否则上下文占用被低估；OpenAI 读 `prompt_tokens_details.cached_tokens`，DeepSeek 读 `prompt_cache_hit_tokens`（这两家的 `prompt_tokens` 已包含缓存部分）。
+- 计费：`token.prices.<model>` 可设 `cache_read` / `cache_write`；未设置时按输入价的 0.1× / 1.25×（Anthropic 的比例；OpenAI、DeepSeek 实际折扣不同，需要的话在价格里显式配置）。`/cost` 显示缓存读写量和占输入的比例。
+- 已知限制：JSONL 会话存档只保留部分字段，恢复后 `neow_context` 哈希丢失，上下文会多发一次（不影响正确性）。会话树里上下文消息显示为一条 user 节点。
+- 测试改动：`test_core.py` 里 3 个断言“上下文在系统提示里”的测试改为断言内容在上下文消息里、不在系统提示里；契约测试的 `system` 现在是带 `cache_control` 的块列表。
 
 ### 任务 2.3 · 准确的上下文用量
 

@@ -11,10 +11,14 @@ from neow.models.base import (
     BaseModelClient,
     ModelResponse,
     StreamChunk,
+    anthropic_usage,
     normalize_finish_reason,
 )
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
+
+
+CACHE_CONTROL = {"type": "ephemeral"}
 
 
 def default_max_output_tokens(model: str) -> int:
@@ -78,10 +82,23 @@ class AnthropicClient(BaseModelClient):
             "max_tokens": self.max_output_tokens,
             "messages": api_messages,
         }
+        # Prompt-cache breakpoints: tools, system, and the newest message,
+        # so each request reuses the prefix the previous one wrote.
         if system_prompt:
-            kwargs["system"] = _sanitize_text(system_prompt)
+            kwargs["system"] = [
+                {
+                    "type": "text",
+                    "text": _sanitize_text(system_prompt),
+                    "cache_control": CACHE_CONTROL,
+                }
+            ]
         if api_tools:
+            api_tools = list(api_tools)
+            api_tools[-1] = {**api_tools[-1], "cache_control": CACHE_CONTROL}
             kwargs["tools"] = api_tools
+        if api_messages and api_messages[-1]["content"]:
+            blocks = api_messages[-1]["content"]
+            blocks[-1] = {**blocks[-1], "cache_control": CACHE_CONTROL}
         return kwargs
 
     def chat(
@@ -132,14 +149,7 @@ class AnthropicClient(BaseModelClient):
                     )
 
             # Parse usage
-            usage = {}
-            if response.usage:
-                usage = {
-                    "prompt_tokens": response.usage.input_tokens,
-                    "completion_tokens": response.usage.output_tokens,
-                    "total_tokens": response.usage.input_tokens
-                    + response.usage.output_tokens,
-                }
+            usage = anthropic_usage(response.usage) if response.usage else {}
 
             return ModelResponse(
                 content=content,
@@ -217,15 +227,11 @@ class AnthropicClient(BaseModelClient):
                 # final message.
                 final_message = stream.get_final_message()
                 if final_message:
-                    usage = None
-                    if final_message.usage:
-                        tokens_in = final_message.usage.input_tokens
-                        tokens_out = final_message.usage.output_tokens
-                        usage = {
-                            "prompt_tokens": tokens_in,
-                            "completion_tokens": tokens_out,
-                            "total_tokens": tokens_in + tokens_out,
-                        }
+                    usage = (
+                        anthropic_usage(final_message.usage)
+                        if final_message.usage
+                        else None
+                    )
                     yield StreamChunk(
                         usage=usage,
                         finish_reason=normalize_finish_reason(

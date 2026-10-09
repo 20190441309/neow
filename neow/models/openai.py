@@ -10,6 +10,7 @@ from neow.models.base import (
     ModelResponse,
     StreamChunk,
     normalize_finish_reason,
+    openai_usage,
     validate_openai_compatible,
 )
 from neow.utils import sanitize_text as _sanitize_text
@@ -114,13 +115,7 @@ class OpenAIClient(BaseModelClient):
                     )
 
             # Parse usage
-            usage = {}
-            if response.usage:
-                usage = {
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens,
-                }
+            usage = openai_usage(response.usage) if response.usage else {}
 
             return ModelResponse(
                 content=choice.message.content or "",
@@ -170,11 +165,7 @@ class OpenAIClient(BaseModelClient):
                 # The final chunk (with usage) may have an empty choices list.
                 if chunk.usage:
                     yield StreamChunk(
-                        usage={
-                            "prompt_tokens": chunk.usage.prompt_tokens,
-                            "completion_tokens": chunk.usage.completion_tokens,
-                            "total_tokens": chunk.usage.total_tokens,
-                        }
+                        usage=openai_usage(chunk.usage)
                     )
 
                 if not chunk.choices:

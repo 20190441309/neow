@@ -1,7 +1,8 @@
 """Conversation manager for Neow CLI."""
 
+import hashlib
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 
 from neow.core.agent_loop import (
     DEFAULT_MAX_TOOL_OUTPUT_CHARS,
@@ -49,6 +50,7 @@ class ConversationManager:
         self.context_manager = context_manager
         self.token_tracker = token_tracker
         self._structure_injected = False
+        self._structure_text: Optional[str] = None
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent
         self.pending_lint_feedback: Optional[str] = None
         self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
@@ -505,78 +507,83 @@ class ConversationManager:
                 return False
         return False
 
-    def _build_context_prompt(self) -> str:
-        """Build context files portion of system prompt.
+    # -- context -----------------------------------------------------------
+    #
+    # The system prompt stays identical for the whole session so providers
+    # can cache it.  Context that changes (files added with /add, fetched web
+    # pages, files matching the question) travels in a user message tagged
+    # ``neow_context`` placed before the user's own message, and is only sent
+    # again when its content changes.  Hashes live on those messages, so
+    # /clear, compaction and session restore naturally trigger a resend.
 
-        Returns:
-            Formatted string with context file contents.
-        """
-        parts = []
-
-        # Context files
-        if self.context_files:
-            parts.append("\n## Context Files\n")
-            parts.append("The following files have been explicitly added to the conversation context:\n")
-            for path, content in self.context_files.items():
-                parts.append(f"### {path}")
-                parts.append("```")
-                parts.append(content)
-                parts.append("```\n")
-
-        # Web content
-        if self.web_cache:
-            parts.append("\n## Web Content\n")
-            parts.append("The following web pages have been fetched into context:\n")
-            for url, content in self.web_cache.items():
-                parts.append(f"### {content.title} ({url})")
-                parts.append(content.text)
-                if content.code_blocks:
-                    for lang, code in content.code_blocks:
-                        parts.append(f"```{lang}")
-                        parts.append(code)
-                        parts.append("```")
-                parts.append("")
-
-        return "\n".join(parts)
-
-    def _build_project_context(self, user_input: str = "") -> str:
-        """Build project context portion of system prompt.
-
-        Args:
-            user_input: The user's input for matching relevant files.
-
-        Returns:
-            Formatted project context string, or empty string.
-        """
+    def _project_structure(self) -> str:
+        """Project structure summary, computed once per session."""
         if not self.context_manager:
             return ""
-        from neow.core.prompts import format_project_context
+        if not self._structure_injected or self._structure_text is None:
+            from neow.core.prompts import format_project_context
 
-        parts = []
-        if not self._structure_injected:
             structure = self.context_manager.get_project_structure(max_depth=2)
-            parts.append(format_project_context(structure, []))
+            self._structure_text = format_project_context(structure, [])
             self._structure_injected = True
-        if user_input:
-            relevant = self.context_manager.get_relevant_files(user_input)
-            if relevant:
-                parts.append(format_project_context({}, relevant))
-        return "\n".join(parts)
+        return self._structure_text
+
+    def _context_items(self, user_input: str) -> List[Tuple[str, str]]:
+        """``(key, section text)`` for every piece of dynamic context."""
+        items: List[Tuple[str, str]] = []
+        for path, content in self.context_files.items():
+            items.append((f"file:{path}", f"### File: {path}\n```\n{content}\n```"))
+        for url, content in self.web_cache.items():
+            parts = [f"### Web page: {content.title} ({url})", content.text]
+            for lang, code in content.code_blocks:
+                parts.append(f"```{lang}\n{code}\n```")
+            items.append((f"web:{url}", "\n".join(parts)))
+        if self.context_manager and user_input:
+            for found in self.context_manager.get_relevant_files(user_input) or []:
+                path = found.get("path", "")
+                items.append(
+                    (
+                        f"relevant:{path}",
+                        f"### Possibly relevant: {path}\n```\n"
+                        f"{found.get('content', '')}\n```",
+                    )
+                )
+        return items
+
+    def build_context_message(self, user_input: str = "") -> Optional[Dict[str, Any]]:
+        """User message carrying context the model has not seen yet, or None."""
+        sent: Dict[str, str] = {}
+        for message in self.messages:
+            sent.update(message.get("neow_context") or {})
+        fresh: Dict[str, str] = {}
+        sections: List[str] = []
+        for key, text in self._context_items(user_input):
+            digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+            if sent.get(key) == digest or key in fresh:
+                continue
+            fresh[key] = digest
+            sections.append(text)
+        if not sections:
+            return None
+        body = "\n\n".join(sections)
+        return {
+            "role": "user",
+            "content": (
+                "<context>\nCurrent content of files and pages the user shared "
+                "(newer versions replace earlier ones):\n\n"
+                f"{body}\n</context>"
+            ),
+            "neow_context": fresh,
+        }
 
     def _get_effective_system_prompt(self, user_input: str = "") -> Optional[str]:
-        """Get system prompt including context files and project context.
+        """System prompt sent with every request: stable for the session.
 
         Args:
-            user_input: The user's input for matching relevant files.
+            user_input: Unused; kept for callers of the old signature.
 
         Returns:
-            Combined system prompt, or None if empty.
+            Base prompt plus the project structure summary, or None if empty.
         """
-        prompt = self.system_prompt
-        context_prompt = self._build_context_prompt()
-        if context_prompt:
-            prompt += context_prompt
-        project_context = self._build_project_context(user_input)
-        if project_context:
-            prompt += project_context
-        return prompt if prompt else None
+        prompt = self.system_prompt + self._project_structure()
+        return prompt or None

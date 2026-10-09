@@ -272,9 +272,11 @@ class TestContextFiles:
         manager.set_system_prompt("You are Neow.")
 
         manager.add_context_file(str(test_file))
-        prompt = manager._get_effective_system_prompt()
-        assert "print('hello')" in prompt
-        assert "Context Files" in prompt
+        # Context travels in a user message, keeping the system prompt stable.
+        context = manager.build_context_message()["content"]
+        assert "print('hello')" in context
+        assert str(test_file.resolve()) in context
+        assert "print('hello')" not in manager._get_effective_system_prompt()
 
     def test_context_auto_refresh_on_edit(self, tmp_path):
         """Test context auto-refreshes after file edit."""
@@ -904,9 +906,10 @@ class TestWebCache:
             content_type="webpage",
         )
         manager.add_web_content("https://example.com", content)
-        prompt = manager._get_effective_system_prompt()
-        assert "https://example.com" in prompt
-        assert "Hello world" in prompt
+        context = manager.build_context_message()["content"]
+        assert "https://example.com" in context
+        assert "Hello world" in context
+        assert "Hello world" not in manager._get_effective_system_prompt()
 
     def test_web_content_with_code_blocks_in_prompt(self):
         from unittest.mock import MagicMock
@@ -919,8 +922,7 @@ class TestWebCache:
             content_type="webpage",
         )
         manager.add_web_content("https://example.com", content)
-        prompt = manager._get_effective_system_prompt()
-        assert "x = 1" in prompt
+        assert "x = 1" in manager.build_context_message()["content"]
 
     def test_no_web_cache_empty_prompt(self):
         from unittest.mock import MagicMock
