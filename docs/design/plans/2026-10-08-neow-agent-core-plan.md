@@ -407,6 +407,8 @@ class AgentLoop:
 - 工具描述：`edit_file`、`write_file`、`execute_command`、`search_code` 改为说明返回格式与“需先读取”；快照随之更新。
 - 已知不足：通过 `/add` 加入上下文的文件，模型虽然看过内容，但执行器没有记录，第一次编辑前仍需 `read_file` 一次。
 
+**提交：** `f25544c`
+
 ---
 
 ## 阶段 3 · 项目记忆
@@ -425,6 +427,17 @@ class AgentLoop:
 - TUI：侧栏 Context 页显示“已加载的记忆文件”。
 
 **测试：** `test_memory_files_discovered_in_order`、`test_memory_import_depth_limit`、`test_memory_in_system_prompt`、`test_init_generates_agents_md_via_approval`
+
+- [x] 已完成（744 passed，`tests/test_memory.py` 10 项）
+
+**实现记录：**
+- 新模块 `neow/core/memory.py`：`discover_memory_files` / `load_memory` / `add_memory_note`。git 根目录以上的文件不加载；不在 git 仓库里时只看当前目录。
+- 导入只认“整行只有 `@xxx.md`”，所以邮箱、装饰器之类的 `@` 不会被误当成导入；超过 5 层或循环导入跳过并记警告。
+- 超过 40k 字符时从最通用的（用户级、仓库根）开始丢弃，保证最具体的目录规则留下。
+- 记忆文本挂在 `conversation.memory`，拼进稳定的 system 段（system_prompt → 记忆 → 项目结构），可被提示缓存复用。启动时（TUI / REPL / 单次模式）加载一次，警告打印在启动输出中；`/memory reload` 手动重载，`/memory add` 写入后自动重载。
+- `/init` 不另写生成逻辑：把 `INIT_PROMPT` 作为一条普通用户消息提交给 agent，由它用工具探索仓库并用 `create_file` / `write_file` 写文件，因此天然走审批与 diff 预览。
+- TUI：补全、帮助页、侧栏 Context 页新增 MEMORY 区块（文件路径 + 字符数）；REPL 同样支持两个命令。
+- 已知不足：architect 规划器与子 agent 使用独立会话，暂不注入记忆（留到 4.3 子 agent 工具化时统一处理）。
 
 ---
 

@@ -136,6 +136,7 @@ class ChatScreen(Screen):
                 "branch": self._open_tree,
                 "diff": self._open_diff,
                 "commit_ai": self._commit_ai,
+                "submit": self.submit_prompt,
                 "undo": self._undo_action,
                 "cost": self._open_cost,
                 "think": self._show_thinking,
@@ -721,6 +722,14 @@ class ChatScreen(Screen):
                 item("▪", str(path), palette["accent1"])
             if not files:
                 empty("暂无文件 · /add <file> 或 @ 引用")
+            memory = getattr(self.app.conversation, "memory", None)
+            memory_files = getattr(memory, "files", None) or []
+            out.append("\n")
+            heading(f"MEMORY · {len(memory_files)}")
+            for entry in memory_files:
+                item("◆", str(entry.path), palette["accent2"], f"{entry.chars:,} chars")
+            if not memory_files:
+                empty("无 AGENTS.md / NEOW.md · /init 生成")
         elif tab == "tree":
             heading("RECENT SESSIONS")
             manager = getattr(self.app, "session_manager", None)

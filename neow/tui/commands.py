@@ -22,6 +22,20 @@ class CommandResult:
     kind: str = "info"  # info | warn | error
 
 
+def describe_memory(memory: Any) -> str:
+    """One line per loaded memory file, plus any warnings."""
+    files = getattr(memory, "files", None) or []
+    if not files:
+        return (
+            "没有加载记忆文件。在项目根目录放 AGENTS.md / NEOW.md，"
+            "或用 /init 生成、/memory add <text> 追加。"
+        )
+    lines = ["已加载的记忆文件（后面的优先）："]
+    lines += [f"  {f.path}  ({f.chars:,} chars)" for f in files]
+    lines += [f"  ⚠ {w}" for w in getattr(memory, "warnings", [])]
+    return "\n".join(lines)
+
+
 class CommandDispatcher:
     """Maps parsed slash commands to core actions or UI hooks."""
 
@@ -332,6 +346,29 @@ class CommandDispatcher:
 
     def _cmd_branch(self, args: str) -> CommandResult:
         return self._hook("branch")
+
+    def _cmd_memory(self, args: str) -> CommandResult:
+        from neow.core.memory import add_memory_note, load_memory
+
+        if args.startswith("add"):
+            note = args[3:].strip()
+            if not note:
+                return CommandResult("Usage: /memory add <text>", kind="error")
+            path = add_memory_note(Path.cwd(), note)
+            self.conversation.memory = load_memory(Path.cwd())
+            return CommandResult(f"已写入 {path}")
+        if args.startswith("reload"):
+            self.conversation.memory = load_memory(Path.cwd())
+        return CommandResult(describe_memory(self.conversation.memory))
+
+    def _cmd_init(self, args: str) -> CommandResult:
+        from neow.core.memory import INIT_PROMPT
+
+        submit = self.hooks.get("submit")
+        if submit is None:
+            return CommandResult("/init is not available here", kind="warn")
+        submit(INIT_PROMPT)
+        return CommandResult("正在分析仓库并生成 AGENTS.md…")
 
     def _cmd_verbose(self, args: str) -> CommandResult:
         self.verbose = not self.verbose

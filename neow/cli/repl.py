@@ -72,6 +72,8 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/tree":      "Visualize session tree and navigate to history nodes",
     "/branch":    "Branch from a specific message in history",
     "/verbose":   "Toggle expanded tool-call parameter display",
+    "/memory":    "Show memory files (AGENTS.md/NEOW.md); /memory add <text>",
+    "/init":      "Generate AGENTS.md for this repository",
 }
 
 def _expand_path(prefix: str) -> Path:
@@ -894,6 +896,28 @@ class REPL:
             self.verbose_tools = not self.verbose_tools
             state = "expanded (all parameters shown)" if self.verbose_tools else "collapsed (one-line summary)"
             print_info(f"Tool call display: {state}")
+        elif parsed.command == Command.MEMORY:
+            from neow.core.memory import add_memory_note, load_memory
+            from neow.tui.commands import describe_memory
+
+            args = (parsed.args or "").strip()
+            if args.startswith("add"):
+                note = args[3:].strip()
+                if not note:
+                    print_error("Usage: /memory add <text>")
+                else:
+                    path = add_memory_note(Path.cwd(), note)
+                    self.conversation.memory = load_memory(Path.cwd())
+                    print_info(f"已写入 {path}")
+            else:
+                if args.startswith("reload"):
+                    self.conversation.memory = load_memory(Path.cwd())
+                print_info(describe_memory(self.conversation.memory))
+        elif parsed.command == Command.INIT:
+            from neow.core.memory import INIT_PROMPT
+
+            print_info("正在分析仓库并生成 AGENTS.md…")
+            self._process_input(INIT_PROMPT)
         if parsed.command is None and parsed.raw_command:
             if self.plugin_api and parsed.raw_command in self.plugin_api.plugin_commands:
                 self.plugin_api.plugin_commands[parsed.raw_command](parsed.args)

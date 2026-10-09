@@ -217,6 +217,11 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         # Set system prompt; tools come from the registry on every request so
         # plugin (and later MCP) tools are visible to the model.
         conversation.set_system_prompt(get_system_prompt())
+        from neow.core.memory import load_memory
+
+        conversation.memory = load_memory(Path.cwd())
+        for warning in conversation.memory.warnings:
+            print_warning(f"Memory: {warning}")
         conversation.tool_provider = executor.get_tool_definitions
 
         # Read message from file if specified

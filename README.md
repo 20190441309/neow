@@ -176,6 +176,8 @@ Shell commands run by the agent time out after 120 s by default (the model may a
 
 **Prompt caching.** The system prompt stays the same for the whole session; files added with `/add`, fetched pages and files matching your question are sent with your message, and only again when they change. Providers can therefore reuse the cached prefix (Anthropic requests carry `cache_control` breakpoints; OpenAI and DeepSeek cache automatically). `/cost` shows how much input was served from cache. Cached input is priced at `cache_read` / `cache_write` if set under `token.prices.<model>`, otherwise at 0.1× / 1.25× the input price.
 
+**Project memory.** At startup Neow loads instructions from `~/.neow/NEOW.md` (your own preferences) and from `AGENTS.md` / `NEOW.md` in every directory from the git root down to the current directory; more specific files come later and win. A line containing only `@docs/style.md` imports that file (up to 5 levels). `/init` asks the agent to explore the repository and write an `AGENTS.md` (the write goes through approval as usual); `/memory` lists the loaded files, `/memory add <text>` appends a note to the project `NEOW.md`, `/memory reload` re-reads them.
+
 ---
 
 ## 💡 Usage

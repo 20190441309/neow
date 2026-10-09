@@ -70,6 +70,8 @@ class ConversationManager:
         self.token_tracker = token_tracker
         self._structure_injected = False
         self._structure_text: Optional[str] = None
+        # Instructions from AGENTS.md / NEOW.md (neow.core.memory.Memory).
+        self.memory: Optional[Any] = None
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent
         self.pending_lint_feedback: Optional[str] = None
         self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
@@ -648,5 +650,6 @@ class ConversationManager:
         Returns:
             Base prompt plus the project structure summary, or None if empty.
         """
-        prompt = self.system_prompt + self._project_structure()
+        memory = getattr(self.memory, "text", "") or ""
+        prompt = self.system_prompt + memory + self._project_structure()
         return prompt or None

@@ -35,6 +35,10 @@ class Command(Enum):
     TREE = "tree"
     BRANCH = "branch"
     VERBOSE = "verbose"
+    MEMORY = "memory"
+    INIT = "init"
+
+
 @dataclass
 class ParsedCommand:
     """Parsed command result."""
@@ -90,6 +94,8 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/tree": Command.TREE,
         "/branch": Command.BRANCH,
         "/verbose": Command.VERBOSE,
+        "/memory": Command.MEMORY,
+        "/init": Command.INIT,
     }
 
     command = command_map.get(command_str)

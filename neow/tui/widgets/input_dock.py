@@ -58,6 +58,8 @@ SLASH_COMMANDS = [
     "/tree",
     "/branch",
     "/verbose",
+    "/memory",
+    "/init",
 ]
 
 COMMAND_HINTS = {
@@ -88,6 +90,8 @@ COMMAND_HINTS = {
     "/tree": "会话树",
     "/branch": "创建分支",
     "/verbose": "工具详情",
+    "/memory": "记忆文件",
+    "/init": "生成 AGENTS.md",
 }
 
 HINT_IDLE = "enter 发送 · ctrl+j 换行 · @ 文件 · / 命令"
