@@ -101,7 +101,8 @@ class ChatController:
             if self._token_tracker and self._token_tracker.check_max_tokens():
                 self._emit(
                     TurnFailed(
-                        "Token limit reached. Use /compact to summarize history."
+                        "本会话累计 token 已达到 token.max_tokens 上限（用量上限，"
+                        "/compact 不会让它下降）。请调高该值或开启新会话。"
                     )
                 )
                 return

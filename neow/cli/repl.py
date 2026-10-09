@@ -177,24 +177,11 @@ class NeowCompleter(Completer):
             yield from self._complete_file(current_word)
 
 
-MODEL_MAX_CONTEXT = {
-    "deepseek-v4-flash": 128_000,
-    "deepseek-v3": 128_000,
-    "claude-sonnet-4-6": 200_000,
-    "claude-3-5-sonnet": 200_000,
-    "gpt-4o": 128_000,
-    "gpt-4o-mini": 128_000,
-}
-DEFAULT_MAX_CONTEXT = 128_000
-
-
 def _format_toolbar_text(
-    model: str, tokens_used: int, cost: float, branch: str
+    model: str, ctx_tokens: int, ctx_pct: float, cost: float, branch: str
 ) -> str:
     """Format status bar text for prompt_toolkit bottom toolbar."""
-    max_ctx = MODEL_MAX_CONTEXT.get(model, DEFAULT_MAX_CONTEXT)
-    pct = (tokens_used / max_ctx * 100) if max_ctx else 0
-    parts = [f" {model}", f"ctx: {tokens_used:,}/{pct:.0%}", f"cost: ${cost:.4f}"]
+    parts = [f" {model}", f"ctx: {ctx_tokens:,} ({ctx_pct:.0f}%)", f"cost: ${cost:.4f}"]
     if branch:
         parts.append(branch)
     parts.append("/help")
@@ -466,15 +453,9 @@ class REPL:
     def _bottom_toolbar(self) -> str:
         """Return status bar text for prompt_toolkit bottom toolbar."""
         model_name = getattr(self.conversation.model_client, "model", "unknown")
-        tokens_used = 0
-        cost = 0.0
+        ctx_tokens, _, ctx_pct = self.conversation.context_usage()
+        cost = self.token_tracker.get_session_cost() if self.token_tracker else 0.0
         branch = ""
-
-        if self.token_tracker:
-            tokens_used = (
-                self.token_tracker.session_input + self.token_tracker.session_output
-            )
-            cost = self.token_tracker.get_session_cost()
 
         try:
             from neow.tools.git import git_status
@@ -486,22 +467,15 @@ class REPL:
             pass
 
         return _format_toolbar_text(
-            model_name, tokens_used, cost, f"branch:{branch}" if branch else ""
+            model_name, ctx_tokens, ctx_pct, cost, f"branch:{branch}" if branch else ""
         )
 
     def _show_status_bar(self) -> None:
         """Display status bar with model, token, and cost info."""
         model_name = getattr(self.conversation.model_client, "model", "unknown")
-        tokens_used = 0
-        tokens_max = 128000
-        cost = 0.0
+        tokens_used, tokens_max, _ = self.conversation.context_usage()
+        cost = self.token_tracker.get_session_cost() if self.token_tracker else 0.0
         branch = ""
-
-        if self.token_tracker:
-            tokens_used = (
-                self.token_tracker.session_input + self.token_tracker.session_output
-            )
-            cost = self.token_tracker.get_session_cost()
 
         # Get branch info
         try:
@@ -1027,6 +1001,38 @@ class REPL:
             else:
                 print_info("Cannot branch: at root node")
 
+    def _maybe_auto_compact(self) -> None:
+        """Compact when the context nears the model's window.
+
+        Maintenance only: any failure is logged, never raised into the turn.
+        """
+        try:
+            if self.conversation.should_auto_compact():
+                _, _, pct = self.conversation.context_usage()
+                print_warning(f"上下文已用 {pct:.0f}%，自动压缩早期对话…")
+                try:
+                    result = self.conversation.compact_incremental()
+                    print_info(result)
+                except Exception as e:
+                    logger.warning(f"Auto-compact failed: {e}")
+            elif (
+                self.conversation.should_auto_compact(threshold=0.5)
+                and not self._idle_compact_done
+            ):
+                # Idle maintenance: compact proactively if usage is moderate
+                import time
+                idle_secs = time.monotonic() - self._last_activity_time
+                if idle_secs > 30 and len(self.conversation.messages) > 8:
+                    print_info("Idle maintenance: compacting conversation...")
+                    try:
+                        result = self.conversation.compact_incremental()
+                        print_info(result)
+                        self._idle_compact_done = True
+                    except Exception as e:
+                        logger.warning(f"Idle compact failed: {e}")
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Auto-compact check failed: {e}")
+
     def _process_input(self, user_input: str) -> None:
         """Process user input with AI.
 
@@ -1054,7 +1060,10 @@ class REPL:
 
         # Token hard limit check
         if self.token_tracker and self.token_tracker.check_max_tokens():
-            print_error("Token limit reached. Use /compact to summarize history, or /cost to check usage.")
+            print_error(
+                "本会话累计 token 已达到 token.max_tokens 上限（这是用量上限，"
+                "/compact 不会让它下降）。请调高该值或开启新会话；/cost 查看用量。"
+            )
             return
 
         try:
@@ -1084,29 +1093,7 @@ class REPL:
             if warn:
                 print_warning(warn)
 
-        # Auto-compact when approaching token limit
-        if self.token_tracker:
-            max_t = self.config.token.get("max_tokens", 500000) if self.config else 500000
-            used = self.token_tracker.session_input + self.token_tracker.session_output
-            if used > max_t * 0.8:
-                print_warning("Token usage above 80% threshold. Auto-compacting...")
-                try:
-                    result = self.conversation.compact_incremental()
-                    print_info(result)
-                except Exception as e:
-                    logger.warning(f"Auto-compact failed: {e}")
-            elif used > max_t * 0.5 and not self._idle_compact_done:
-                # Idle maintenance: compact proactively if usage is moderate
-                import time
-                idle_secs = time.monotonic() - self._last_activity_time
-                if idle_secs > 30 and len(self.conversation.messages) > 8:
-                    print_info("Idle maintenance: compacting conversation...")
-                    try:
-                        result = self.conversation.compact_incremental()
-                        print_info(result)
-                        self._idle_compact_done = True
-                    except Exception as e:
-                        logger.warning(f"Idle compact failed: {e}")
+        self._maybe_auto_compact()
         if self.conversation.pending_lint_feedback:
             feedback = self.conversation.pending_lint_feedback
             self.conversation.pending_lint_feedback = None

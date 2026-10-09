@@ -360,6 +360,8 @@ class AgentLoop:
 - 已知限制：JSONL 会话存档只保留部分字段，恢复后 `neow_context` 哈希丢失，上下文会多发一次（不影响正确性）。会话树里上下文消息显示为一条 user 节点。
 - 测试改动：`test_core.py` 里 3 个断言“上下文在系统提示里”的测试改为断言内容在上下文消息里、不在系统提示里；契约测试的 `system` 现在是带 `cache_control` 的块列表。
 
+**提交：** `ef89382`
+
 ### 任务 2.3 · 准确的上下文用量
 
 **修复：** E15。
@@ -370,7 +372,18 @@ class AgentLoop:
 - `ChatScreen.refresh_status()` 调用 `status_bar.set_context(pct)`；REPL 在用量行显示百分比。
 - 自动压缩阈值（80%）改用这个真实值。
 
-**测试：** `test_context_pct_from_usage`、`test_status_bar_shows_ctx`、`test_auto_compact_uses_real_usage`
+**测试：** `tests/test_context_usage.py`（`test_context_pct_from_usage`、`test_context_estimated_without_usage`、`test_compaction_discards_stale_usage`、`test_should_auto_compact_uses_real_usage` ×2、`test_no_auto_compact_for_a_tiny_history`、`test_default_context_window` ×4、`test_context_window_from_config`）；`tests/tui/test_app.py::test_context_usage_shown_and_auto_compact_after_turn`
+
+- [x] 已完成（727 passed）
+
+**实现记录（比设计多修的问题）：**
+- **原自动压缩用错了量**：REPL 判断的是会话**累计** token（每次请求都把整个上下文再算一遍）对比 `token.max_tokens`，而不是当前上下文大小；累计值在压缩后不会下降，一旦越过 80% 就**每轮都压缩**。现在用 `ConversationManager.context_usage()`。
+- **TUI 原本没有自动压缩**：现在回合结束后若超过 80%，在后台线程执行 `compact_incremental()`，期间保持“忙碌”让新输入排队，结束后显示 CompactionCard 并继续处理队列。
+- **REPL 工具栏百分比显示错误**：已乘 100 的值又用 `:.0%` 格式化（显示成几千 %），且同样用的是累计量；REPL 里重复的 `MODEL_MAX_CONTEXT` 表已删除。
+- **`token.max_tokens` 的提示有误导**：它是累计用量上限，原提示让用户 `/compact`，但压缩不会降低累计量；改为说明这是用量上限、需调高或开新会话。
+- `context_usage()` 的判断方式：记住测量时的最后一条消息**对象**作为锚点；锚点仍在原位就用真实值加上之后新增消息的估算，否则（清空、压缩、加载会话）整体按约 4 字符/token 估算，不需要在各处手动失效。
+- `context_window` 在模型配置中可设，默认 Claude 200k、其余 128k；工厂在构造后设置属性（不改构造参数，旧的构造调用断言不受影响）。
+- 自动压缩至少需要 5 条消息（`compact_incremental` 本身少于这个数也不会压缩）。REPL 的自动压缩包在 `_maybe_auto_compact()` 里，任何异常只记日志，不影响本轮。
 
 ### 任务 2.4 · 提示词与工具集清理
 

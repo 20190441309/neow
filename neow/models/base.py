@@ -24,6 +24,15 @@ def validate_openai_compatible(client: Any, label: str) -> bool:
         return False
 
 
+DEFAULT_CONTEXT_WINDOW = 128_000
+
+
+def default_context_window(model: str) -> int:
+    """Context window assumed when a model entry sets no ``context_window``."""
+
+    return 200_000 if "claude" in (model or "").lower() else DEFAULT_CONTEXT_WINDOW
+
+
 # Provider stop reasons -> "stop" | "tool_calls" | "length".
 _FINISH_REASONS = {
     "end_turn": "stop",
@@ -153,6 +162,8 @@ class BaseModelClient(ABC):
         self.validate_enabled: bool = True
         # Output token cap sent with each request (None = provider default).
         self.max_output_tokens: Optional[int] = None
+        # Total tokens the model accepts; drives the ctx % and auto-compact.
+        self.context_window: int = default_context_window(model)
 
     @abstractmethod
     def chat(

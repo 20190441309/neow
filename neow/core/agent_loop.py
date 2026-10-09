@@ -195,6 +195,7 @@ class AgentLoop:
                 truncated = response.finish_reason == "length"
                 if not response.tool_calls or conv.tool_executor is None:
                     self._append_assistant(response.content)
+                    self._record_usage(response.usage)
                     if truncated:
                         yield _notice(
                             "回复达到输出上限（max_output_tokens）被截断，"
@@ -202,6 +203,7 @@ class AgentLoop:
                         )
                     break
                 self._append_assistant(response.content, response.tool_calls)
+                self._record_usage(response.usage)
                 if truncated:
                     # The last call's arguments are cut off; run none of them
                     # and let the model retry with smaller edits.
@@ -285,6 +287,11 @@ class AgentLoop:
         )
         self.result = ModelResponse(content=response.content, usage=usage)
         return response
+
+    def _record_usage(self, usage: Dict[str, int]) -> None:
+        record = getattr(self.conversation, "record_context_usage", None)
+        if record and usage:
+            record(usage)
 
     # -- tools ------------------------------------------------------------
 

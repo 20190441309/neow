@@ -60,6 +60,15 @@ class TuiEventMessage(Message):
         super().__init__()
 
 
+class AutoCompacted(Message):
+    """Worker-thread -> UI: automatic compaction finished."""
+
+    def __init__(self, result: Optional[str], error: Optional[str]):
+        self.result = result
+        self.error = error
+        super().__init__()
+
+
 class ChatScreen(Screen):
     """Main screen: top bar, timeline, sidebar, input dock, status bar."""
 
@@ -343,7 +352,13 @@ class ChatScreen(Screen):
         self.input_dock.set_busy(False)
         self.refresh_status()
         self._refresh_sidebar()
+        if self._should_auto_compact():
+            self._start_auto_compact()
+            return
+        self._continue_after_turn()
 
+    def _continue_after_turn(self) -> None:
+        """Run the next queued prompt or a pending lint/test fix."""
         nxt = self.input_dock.pop_first_queued()
         if nxt is not None:
             self._update_queue_strip()
@@ -356,9 +371,50 @@ class ChatScreen(Screen):
             self._add_card(SystemCard("自动修复 lint/test 错误", level="warn"))
             self._start_turn(feedback)
 
+    # -- auto-compaction -----------------------------------------------
+
+    def _should_auto_compact(self) -> bool:
+        check = getattr(self.app.conversation, "should_auto_compact", None)
+        try:
+            return bool(check and check())
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _start_auto_compact(self) -> None:
+        # Stay busy so new prompts queue instead of racing the compaction.
+        self._busy = True
+        self.status_bar.set_activity("compacting")
+        self.input_dock.set_busy(True)
+        self._run_auto_compact()
+
+    @work(thread=True, group="compact")
+    def _run_auto_compact(self) -> None:
+        try:
+            result, error = self.app.conversation.compact_incremental(), None
+        except Exception as exc:  # noqa: BLE001
+            result, error = None, str(exc)
+        self.post_message(AutoCompacted(result, error))
+
+    def on_auto_compacted(self, message: "AutoCompacted") -> None:
+        if message.error:
+            self._add_card(ErrorCard("自动压缩失败", message.error))
+        else:
+            self._add_card(CompactionCard(f"上下文接近上限，已自动压缩\n{message.result}"))
+        self._busy = False
+        self.status_bar.set_activity("idle")
+        self.input_dock.set_busy(False)
+        self.refresh_status()
+        self._continue_after_turn()
+
     # -- status / queue ------------------------------------------------
 
     def refresh_status(self) -> None:
+        usage = getattr(self.app.conversation, "context_usage", None)
+        if callable(usage):
+            try:
+                self.status_bar.set_context(usage()[2])
+            except Exception:  # noqa: BLE001
+                pass
         tracker = getattr(self.app, "token_tracker", None)
         if tracker is None:
             return

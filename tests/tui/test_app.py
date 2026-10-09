@@ -379,3 +379,31 @@ async def test_same_tool_twice_tracks_cards_by_call_id():
         assert first.status_icon == "✓"
         assert second.status_icon == "⟳"
         assert any("Stopped" in c.message for c in screen.query(SystemCard))
+
+
+async def test_context_usage_shown_and_auto_compact_after_turn():
+    from neow.tui.widgets.cards import CompactionCard
+
+    calls = []
+    conv = FakeConversation(
+        script=[Chunk(content_delta="ok"), Chunk(finish_reason="stop")],
+        context_usage=lambda: (85_000, 100_000, 85.0),
+        should_auto_compact=lambda: not calls,
+    )
+    conv.compact_incremental = (
+        lambda **kw: calls.append(kw) or "Compacted 6 old messages"
+    )
+    app = _chat_app(conv, effects="off")
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.screen
+        screen.submit_prompt("hello")
+        for _ in range(40):
+            await pilot.pause(0.05)
+            if list(screen.query(CompactionCard)) and not screen.busy:
+                break
+        cards = list(screen.query(CompactionCard))
+        assert calls and cards
+        assert "Compacted 6 old messages" in cards[-1].message
+        assert not screen.busy
+        assert screen.status_bar._context_pct == 85.0
+        assert "ctx" in str(screen.status_bar.render())

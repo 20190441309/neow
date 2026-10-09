@@ -132,18 +132,31 @@ def create_model_client(config: "Config", model_name: str):
             f"Invalid max_retries {max_retries!r} for model {model_name!r}. "
             "Use an integer >= 0"
         )
+    context_window = entry.get("context_window")
+    if context_window is not None and (
+        not isinstance(context_window, int)
+        or isinstance(context_window, bool)
+        or context_window < 1
+    ):
+        raise ConfigError(
+            f"Invalid context_window {context_window!r} for model {model_name!r}. "
+            "Use a positive integer"
+        )
     extra: Dict[str, Any] = {}
     if max_output_tokens:
         extra["max_output_tokens"] = max_output_tokens
     if max_retries is not None:
         extra["max_retries"] = max_retries
-    return client_for(provider)(
+    client = client_for(provider)(
         api_key=resolve_api_key(entry, model_name),
         model=model,
         base_url=entry.get("base_url") or None,
         validate=validate_value == "auto",
         **extra,
     )
+    if context_window:
+        client.context_window = context_window
+    return client
 
 
 def describe_models(config: "Config") -> list[str]:

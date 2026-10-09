@@ -10,9 +10,28 @@ from neow.core.agent_loop import (
     AgentLoop,
     CancelToken,
 )
-from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
+from neow.models.base import (
+    DEFAULT_CONTEXT_WINDOW,
+    BaseModelClient,
+    ModelResponse,
+    StreamChunk,
+)
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
+
+
+AUTO_COMPACT_THRESHOLD = 0.8
+
+
+def _estimate_tokens(messages: List[Dict[str, Any]]) -> int:
+    """Rough token count (~4 characters per token)."""
+    chars = 0
+    for message in messages:
+        content = message.get("content")
+        chars += len(content) if isinstance(content, str) else len(str(content or ""))
+        for call in message.get("tool_calls") or []:
+            chars += len(str(call.get("function", {}).get("arguments", "")))
+    return chars // 4
 
 
 class ConversationManager:
@@ -55,6 +74,11 @@ class ConversationManager:
         self.pending_lint_feedback: Optional[str] = None
         self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
         self.max_turns = DEFAULT_MAX_TURNS  # model requests allowed per user turn
+        # Provider-reported size of the context after the last reply, and the
+        # message it was measured at (see context_usage()).
+        self._usage_tokens = 0
+        self._usage_anchor: Optional[Dict[str, Any]] = None
+        self._usage_length = 0
         # Longest tool result kept in history (head + tail beyond this).
         self.max_tool_output_chars = DEFAULT_MAX_TOOL_OUTPUT_CHARS
 
@@ -178,6 +202,45 @@ class ConversationManager:
         """
         loop = AgentLoop(self, max_turns=self.max_turns)
         yield from loop.run(user_input, stream=True, cancel=cancel)
+
+    # -- context usage ----------------------------------------------------
+
+    def record_context_usage(self, usage: Dict[str, int]) -> None:
+        """Remember the provider's token count for the history as it is now."""
+        prompt = usage.get("prompt_tokens") or 0
+        total = prompt + (usage.get("completion_tokens") or 0)
+        if total and self.messages:
+            self._usage_tokens = total
+            self._usage_anchor = self.messages[-1]
+            self._usage_length = len(self.messages)
+
+    def context_usage(self) -> Tuple[int, int, float]:
+        """``(tokens, context_window, percent)`` for the next request.
+
+        Uses the last provider-reported count plus an estimate for messages
+        added since.  If the history was rewritten (clear, compaction, load)
+        the anchor message is gone and everything is estimated (~4 chars per
+        token).
+        """
+        window = getattr(self.model_client, "context_window", None)
+        if not isinstance(window, int) or window < 1:
+            window = DEFAULT_CONTEXT_WINDOW
+        length = self._usage_length
+        valid = (
+            self._usage_anchor is not None
+            and len(self.messages) >= length
+            and self.messages[length - 1] is self._usage_anchor
+        )
+        if valid:
+            tokens = self._usage_tokens + _estimate_tokens(self.messages[length:])
+        else:
+            tokens = _estimate_tokens(self.messages) + len(self.system_prompt) // 4
+        return tokens, window, tokens / window * 100
+
+    def should_auto_compact(self, threshold: float = AUTO_COMPACT_THRESHOLD) -> bool:
+        """True when the context is past *threshold* of the model's window."""
+        _, _, percent = self.context_usage()
+        return percent >= threshold * 100 and len(self.messages) > 4
 
     def add_tool_result(self, tool_call_id: str, result: str) -> None:
         """Add tool result to conversation history.
