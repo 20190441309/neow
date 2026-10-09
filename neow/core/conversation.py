@@ -85,6 +85,8 @@ class ConversationManager:
         self._structure_text: Optional[str] = None
         # Instructions from AGENTS.md / NEOW.md (neow.core.memory.Memory).
         self.memory: Optional[Any] = None
+        # MCP connections (neow.core.mcp_client.MCPManager), for /mcp.
+        self.mcp: Optional[Any] = None
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent
         # Task list kept by the todo_write tool (neow.core.todos).
         self.todos: List[Dict[str, str]] = []

@@ -59,6 +59,7 @@ SLASH_COMMANDS = [
     "/branch",
     "/verbose",
     "/memory",
+    "/mcp",
     "/init",
 ]
 
@@ -91,6 +92,7 @@ COMMAND_HINTS = {
     "/branch": "创建分支",
     "/verbose": "工具详情",
     "/memory": "记忆文件",
+    "/mcp": "MCP 服务器",
     "/init": "生成 AGENTS.md",
 }
 

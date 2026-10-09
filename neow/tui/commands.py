@@ -362,6 +362,13 @@ class CommandDispatcher:
             self.conversation.memory = load_memory(Path.cwd())
         return CommandResult(describe_memory(self.conversation.memory))
 
+    def _cmd_mcp(self, args: str) -> CommandResult:
+        from neow.core.mcp_client import mcp_command
+
+        manager = getattr(self.conversation, "mcp", None)
+        text, kind = mcp_command(manager, args.strip(), wait=False)
+        return CommandResult(text, kind=kind)
+
     def _cmd_init(self, args: str) -> CommandResult:
         from neow.core.memory import INIT_PROMPT
 

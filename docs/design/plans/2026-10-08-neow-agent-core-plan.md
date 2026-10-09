@@ -515,6 +515,8 @@ class AgentLoop:
 - Token：`TokenTracker.record(..., source="subagent")` 单独累计，`/cost` 增加一行“Sub-agents: N tokens ($x, included above)”。仅非 main 来源才传 `source`，兼容自定义 tracker。
 - **Architect 模式**：`ArchitectOrchestrator(planner_client, memory)` 只负责规划：`plan()` 返回 todo 列表，`execution_prompt()` 生成让主 agent 按清单逐步执行的消息。REPL 与 TUI（此前 TUI 的 `/architect` 只设标志、从未生效，现已接上）都改为：规划 → 写入任务清单 → 主会话执行（流式输出、逐个审批）。并发写文件的旧路径已删除。`architect.executor` 配置不再使用（由当前模型执行，可用 `/model` 切换），计划中的 `architect.subagent_approval` 实现为通用的 `agent.subagent_approval`。
 
+**提交：** `e93e63c`
+
 ### 任务 4.4 · 并行执行只读工具
 
 **设计：**
@@ -549,6 +551,17 @@ class AgentLoop:
 - MCP 资源与 prompts 先不做（后续任务）。
 
 **测试：** 用一个测试内的最小 stdio MCP 服务器（`tests/fixtures/mcp_echo_server.py`）：`test_mcp_tools_registered_with_prefix`、`test_mcp_call_roundtrip`、`test_mcp_server_failure_is_isolated`、`test_project_mcp_requires_confirmation`、`test_mcp_tools_require_approval_by_default`
+
+- [x] 已完成（776 passed，`tests/test_mcp.py` 8 项，含真实 stdio 与 streamable HTTP 服务器）
+
+**实现记录：**
+- 依赖 `mcp>=2.3,<3`（2.x 的高层 `mcp.Client` 接口，与 1.x 不同）。新模块 `neow/core/mcp_client.py`：`MCPManager` 在名为 `neow-mcp` 的后台线程运行事件循环；每个服务器一个长期任务持有 `Client` 上下文（进入与退出在同一任务中，符合 anyio 要求），工具调用经 `run_coroutine_threadsafe` 同步等待，每 0.1s 检查当前轮的取消令牌，超时默认 60s（可按服务器配置 `timeout`）。
+- 传输：stdio（服务器 stderr 写入 `~/.neow/logs/mcp-<name>.log`，否则会破坏 TUI 画面）与 streamable HTTP（`headers` 通过自带的 `httpx2.AsyncClient` 发送，已用带 Authorization 头的真实 HTTP 服务器验证）。配置字符串支持 `${VAR}` / `${VAR:-默认值}`。
+- 启动不阻塞：交互模式下后台连接，每个服务器连上时把工具注册进执行器的注册表（`attach`），断开/失败/关闭时移除；单次模式（`neow "..."`）等待连接完成再发请求。为此 `ToolRegistry` 增加 `unregister`，读取时先复制字典，避免并发注册时报错。
+- 工具：`mcp__<server>__<tool>`（非法字符替换为 `_`，截断到 64 字符），描述前缀 `[MCP server '<name>']`，`source="mcp:<name>"`。默认 tier exec（需审批）；服务器 `"trusted": true` 或工具 `readOnlyHint` 降为 read，后者同时标记 `read_only`（可并行，`explore` 子 agent 可用）。结果：文本块拼接，图片/音频/资源给占位说明，只有结构化内容时输出 JSON，`isError` 加 `Error:` 前缀。
+- 仓库投毒防护：`.mcp.json` 中的服务器，以及在没有 `~/.neow/config.json` 时从仓库 `.neow.json` 读到的服务器（为此 `Config` 记录 `source_path` / `user_owned`），都属于 project 来源。启动时显示命令/URL 以及会传入的环境变量和请求头名称，用户确认后把“文件路径 + 服务器名 → 配置指纹”记入 `~/.neow/mcp-approved.json`；配置一变就要重新确认。非交互运行直接跳过未批准的服务器。同名时项目服务器覆盖用户配置，但仍需确认。
+- `/mcp` 显示每个服务器的状态、传输、来源、命令/URL、错误与工具列表；`/mcp reconnect <name>`（TUI 中在后台线程执行，不卡界面）。退出时 `atexit` 关闭所有连接。
+- 与计划不同：在计划的两个配置来源之外，也支持（需确认的）仓库 `.neow.json`，因为当前 `Config` 在没有用户配置时会读取它。
 
 ---
 

@@ -112,6 +112,9 @@ class ToolRegistry:
 
         self._specs[spec.name] = spec
 
+    def unregister(self, name: str) -> None:
+        self._specs.pop(name, None)
+
     def bind(self, name: str, func: Callable[..., Any]) -> ToolSpec:
         """Swap the implementation of an existing tool, keeping its metadata."""
 
@@ -135,13 +138,13 @@ class ToolRegistry:
 
         return [
             spec.definition()
-            for spec in self._specs.values()
+            for spec in list(self._specs.values())  # MCP may register meanwhile
             if (names is None or spec.name in names)
             and (read_only is None or spec.read_only == read_only)
         ]
 
     def subset(self, predicate: Callable[[ToolSpec], bool]) -> "ToolRegistry":
-        return ToolRegistry([spec for spec in self._specs.values() if predicate(spec)])
+        return ToolRegistry([s for s in list(self._specs.values()) if predicate(s)])
 
     def copy(self) -> "ToolRegistry":
         return ToolRegistry(list(self._specs.values()))

@@ -53,6 +53,7 @@ HELP_SECTIONS = (
             ("/image <file>", "附加图片"),
             ("/think", "查看推理内容"),
             ("/memory", "记忆文件"),
+            ("/mcp", "MCP 服务器"),
             ("/init", "生成 AGENTS.md"),
         ),
     ),

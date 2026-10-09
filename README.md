@@ -182,6 +182,21 @@ Shell commands run by the agent time out after 120 s by default (the model may a
 
 **Architect mode** (`/architect`): the planner model (`architect.planner`) turns each request into a task list, which the current model then works through with the usual tools and approvals.
 
+**MCP servers.** Neow connects to [Model Context Protocol](https://modelcontextprotocol.io) servers listed in `.mcp.json` at the project root (the same format as Claude Code) or under `mcp.servers` in your config:
+
+```json
+{
+  "mcpServers": {
+    "github": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"],
+               "env": {"GITHUB_TOKEN": "${GITHUB_TOKEN}"}},
+    "docs": {"type": "http", "url": "https://example.com/mcp",
+             "headers": {"Authorization": "Bearer ${DOCS_TOKEN}"}}
+  }
+}
+```
+
+Their tools appear as `mcp__<server>__<tool>` and need approval like shell commands, unless the tool is marked read-only or the server has `"trusted": true`. Servers defined by the repository start only after you confirm them once (again whenever their command, URL, environment or headers change). Connections start in the background; `/mcp` shows status, errors and tools, `/mcp reconnect <name>` restarts one. Server logs go to `~/.neow/logs/`.
+
 **Prompt caching.** The system prompt stays the same for the whole session; files added with `/add`, fetched pages and files matching your question are sent with your message, and only again when they change. Providers can therefore reuse the cached prefix (Anthropic requests carry `cache_control` breakpoints; OpenAI and DeepSeek cache automatically). `/cost` shows how much input was served from cache. Cached input is priced at `cache_read` / `cache_write` if set under `token.prices.<model>`, otherwise at 0.1× / 1.25× the input price.
 
 **Project memory.** At startup Neow loads instructions from `~/.neow/NEOW.md` (your own preferences) and from `AGENTS.md` / `NEOW.md` in every directory from the git root down to the current directory; more specific files come later and win. A line containing only `@docs/style.md` imports that file (up to 5 levels). `/init` asks the agent to explore the repository and write an `AGENTS.md` (the write goes through approval as usual); `/memory` lists the loaded files, `/memory add <text>` appends a note to the project `NEOW.md`, `/memory reload` re-reads them.

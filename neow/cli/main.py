@@ -79,6 +79,42 @@ def _run_non_interactive(conversation, prompt):
     return response.content or ""
 
 
+def setup_mcp(cfg: Config, executor: ToolExecutor, interactive: bool, wait: bool):
+    """Start configured MCP servers; their tools join the executor's registry.
+
+    Project-defined servers (``.mcp.json``, or a repository ``.neow.json``)
+    need a one-time confirmation; non-interactive runs skip them.
+    """
+    from neow.core.mcp_client import load_server_configs, start_manager
+    from neow.core.memory import project_root
+
+    servers = load_server_configs(
+        cfg.mcp.get("servers"),
+        "user" if getattr(cfg, "user_owned", True) else "project",
+        str(getattr(cfg, "source_path", None) or "config"),
+        project_root(Path.cwd()),
+    )
+    if not servers:
+        return None
+
+    def confirm(server) -> bool:
+        sends = sorted(server.env) + sorted(server.headers)
+        extra = f"\n    会传入：{', '.join(sends)}" if sends else ""
+        print_warning(
+            f"项目配置了 MCP 服务器 '{server.name}'（{server.origin}）：\n"
+            f"    {server.describe()}{extra}\n"
+            "它会以你的权限运行。只在信任这个仓库时启用。"
+        )
+        return click.confirm("启用这个服务器？", default=False)
+
+    manager = start_manager(servers, confirm if interactive else None, wait=wait)
+    manager.attach(executor.registry)
+    import atexit
+
+    atexit.register(manager.close)
+    return manager
+
+
 def setup_tools(executor: ToolExecutor) -> None:
     """Bind the real built-in tool implementations.
 
@@ -224,6 +260,13 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         conversation.memory = load_memory(Path.cwd())
         for warning in conversation.memory.warnings:
             print_warning(f"Memory: {warning}")
+        conversation.mcp = setup_mcp(
+            cfg,
+            executor,
+            interactive=stdin_is_tty and sys.stdout.isatty(),
+            # One-shot runs need the tools before the first request.
+            wait=bool(prompt or message_file),
+        )
         conversation.tool_provider = executor.get_tool_definitions
 
         # Read message from file if specified

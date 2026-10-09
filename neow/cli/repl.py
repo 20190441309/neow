@@ -74,6 +74,7 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/verbose":   "Toggle expanded tool-call parameter display",
     "/memory":    "Show memory files (AGENTS.md/NEOW.md); /memory add <text>",
     "/init":      "Generate AGENTS.md for this repository",
+    "/mcp":       "MCP servers and tools; /mcp reconnect <name>",
 }
 
 def _expand_path(prefix: str) -> Path:
@@ -916,6 +917,13 @@ class REPL:
                 if args.startswith("reload"):
                     self.conversation.memory = load_memory(Path.cwd())
                 print_info(describe_memory(self.conversation.memory))
+        elif parsed.command == Command.MCP:
+            from neow.core.mcp_client import mcp_command
+
+            text, kind = mcp_command(
+                getattr(self.conversation, "mcp", None), (parsed.args or "").strip()
+            )
+            {"error": print_error, "warn": print_warning}.get(kind, print_info)(text)
         elif parsed.command == Command.INIT:
             from neow.core.memory import INIT_PROMPT
 

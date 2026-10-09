@@ -105,6 +105,10 @@ class Config:
             config_path: Path to configuration file. If None, uses default location.
         """
         self._config: Dict[str, Any] = deepcopy(self.DEFAULT_CONFIG)
+        # File the settings came from, and whether the user (not a cloned
+        # repository) controls it: ~/.neow/config.json or an explicit --config.
+        self.source_path: Optional[Path] = None
+        self.user_owned = config_path is not None
         self._load_config(config_path)
         self._load_env_vars()
 
@@ -117,6 +121,7 @@ class Config:
 
             if home_config.exists():
                 config_path = home_config
+                self.user_owned = True
             elif local_config.exists():
                 config_path = local_config
             else:
@@ -124,6 +129,7 @@ class Config:
 
         if not config_path.exists():
             return
+        self.source_path = config_path
 
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -195,6 +201,11 @@ class Config:
             "auto_lint": False, "auto_test": False,
             "lint_command": None, "test_command": None,
         })
+
+    @property
+    def mcp(self) -> Dict[str, Any]:
+        """MCP client configuration (``servers``: name -> server entry)."""
+        return self._config.get("mcp") or {}
 
     @property
     def architect(self) -> Dict[str, Any]:

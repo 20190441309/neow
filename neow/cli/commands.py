@@ -37,6 +37,7 @@ class Command(Enum):
     VERBOSE = "verbose"
     MEMORY = "memory"
     INIT = "init"
+    MCP = "mcp"
 
 
 @dataclass
@@ -96,6 +97,7 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/verbose": Command.VERBOSE,
         "/memory": Command.MEMORY,
         "/init": Command.INIT,
+        "/mcp": Command.MCP,
     }
 
     command = command_map.get(command_str)
