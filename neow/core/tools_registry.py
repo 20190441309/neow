@@ -28,6 +28,10 @@ class ToolSpec:
     read_only: bool = False
     mutates_files: bool = False
     source: str = "builtin"
+    # Runs in a worker thread so its progress shows live (see tool_context).
+    reports_progress: bool = False
+    # For tools that are not read_only: may this call run alongside others?
+    parallel_when: Optional[Callable[[Dict[str, Any]], bool]] = None
 
     def definition(self) -> Dict[str, Any]:
         """OpenAI-style function definition sent to the model."""

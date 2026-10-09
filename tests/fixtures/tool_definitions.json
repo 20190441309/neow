@@ -407,5 +407,37 @@
         ]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "task",
+      "description": "Hand a self-contained job to a sub-agent with a fresh context; returns only its final report. Use 'explore' (read-only, several can run in parallel) for searches across many files or open-ended questions about the codebase; 'general' for a separate change (its edits and commands need approval as usual). The sub-agent cannot see this conversation: put everything it needs in the prompt.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Short label (3-6 words) shown to the user"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Complete instructions for the sub-agent, including what to report back"
+          },
+          "agent_type": {
+            "type": "string",
+            "enum": [
+              "explore",
+              "general"
+            ],
+            "description": "explore (default): read-only tools; general: all tools"
+          }
+        },
+        "required": [
+          "description",
+          "prompt"
+        ]
+      }
+    }
   }
 ]

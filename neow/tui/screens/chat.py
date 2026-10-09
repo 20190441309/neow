@@ -22,6 +22,7 @@ from neow.tui.bridge.events import (
     ReasoningStarted,
     TodosUpdated,
     ToolFinished,
+    ToolProgress,
     ToolStarted,
     TurnCompleted,
     TurnFailed,
@@ -255,8 +256,37 @@ class ChatScreen(Screen):
 
     @work(thread=True, exclusive=True)
     def _run_turn(self, text: str) -> None:
-        if self._controller is not None:
-            self._controller.run_turn(text)
+        if self._controller is None:
+            return
+        architect = self.commands is not None and self.commands.architect_mode
+        if architect and getattr(self.app, "config", None) is not None:
+            text = self._architect_plan(text)
+        self._controller.run_turn(text)
+
+    def _architect_plan(self, text: str) -> str:
+        """Architect mode: plan with the planner model, return the turn's prompt.
+
+        Runs in the turn worker. Falls back to *text* when planning fails or
+        the planner answers without steps.
+        """
+        from neow.cli.main import create_model_client
+        from neow.core.architect import ArchitectOrchestrator
+
+        conversation = self.app.conversation
+        self._post_event(Notice(message="Architect: 正在规划…"))
+        try:
+            config = self.app.config
+            planner = create_model_client(config, config.architect["planner"])
+            orch = ArchitectOrchestrator(planner, memory=conversation.memory)
+            todos, _ = orch.plan(text)
+        except Exception as exc:  # noqa: BLE001 - shown, then run unplanned
+            self._post_event(Notice(message=f"Architect 规划失败：{exc}", level="warn"))
+            return text
+        if not todos:
+            return text
+        conversation.write_todos(todos)
+        self._post_event(TodosUpdated(todos=tuple(dict(t) for t in todos)))
+        return orch.execution_prompt(text, todos)
 
     def _post_event(self, event: Any) -> None:
         self.post_message(TuiEventMessage(event))
@@ -295,6 +325,11 @@ class ChatScreen(Screen):
                 self._add_card(self._todo_card)
             if self.sidebar_tab == "todos":
                 self._refresh_sidebar()
+        elif isinstance(event, ToolProgress):
+            card = self._running_tools.get(event.call_id or event.name)
+            if card is not None:
+                card.set_progress(event.message)
+            self.status_bar.set_activity(f"{event.name}: {event.message}"[:60])
         elif isinstance(event, ToolStarted):
             if self._current_assistant is not None:
                 self._current_assistant.finish(time.monotonic() - self._segment_started)

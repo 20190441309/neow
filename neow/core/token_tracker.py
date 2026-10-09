@@ -25,8 +25,12 @@ class TokenTracker:
         self.session_cache_read: int = 0
         self.session_cache_write: int = 0
         self._model_usage: Dict[str, Dict[str, int]] = {}
+        # Usage outside the main conversation, e.g. "subagent" -> tokens/cost.
+        self._source_usage: Dict[str, Dict[str, float]] = {}
 
-    def record(self, usage: Dict[str, int], model: str) -> None:
+    def record(
+        self, usage: Dict[str, int], model: str, source: str = "main"
+    ) -> None:
         """Record token usage from a single API response.
 
         Args:
@@ -34,7 +38,10 @@ class TokenTracker:
                 optional 'cache_read_tokens' / 'cache_write_tokens' (both
                 already counted inside 'prompt_tokens').
             model: Model name for cost calculation.
+            source: Who made the request; non-"main" sources are also
+                totalled separately for :meth:`get_session_summary`.
         """
+        cost_before = self._cost(model)
         input_tokens = usage.get("prompt_tokens", 0) or 0
         output_tokens = usage.get("completion_tokens", 0) or 0
         cache_read = usage.get("cache_read_tokens", 0) or 0
@@ -51,6 +58,10 @@ class TokenTracker:
         counts["output"] += output_tokens
         counts["cache_read"] = counts.get("cache_read", 0) + cache_read
         counts["cache_write"] = counts.get("cache_write", 0) + cache_write
+        if source != "main":
+            totals = self._source_usage.setdefault(source, {"tokens": 0, "cost": 0.0})
+            totals["tokens"] += input_tokens + output_tokens
+            totals["cost"] += self._cost(model) - cost_before
 
         logger.debug(
             f"Token usage: {input_tokens} in ({cache_read} cached) / "
@@ -137,6 +148,12 @@ class TokenTracker:
                 2,
                 f"  Cache:  {self.session_cache_read:,} read / "
                 f"{self.session_cache_write:,} written ({hit_rate:.0%} of input)",
+            )
+        labels = {"subagent": "Sub-agents"}
+        for source, totals in self._source_usage.items():
+            lines.append(
+                f"  {labels.get(source, source)}: {int(totals['tokens']):,} tokens "
+                f"(${totals['cost']:.4f}, included above)"
             )
         if len(self._model_usage) > 1:
             lines.append("  Per-model breakdown:")

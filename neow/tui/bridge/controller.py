@@ -26,6 +26,7 @@ from neow.tui.bridge.events import (
     ReasoningStarted,
     TodosUpdated,
     ToolFinished,
+    ToolProgress,
     ToolStarted,
     TurnCompleted,
     TurnFailed,
@@ -202,6 +203,14 @@ class ChatController:
             if progress.get("name") == "todo_write" and status == "ok":
                 todos = getattr(self._conversation, "todos", None) or []
                 self._emit(TodosUpdated(todos=tuple(dict(t) for t in todos)))
+        elif ptype == "tool_progress":
+            self._emit(
+                ToolProgress(
+                    name=progress.get("name", ""),
+                    message=progress.get("message", ""),
+                    call_id=progress.get("id", ""),
+                )
+            )
         elif ptype == "notice":
             self._flush_all()
             self._emit(

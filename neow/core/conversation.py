@@ -63,6 +63,16 @@ class ConversationManager:
         registry = getattr(self.tool_executor, "registry", None)
         if registry is not None and "todo_write" in registry:
             registry.bind("todo_write", self.write_todos)
+        if registry is not None and "task" in registry:
+            from functools import partial
+
+            from neow.core.sub_agent import run_task
+
+            registry.bind("task", partial(run_task, self))
+        # "subagent" for sub-agent conversations (token accounting, no nesting).
+        self.usage_source = "main"
+        self.subagent_approval = "inherit"  # or "yolo" (agent.subagent_approval)
+        self.subagent_max_turns = 25
         self.messages: List[Dict[str, Any]] = []
         self.system_prompt: str = ""
         self.tools: List[Dict[str, Any]] = []

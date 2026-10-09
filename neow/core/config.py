@@ -93,6 +93,8 @@ class Config:
         "agent": {
             "max_turns": 50,
             "max_tool_output_chars": 30000,
+            "subagent_max_turns": 25,
+            "subagent_approval": "inherit",
         },
     }
 
@@ -262,9 +264,17 @@ class Config:
                 return default
             return value
 
+        approval = cfg.get("subagent_approval", "inherit")
+        if approval not in ("inherit", "yolo"):
+            logger.warning(
+                "Invalid agent.subagent_approval %r; using 'inherit'", approval
+            )
+            approval = "inherit"
         return {
             "max_turns": positive("max_turns", 50),
             "max_tool_output_chars": positive("max_tool_output_chars", 30000),
+            "subagent_max_turns": positive("subagent_max_turns", 25),
+            "subagent_approval": approval,
         }
 
     def resolve_model_alias(self, alias: str) -> str:

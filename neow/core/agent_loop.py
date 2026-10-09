@@ -6,14 +6,17 @@ One implementation serves both the streaming and the blocking API of
 history valid: each assistant ``tool_call`` has a matching tool result.
 """
 
+import contextvars
 import json
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+import queue
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
 from neow.core.cancellation import CancelToken, cancellation_scope
 from neow.core.executor import ToolDenied
+from neow.core.tool_context import LoopChannel, loop_channel
 from neow.models.base import ModelResponse, StreamChunk, normalize_finish_reason
 from neow.utils import sanitize_text
 from neow.utils.logger import logger
@@ -279,9 +282,12 @@ class AgentLoop:
             yield StreamChunk(progress={"type": "reasoning_end"})
 
         if conv.token_tracker and usage:
-            conv.token_tracker.record(
-                usage, getattr(conv.model_client, "model", "unknown")
-            )
+            model = getattr(conv.model_client, "model", "unknown")
+            source = getattr(conv, "usage_source", "main")
+            if source == "main":
+                conv.token_tracker.record(usage, model)
+            else:
+                conv.token_tracker.record(usage, model, source=source)
         response = ModelResponse(
             content=self._unsaved_content,
             tool_calls=tool_calls,
@@ -309,11 +315,16 @@ class AgentLoop:
             and can_parallel is not None
             and all(c.error or can_parallel(c.name, c.arguments) is True for c in calls)
         ):
-            yield from self._run_parallel(calls, cancel)
+            yield from self._run_in_workers(calls, cancel)
             return
+        in_worker = getattr(executor, "runs_in_worker", None)
         for call in calls:
             if cancel.cancelled():
                 return
+            worker = in_worker is not None and in_worker(call.name) is True
+            if worker and not call.error:
+                yield from self._run_in_workers([call], cancel)
+                continue
             yield self._start_event(call)
             result, status = self._execute(call, cancel)
             yield from self._finish(call, result, status)
@@ -371,28 +382,65 @@ class AgentLoop:
         limit = getattr(conv, "max_tool_output_chars", DEFAULT_MAX_TOOL_OUTPUT_CHARS)
         conv.add_tool_result(call.id, truncate_tool_output(result, limit))
 
-    def _run_parallel(
+    def _run_in_workers(
         self, calls: List["_Call"], cancel: CancelToken
     ) -> Generator[StreamChunk, None, None]:
-        """Run read-only calls together; history keeps the original order."""
+        """Run calls in worker threads while this thread relays their events.
+
+        Used for batches of read-only calls (run together) and for tools that
+        report progress (``task``). Workers send progress and requests that
+        must run here - approval prompts - through a :class:`LoopChannel`.
+        Results enter the history in call order; ``tool_end`` events follow
+        completion order.
+        """
         for call in calls:
             yield self._start_event(call)
+        events: "queue.Queue[tuple]" = queue.Queue()
+        by_id = {call.id: call for call in calls}
+
+        def work(call: "_Call") -> None:
+            try:
+                with loop_channel(LoopChannel(events, cancel, call.id)):
+                    outcome = self._execute(call, cancel)
+            except BaseException as exc:  # never leave the loop waiting
+                outcome = (f"Error: {exc}", "error")
+            events.put(("done", call.id, outcome))
+
         pool = ThreadPoolExecutor(
             max_workers=min(MAX_PARALLEL_TOOLS, len(calls)),
             thread_name_prefix="neow-tool",
         )
-        futures = {pool.submit(self._execute, call, cancel): call for call in calls}
+        for call in calls:
+            pool.submit(contextvars.copy_context().run, work, call)
         done: Dict[str, Tuple[str, str]] = {}
         try:
-            pending = set(futures)
-            while pending and not cancel.cancelled():
-                finished, pending = wait(
-                    pending, timeout=0.1, return_when=FIRST_COMPLETED
-                )
-                for future in finished:
-                    call = futures[future]
-                    done[call.id] = future.result()
-                    yield from self._finish(call, *done[call.id], record=False)
+            while len(done) < len(calls) and not cancel.cancelled():
+                try:
+                    event = events.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                kind = event[0]
+                if kind == "progress":
+                    _, call_id, message = event
+                    yield StreamChunk(
+                        progress={
+                            "type": "tool_progress",
+                            "id": call_id,
+                            "name": by_id[call_id].name,
+                            "message": message,
+                        }
+                    )
+                elif kind == "call":
+                    _, func, future = event
+                    if future.set_running_or_notify_cancel():
+                        try:
+                            future.set_result(func())
+                        except BaseException as exc:
+                            future.set_exception(exc)
+                else:
+                    _, call_id, outcome = event
+                    done[call_id] = outcome
+                    yield from self._finish(by_id[call_id], *outcome, record=False)
             # Close the UI cards of calls abandoned by a cancel.
             for call in calls:
                 if call.id not in done:

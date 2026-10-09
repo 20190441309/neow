@@ -743,7 +743,10 @@ class REPL:
                     )
         elif parsed.command == Command.ARCHITECT:
             self.architect_mode = True
-            print_info("Architect mode enabled. Tasks will be planned and dispatched to sub-agents.")
+            print_info(
+                "Architect mode enabled. The planner model turns each request "
+                "into a task list that the agent then works through."
+            )
             print_info("Use /code to return to normal coding mode.")
         elif parsed.command == Command.CODE:
             self.architect_mode = False
@@ -1230,6 +1233,10 @@ class REPL:
                                 print_tool_result(tool_result, name=label)
                                 status.start()
                             spinner_text = "Thinking..."
+                        elif ptype == "tool_progress":
+                            spinner_text = (
+                                f"{name}: {chunk.progress.get('message', '')}"
+                            )
                         elif ptype == "reasoning_start":
                             spinner_text = "Thinking..."
                         elif ptype == "reasoning_end":
@@ -1310,27 +1317,39 @@ class REPL:
             raise
 
     def _process_architect(self, user_input: str) -> None:
-        """Process input through architect orchestrator.
+        """Plan with the architect's planner model, then execute the plan here.
 
-        Args:
-            user_input: User input string.
+        The plan becomes the task list; the main agent carries it out with
+        its usual tools and approvals.
         """
         from neow.core.architect import ArchitectOrchestrator
         from neow.cli.main import create_model_client
 
         try:
-            arch_config = self.config.architect
-            planner_client = create_model_client(self.config, arch_config["planner"])
-            executor_client = create_model_client(self.config, arch_config["executor"])
-
-            orch = ArchitectOrchestrator(
-                planner_client, executor_client, self.conversation.tool_executor
+            planner = create_model_client(
+                self.config, self.config.architect["planner"]
             )
-            result = orch.run(user_input)
-            self._msg_counter += 1
-            print_assistant_message(
-                result, msg_num=self._msg_counter, timestamp=_now_ts()
-            )
+            orch = ArchitectOrchestrator(planner, memory=self.conversation.memory)
+            with console.status("Planning..."):
+                todos, text = orch.plan(user_input)
         except Exception as e:
             print_error(f"Architect mode error: {e}")
             logger.error(f"Architect mode error: {e}")
+            return
+        if not todos:  # the planner answered directly
+            self._msg_counter += 1
+            print_assistant_message(
+                text, msg_num=self._msg_counter, timestamp=_now_ts()
+            )
+            return
+        self.conversation.write_todos(todos)
+        self._print_todos({"status": "ok"})
+        prompt = orch.execution_prompt(user_input, todos)
+        if self.streaming:
+            self._process_input_stream(prompt)
+        else:
+            response = self.conversation.get_response(prompt)
+            self._msg_counter += 1
+            print_assistant_message(
+                response.content, msg_num=self._msg_counter, timestamp=_now_ts()
+            )

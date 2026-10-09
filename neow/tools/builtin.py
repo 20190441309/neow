@@ -30,6 +30,12 @@ def _todo_unbound(todos: Any) -> str:
     raise RuntimeError("todo_write is not connected to a conversation")
 
 
+def _task_unbound(description: str, prompt: str, agent_type: str = "explore") -> str:
+    """Placeholder: each ConversationManager binds ``task`` to itself."""
+
+    raise RuntimeError("task is not connected to a conversation")
+
+
 def builtin_specs() -> List[ToolSpec]:
     """Specs for every built-in tool, in the order the model sees them."""
 
@@ -452,6 +458,44 @@ def builtin_specs() -> List[ToolSpec]:
             },
             func=_todo_unbound,
             tier=ApprovalTier.NONE,
+        ),
+        ToolSpec(
+            name="task",
+            description=(
+                "Hand a self-contained job to a sub-agent with a fresh context; "
+                "returns only its final report. Use 'explore' (read-only, "
+                "several can run in parallel) for searches across many files "
+                "or open-ended questions about the codebase; 'general' for a "
+                "separate change (its edits and commands need approval as "
+                "usual). The sub-agent cannot see this conversation: put "
+                "everything it needs in the prompt."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Short label (3-6 words) shown to the user",
+                    },
+                    "prompt": {
+                        "type": "string",
+                        "description": "Complete instructions for the sub-agent, "
+                        "including what to report back",
+                    },
+                    "agent_type": {
+                        "type": "string",
+                        "enum": ["explore", "general"],
+                        "description": "explore (default): read-only tools; "
+                        "general: all tools",
+                    },
+                },
+                "required": ["description", "prompt"],
+            },
+            func=_task_unbound,
+            # The sub-agent's own tool calls go through approval one by one.
+            tier=ApprovalTier.NONE,
+            reports_progress=True,
+            parallel_when=lambda args: args.get("agent_type", "explore") == "explore",
         ),
     ]
 

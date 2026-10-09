@@ -44,6 +44,15 @@ class ToolFinished:
 
 
 @dataclass(frozen=True)
+class ToolProgress:
+    """A running tool reported progress (e.g. a sub-agent's current step)."""
+
+    name: str
+    message: str
+    call_id: str = ""
+
+
+@dataclass(frozen=True)
 class TodosUpdated:
     """The agent replaced its task list (``todo_write``)."""
 
@@ -77,6 +86,7 @@ TuiEvent = Union[
     ContentDelta,
     ToolStarted,
     ToolFinished,
+    ToolProgress,
     TodosUpdated,
     Notice,
     TurnCompleted,
@@ -90,6 +100,7 @@ __all__ = [
     "ContentDelta",
     "ToolStarted",
     "ToolFinished",
+    "ToolProgress",
     "TodosUpdated",
     "Notice",
     "TurnCompleted",

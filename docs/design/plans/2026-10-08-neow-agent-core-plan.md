@@ -488,6 +488,8 @@ class AgentLoop:
 - REPL：不打印调用/结果面板，改为打印紧凑清单。
 - 已知不足：上下文压缩会把历史里的清单总结掉，模型之后只能靠摘要记得清单；必要时可把当前清单作为动态上下文注入（留待观察实际效果再做）。
 
+**提交：** `14aae8e`
+
 ### 任务 4.3 · 子 agent 工具化（`task`）
 
 **修复：** E12。
@@ -502,6 +504,16 @@ class AgentLoop:
 - TUI：`task` 工具卡片内显示子 agent 的工具调用计数与当前步骤。
 
 **测试：** `test_explore_subagent_has_only_read_only_tools`、`test_general_subagent_uses_parent_approval`、`test_subagent_cancelled_with_parent`、`test_no_nested_task`、`test_architect_no_parallel_writes`
+
+- [x] 已完成（768 passed，`tests/test_subagents.py` 10 项；删除 `test_core.py` 中针对旧 yolo 子 agent / 并行写入编排器的 7 个测试）
+
+**实现记录：**
+- `neow/core/sub_agent.py` 重写：`SubAgent(parent, agent_type, description, approval, max_turns)`。`explore` 的注册表是父注册表中 `read_only` 的子集；`general` 是除 `task` 外的全部工具。系统提示 = 父系统提示 + 子 agent 角色/任务/“最后给出简洁报告”；继承项目记忆（补上 3.1 的已知不足）、安全检查、`allowed_commands`、`on_file_change`、先读后改开关。模型客户端用浅拷贝（DeepSeek 的 reasoning 等每请求状态不串，HTTP 客户端共享）。
+- **审批回到主循环线程**：新模块 `neow/core/tool_context.py`（`LoopChannel` + contextvar）。`task` 在工作线程运行，子 agent 的审批请求经 channel 交给父循环所在线程执行（经典 REPL 的 prompt_toolkit 审批框因此不会在后台线程弹出；TUI 照常走 ApprovalBridge），理由前缀 `[子 agent · <description>]`。取消时等待中的审批按“拒绝”处理。`agent.subagent_approval: "yolo"` 可显式改为全自动，默认 `inherit`。
+- **实时进度**：`ToolSpec` 新增 `reports_progress`（在工作线程运行）与 `parallel_when`（非只读工具按参数决定能否并行：`explore` 可以，`general` 不行）。4.4 的 `_run_parallel` 合并为 `_run_in_workers`：同一个队列转发 `tool_progress`、跨线程调用和完成事件。TUI 新事件 `ToolProgress`，`task` 卡片标题显示“`explore · <description>`”，运行中右侧显示“N tool calls · 当前步骤”；REPL 更新 spinner 文本。
+- 取消：`task` 通过 `current_cancel_token()` 拿到父级令牌，子 agent 在下一次请求/工具调用前停止；父循环立即结束等待。禁止嵌套：子 agent 注册表没有 `task`，`run_task` 对子 agent 会话也直接返回错误。`agent.subagent_max_turns` 默认 25。
+- Token：`TokenTracker.record(..., source="subagent")` 单独累计，`/cost` 增加一行“Sub-agents: N tokens ($x, included above)”。仅非 main 来源才传 `source`，兼容自定义 tracker。
+- **Architect 模式**：`ArchitectOrchestrator(planner_client, memory)` 只负责规划：`plan()` 返回 todo 列表，`execution_prompt()` 生成让主 agent 按清单逐步执行的消息。REPL 与 TUI（此前 TUI 的 `/architect` 只设标志、从未生效，现已接上）都改为：规划 → 写入任务清单 → 主会话执行（流式输出、逐个审批）。并发写文件的旧路径已删除。`architect.executor` 配置不再使用（由当前模型执行，可用 `/model` 切换），计划中的 `architect.subagent_approval` 实现为通用的 `agent.subagent_approval`。
 
 ### 任务 4.4 · 并行执行只读工具
 

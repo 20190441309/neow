@@ -274,7 +274,11 @@ class ToolExecutor:
         writes, executes or needs approval runs on its own.
         """
         spec = self.registry.get(tool_name)
-        if spec is None or not spec.read_only or not isinstance(parameters, dict):
+        if spec is None or not isinstance(parameters, dict):
+            return False
+        if not spec.read_only and not (
+            spec.parallel_when is not None and spec.parallel_when(parameters)
+        ):
             return False
         if self.approval_policy:
             check = self.approval_policy.check_approval(
@@ -283,6 +287,10 @@ class ToolExecutor:
             if check.needs_approval:
                 return False
         return True
+
+    def runs_in_worker(self, tool_name: str) -> bool:
+        spec = self.registry.get(tool_name)
+        return bool(spec and spec.reports_progress)
 
     # -- read before edit ---------------------------------------------------
 

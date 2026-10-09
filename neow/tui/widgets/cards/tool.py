@@ -61,6 +61,9 @@ def _tool_summary(name: str, args: Dict[str, Any]) -> str:
         return str(args.get("path") or ".")
     if name in ("web", "fetch_url"):
         return str(args.get("url", ""))[:60]
+    if name == "task":
+        kind = args.get("agent_type") or "explore"
+        return f"{kind} · {args.get('description', '')}"[:60]
     if name == "git_commit":
         return str(args.get("message", ""))[:60]
     return _first_str(args)[:60]
@@ -204,6 +207,11 @@ class ToolCard(CardBase):
         self._spinner_on = True
         if self.effects != "off":
             self._spinner_timer = self.set_interval(0.1, self._spin)
+
+    def set_progress(self, message: str) -> None:
+        """Live status of a long tool (shown right-aligned until it finishes)."""
+        if self._status == "running":
+            self.set_title(meta=message)
 
     def _spin(self) -> None:
         if not self._spinner_on:

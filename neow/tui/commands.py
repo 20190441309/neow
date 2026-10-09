@@ -201,8 +201,9 @@ class CommandDispatcher:
     def _cmd_architect(self, args: str) -> CommandResult:
         self.architect_mode = True
         return CommandResult(
-            "Architect mode enabled. Tasks will be planned and dispatched "
-            "to sub-agents. Use /code to return to normal coding mode."
+            "Architect mode enabled. The planner model turns each request "
+            "into a task list that the agent then works through. Use /code "
+            "to return to normal coding mode."
         )
 
     def _cmd_code(self, args: str) -> CommandResult:

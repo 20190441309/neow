@@ -49,6 +49,7 @@ TOOL_TIERS: Dict[str, ApprovalTier] = {
     "git_commit": ApprovalTier.WRITE,
     "execute_command": ApprovalTier.EXEC,
     "todo_write": ApprovalTier.NONE,
+    "task": ApprovalTier.NONE,
 }
 
 

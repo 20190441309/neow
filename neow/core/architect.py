@@ -1,11 +1,15 @@
-"""Architect orchestrator for planning and dispatching sub-tasks."""
+"""Architect mode: a planner model writes the plan, the main agent carries it out.
+
+The planner (usually a stronger model) turns the request into steps, which
+become the conversation's task list. The main agent then works through them
+one at a time with its normal tools and approvals; it may hand research to
+read-only ``explore`` sub-agents, but nothing edits files in parallel.
+"""
 
 import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from neow.core.conversation import ConversationManager
-from neow.core.sub_agent import SubAgent
 from neow.models.base import BaseModelClient
 from neow.utils.logger import logger
 
@@ -25,50 +29,46 @@ Example:
 If the task is simple and doesn't need decomposition, output a single-element array.
 Output ONLY the JSON array, no other text."""
 
-MAX_SUB_TASKS = 4
+MAX_SUB_TASKS = 8
 
 
 class ArchitectOrchestrator:
-    """Coordinates planning (strong model) and execution (fast model via sub-agents)."""
+    """Plans with *planner_client*; execution happens in the main conversation."""
 
-    def __init__(
-        self,
-        planner_client: BaseModelClient,
-        executor_client: BaseModelClient,
-        tool_executor: Any,
-    ):
+    def __init__(self, planner_client: BaseModelClient, memory: Optional[Any] = None):
         self.planner = ConversationManager(planner_client)
         self.planner.set_system_prompt(PLANNER_SYSTEM_PROMPT)
-        self.executor_client = executor_client
-        self.tool_executor = tool_executor
+        self.planner.memory = memory
 
-    def run(self, user_input: str) -> str:
-        """Run the architect workflow: plan, then execute sub-tasks.
+    def plan(self, user_input: str) -> Tuple[List[Dict[str, str]], str]:
+        """``(todos, planner text)``; no todos when the planner answered directly."""
+        text = self.planner.get_response(user_input).content
+        steps = self._parse_plan(text)
+        todos = []
+        for index, step in enumerate(steps, 1):
+            task = str(step.get("task", "")).strip() if isinstance(step, dict) else ""
+            if not task:
+                continue
+            files = step.get("files") or []
+            if files:
+                task += f" (files: {', '.join(map(str, files))})"
+            todos.append({"id": str(index), "content": task, "status": "pending"})
+        return todos, text
 
-        Args:
-            user_input: The user's task description.
-
-        Returns:
-            Combined result from all sub-tasks, or the planner's direct answer.
-        """
-        plan_text = self._get_plan(user_input)
-        sub_tasks = self._parse_plan(plan_text)
-        if not sub_tasks:
-            return plan_text
-        results = self._execute_sub_tasks(sub_tasks)
-        return self._summarize_results(results)
-
-    def _get_plan(self, user_input: str) -> str:
-        """Ask the planner model to decompose the task.
-
-        Args:
-            user_input: The user's task description.
-
-        Returns:
-            Planner's response text (expected to be a JSON array).
-        """
-        response = self.planner.get_response(user_input)
-        return response.content
+    @staticmethod
+    def execution_prompt(user_input: str, todos: List[Dict[str, str]]) -> str:
+        """Message that asks the main agent to carry out the plan."""
+        steps = "\n".join(f"{i}. {t['content']}" for i, t in enumerate(todos, 1))
+        return (
+            f"{user_input}\n\n"
+            "A planner has broken this request into the steps below; they are "
+            "already in your task list. Work through them in order: mark each "
+            "step in_progress with todo_write before starting it and completed "
+            "when done. For research that needs many reads you may use the task "
+            "tool with agent_type 'explore'. Adjust the plan if a step turns "
+            "out to be wrong.\n\n"
+            f"Plan:\n{steps}"
+        )
 
     def _parse_plan(self, plan_text: str) -> List[Dict[str, Any]]:
         """Parse the planner's response into a list of sub-tasks.
@@ -102,66 +102,3 @@ class ArchitectOrchestrator:
         except json.JSONDecodeError:
             logger.debug("Planner response is not valid JSON, treating as direct answer")
         return []
-
-    def _execute_sub_tasks(self, sub_tasks: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-        """Execute sub-tasks in parallel using SubAgents.
-
-        Args:
-            sub_tasks: List of sub-task dicts with 'task' and 'files' keys.
-
-        Returns:
-            List of result dicts with 'task' and 'result' keys.
-        """
-        results = []
-        with ThreadPoolExecutor(max_workers=min(len(sub_tasks), MAX_SUB_TASKS)) as executor:
-            future_to_task = {}
-            for sub_task in sub_tasks:
-                task_desc = sub_task.get("task", "")
-                files = sub_task.get("files", [])
-                context = f"Focus on: {', '.join(files)}" if files else ""
-                agent = SubAgent(
-                    model_client=self.executor_client,
-                    tools=self._get_tool_definitions(),
-                    task_description=task_desc,
-                    tool_executor=self.tool_executor,
-                )
-                future = executor.submit(agent.execute, f"{task_desc}\n{context}".strip())
-                future_to_task[future] = task_desc
-            for future in as_completed(future_to_task):
-                task_desc = future_to_task[future]
-                try:
-                    result = future.result(timeout=120)
-                    results.append({"task": task_desc, "result": result})
-                except Exception as e:
-                    logger.error(f"Sub-task failed: {e}")
-                    results.append({"task": task_desc, "result": f"Error: {e}"})
-        return results
-
-    def _get_tool_definitions(self) -> list:
-        """Get tool definitions for sub-agents.
-
-        Returns:
-            List of tool definition dicts.
-        """
-        from neow.core.prompts import get_tool_definitions
-        return get_tool_definitions()
-
-    def _summarize_results(self, results: List[Dict[str, str]]) -> str:
-        """Format sub-task results into a readable summary.
-
-        Args:
-            results: List of result dicts with 'task' and 'result' keys.
-
-        Returns:
-            Formatted summary string.
-        """
-        if not results:
-            return "No results from sub-tasks."
-        if len(results) == 1:
-            return results[0]["result"]
-        parts = ["## Architect Mode Results\n"]
-        for i, r in enumerate(results, 1):
-            parts.append(f"### Sub-task {i}: {r['task']}")
-            parts.append(r["result"])
-            parts.append("")
-        return "\n".join(parts)
