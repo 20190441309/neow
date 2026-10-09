@@ -240,12 +240,12 @@ def test_agent_config_max_turns(tmp_path):
 
     default = tmp_path / "default.json"
     default.write_text("{}")
-    assert Config(default).agent == {"max_turns": 50}
+    assert Config(default).agent["max_turns"] == 50
 
     custom = tmp_path / "custom.json"
     custom.write_text(json.dumps({"agent": {"max_turns": 7}}))
-    assert Config(custom).agent == {"max_turns": 7}
+    assert Config(custom).agent["max_turns"] == 7
 
     invalid = tmp_path / "invalid.json"
     invalid.write_text(json.dumps({"agent": {"max_turns": 0}}))
-    assert Config(invalid).agent == {"max_turns": 50}
+    assert Config(invalid).agent["max_turns"] == 50

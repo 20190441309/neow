@@ -3,7 +3,12 @@
 from pathlib import Path
 from typing import Any, Callable, Dict, Generator, List, Optional
 
-from neow.core.agent_loop import DEFAULT_MAX_TURNS, AgentLoop, CancelToken
+from neow.core.agent_loop import (
+    DEFAULT_MAX_TOOL_OUTPUT_CHARS,
+    DEFAULT_MAX_TURNS,
+    AgentLoop,
+    CancelToken,
+)
 from neow.models.base import BaseModelClient, ModelResponse, StreamChunk
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
@@ -48,6 +53,8 @@ class ConversationManager:
         self.pending_lint_feedback: Optional[str] = None
         self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
         self.max_turns = DEFAULT_MAX_TURNS  # model requests allowed per user turn
+        # Longest tool result kept in history (head + tail beyond this).
+        self.max_tool_output_chars = DEFAULT_MAX_TOOL_OUTPUT_CHARS
 
     def set_system_prompt(self, prompt: str) -> None:
         """Set system prompt.

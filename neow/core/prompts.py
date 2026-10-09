@@ -56,8 +56,12 @@ TOOL_USAGE_PROMPT = """## Available Tools
 You have access to the following tools:
 
 ### read_file
-Read the contents of a file.
-- Parameters: `file_path` (string) - Path to the file to read
+Read a file as numbered lines.
+- Parameters: `file_path` (string), `offset` (integer, optional),
+  `limit` (integer, optional, default 2000)
+- Each line is prefixed with its number and a tab (`     12\tcode`). The prefix
+  is NOT part of the file: never include it in `old_text`/`new_text`.
+- Large files are paged: follow the "Use offset=N" hint to read further.
 
 ### write_file
 Write content to a file. Creates the file if it doesn't exist, overwrites if it does.

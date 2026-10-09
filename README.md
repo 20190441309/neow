@@ -156,8 +156,10 @@ If a reply hits `max_output_tokens` while writing tool arguments, the half-writt
 `agent.max_turns` (default 50) caps how many model requests one user turn may make, so a tool loop cannot run forever:
 
 ```json
-{ "agent": { "max_turns": 50 } }
+{ "agent": { "max_turns": 50, "max_tool_output_chars": 30000 } }
 ```
+
+`agent.max_tool_output_chars` (default 30000) bounds each tool result kept in the conversation: longer output keeps its first 60 % and last 40 % with a note in between. `read_file` returns numbered lines, 2000 at a time; the model pages with `offset`/`limit`.
 
 Shell commands run by the agent time out after 120 s by default (the model may ask for longer, up to `tools.command.max_timeout`, default 600). Pressing **Esc** in the TUI kills the running command and everything it started.
 

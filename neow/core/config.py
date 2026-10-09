@@ -89,6 +89,7 @@ class Config:
         },
         "agent": {
             "max_turns": 50,
+            "max_tool_output_chars": 30000,
         },
     }
 
@@ -247,12 +248,21 @@ class Config:
     def agent(self) -> Dict[str, Any]:
         """Get validated agent-loop configuration."""
         cfg = self._config.get("agent", {})
-        max_turns = cfg.get("max_turns", 50)
-        valid = isinstance(max_turns, int) and not isinstance(max_turns, bool)
-        if not valid or max_turns < 1:
-            logger.warning("Invalid agent.max_turns %r; falling back to 50", max_turns)
-            max_turns = 50
-        return {"max_turns": max_turns}
+
+        def positive(key: str, default: int) -> int:
+            value = cfg.get(key, default)
+            valid = isinstance(value, int) and not isinstance(value, bool)
+            if not valid or value < 1:
+                logger.warning(
+                    "Invalid agent.%s %r; falling back to %d", key, value, default
+                )
+                return default
+            return value
+
+        return {
+            "max_turns": positive("max_turns", 50),
+            "max_tool_output_chars": positive("max_tool_output_chars", 30000),
+        }
 
     def resolve_model_alias(self, alias: str) -> str:
         """Resolve model alias to canonical name. Returns input if no alias found."""

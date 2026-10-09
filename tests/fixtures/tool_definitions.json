@@ -3,13 +3,21 @@
     "type": "function",
     "function": {
       "name": "read_file",
-      "description": "Read the contents of a file",
+      "description": "Read a file as numbered lines (`  N<TAB>text`; the prefix is not part of the file). Shows up to 2000 lines; use offset/limit to page through larger files. Ends with the ¶PATH#HASH anchor for hashline_edit.",
       "parameters": {
         "type": "object",
         "properties": {
           "file_path": {
             "type": "string",
             "description": "Path to the file to read"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "First line to read, 1-indexed (default: 1)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of lines (default: 2000)"
           }
         },
         "required": [

@@ -261,7 +261,7 @@ class TestExecutorApprovalGate:
 
         result = executor.execute("read_file", {"file_path": str(test_file)})
         # read_file now appends ¶PATH#HASH annotation
-        assert result.startswith("hello")
+        assert result.startswith("     1\thello")
         assert "¶" in result
 
     def test_dangerous_command_forces_approval(self):

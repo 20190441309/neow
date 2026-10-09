@@ -17,6 +17,7 @@ from neow.utils import sanitize_text
 from neow.utils.logger import logger
 
 DEFAULT_MAX_TURNS = 50
+DEFAULT_MAX_TOOL_OUTPUT_CHARS = 30000
 CANCELLED_RESULT = "Error: cancelled before execution"
 MAX_TURNS_RESULT = "Error: not executed (tool call limit reached)"
 TRUNCATED_RESULT = (
@@ -93,6 +94,23 @@ def _tool_message(call_id: str, result: str) -> Dict[str, Any]:
         "content": sanitize_text(str(result)),
         "type": "tool_result",
     }
+
+
+def truncate_tool_output(
+    text: str, limit: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS
+) -> str:
+    """Keep the head (60%) and tail (40%) of an over-long tool result."""
+
+    if len(text) <= limit:
+        return text
+    head = int(limit * 0.6)
+    tail = limit - head
+    dropped = len(text) - head - tail
+    return (
+        f"{text[:head]}\n… [truncated {dropped} chars; re-run with a narrower "
+        f"scope, e.g. read_file offset/limit or a more specific command] …\n"
+        f"{text[-tail:]}"
+    )
 
 
 def parse_tool_arguments(raw: Any) -> Tuple[Any, Optional[str]]:
@@ -310,7 +328,10 @@ class AgentLoop:
             )
             if status == "ok":
                 self._refresh_context(name, arguments)
-            conv.add_tool_result(call_id, result)
+            limit = getattr(
+                conv, "max_tool_output_chars", DEFAULT_MAX_TOOL_OUTPUT_CHARS
+            )
+            conv.add_tool_result(call_id, truncate_tool_output(result, limit))
 
     def _refresh_context(self, tool_name: str, arguments: Dict[str, Any]) -> None:
         conv = self.conversation

@@ -1,5 +1,6 @@
 """File operation tools for Neow CLI."""
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -13,14 +14,27 @@ class FileError(Exception):
     pass
 
 
-def read_file(file_path: str) -> str:
-    """Read file content.
+DEFAULT_READ_LIMIT = 2000
+MAX_LINE_CHARS = 2000
+_LINE_NUMBER = re.compile(r"^ *\d+\t")
+
+
+def _looks_binary(raw: bytes) -> bool:
+    return b"\x00" in raw[:8192]
+
+
+def read_file(file_path: str, offset: int = 1, limit: int = DEFAULT_READ_LIMIT) -> str:
+    """Read a file as numbered lines (``{n:>6}\\t{line}``).
 
     Args:
         file_path: Path to the file.
+        offset: First line to show (1-indexed).
+        limit: Maximum number of lines to show.
 
     Returns:
-        File content as string.
+        The requested lines, a paging hint when more remain, and the
+        ``¶PATH#HASH`` anchor for ``hashline_edit`` (always computed over
+        the whole file).
 
     Raises:
         FileError: If file cannot be read.
@@ -30,15 +44,55 @@ def read_file(file_path: str) -> str:
         if not path.exists():
             raise FileError(f"File not found: {file_path}")
 
-        content = path.read_text(encoding="utf-8")
-        content_hash = compute_hash(content)
+        raw = path.read_bytes()
+        if _looks_binary(raw):
+            return f"Binary file ({len(raw)} bytes); not shown: {file_path}"
+        content = raw.decode("utf-8")
+        anchor = format_hashline(file_path, compute_hash(content))
         logger.debug(f"Read file: {file_path}")
-        return content + "\n" + format_hashline(file_path, content_hash)
+        if not content:
+            return f"(empty file)\n{anchor}"
+
+        lines = content.splitlines()
+        total = len(lines)
+        start = max(int(offset or 1), 1)
+        count = max(int(limit or DEFAULT_READ_LIMIT), 1)
+        if start > total:
+            return (
+                f"offset={start} is past the end: {file_path} has only {total} "
+                f"lines.\n{anchor}"
+            )
+        end = min(start + count - 1, total)
+        out = []
+        for number in range(start, end + 1):
+            line = lines[number - 1]
+            if len(line) > MAX_LINE_CHARS:
+                line = (
+                    line[:MAX_LINE_CHARS]
+                    + f"… [line truncated, {len(line)} chars]"
+                )
+            out.append(f"{number:>6}\t{line}")
+        if end < total:
+            out.append(
+                f"… Showing lines {start}-{end} of {total}. "
+                f"Use offset={end + 1} to read more."
+            )
+        out.append(anchor)
+        return "\n".join(out)
     except FileError:
         raise
     except Exception as e:
         logger.error(f"Failed to read file {file_path}: {e}")
         raise FileError(f"Failed to read file: {e}")
+
+
+def _strip_line_numbers(text: str) -> Optional[str]:
+    """``text`` without read_file's line-number prefixes, if it has them."""
+
+    lines = text.split("\n")
+    if not any(lines) or not all(_LINE_NUMBER.match(ln) for ln in lines if ln):
+        return None
+    return "\n".join(_LINE_NUMBER.sub("", ln, count=1) for ln in lines)
 
 
 def write_file(file_path: str, content: str) -> str:
@@ -95,6 +149,13 @@ def edit_file(
             raise FileError(f"File not found: {file_path}")
 
         content = path.read_text(encoding="utf-8")
+
+        # Text copied from read_file output may carry its line-number prefixes.
+        if old_text not in content:
+            stripped = _strip_line_numbers(old_text)
+            if stripped is not None and stripped in content:
+                old_text = stripped
+                new_text = _strip_line_numbers(new_text) or new_text
 
         # Line-based editing mode
         if start_line is not None or end_line is not None:

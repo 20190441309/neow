@@ -284,6 +284,8 @@ class AgentLoop:
 - 流式输出开始后断线不重试（SDK 也不会），与原设计一致。
 - 未实现“重试中 2/3”的界面提示：SDK 重试是静默的，要显示需要挂 SDK 日志或自定义 HTTP 客户端，收益不大，暂不做。
 
+**提交：** `12121d4`
+
 ### 任务 1.5 · 真正的取消 + 命令执行改造
 
 **修复：** E7。
@@ -323,7 +325,15 @@ class AgentLoop:
 - 系统提示说明：行号前缀不是文件内容，编辑时不要带上。
 - 二进制文件检测（含 NUL 字节）→ 返回提示而不是乱码。
 
-**测试：** `test_tool_output_truncated_head_tail`、`test_read_file_offset_limit_numbered`、`test_read_file_binary_detected`、`test_edit_after_numbered_read_still_matches`
+**测试：** `tests/test_tool_output.py`（`test_read_file_numbers_lines_and_keeps_hashline`、`test_read_file_offset_limit_numbered`、`test_read_file_offset_past_end`、`test_read_file_long_line_truncated`、`test_read_file_binary_detected`、`test_read_file_empty`、`test_edit_after_numbered_read_still_matches`、`test_tool_output_truncated_head_tail`、`test_loop_bounds_tool_results_in_history`、`test_agent_config_max_tool_output_chars` ×3）
+
+- [x] 已完成（707 passed）
+
+**实现记录（与设计的差异）：**
+- 上限可配置：`agent.max_tool_output_chars`（默认 30000）。截断只作用于写入历史（也就是发给模型）的内容；TUI 事件仍是原来的前 500 字符，未改成“完整输出”。
+- `read_file` 输出改为带行号——这是有意的格式变化，两个旧测试（`test_tools.py::test_read_file`、`test_approval.py::test_read_tools_bypass_approval_in_write_mode`）断言改为 `"     1\t..."` 开头。哈希锚点仍按整个文件计算，分页读取后 `hashline_edit` 照常可用。
+- 额外加了一道保险：`edit_file` 的 `old_text` 如果整段都带着 `read_file` 的行号前缀、原样匹配不到，就去掉前缀再匹配（`new_text` 同样处理）。模型照抄带行号的内容是常见错误。
+- 空文件返回 `(empty file)`；`offset` 超出总行数时说明文件只有多少行；非 UTF-8 文本仍按原来的方式报错。
 
 ### 任务 2.2 · 稳定系统提示 + 提示缓存
 

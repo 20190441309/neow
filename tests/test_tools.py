@@ -15,8 +15,8 @@ class TestFileOps:
         test_file = tmp_path / "test.txt"
         test_file.write_text("Hello, World!")
         result = read_file(str(test_file))
-        # read_file now appends ¶PATH#HASH annotation
-        assert result.startswith("Hello, World!")
+        # Numbered lines, then the ¶PATH#HASH annotation
+        assert result.startswith("     1\tHello, World!")
         assert "¶" in result
         assert str(test_file) in result
 
