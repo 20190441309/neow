@@ -41,6 +41,7 @@ class SessionManager:
             "messages": conversation.messages,
             "context_files": conversation.context_files,
             "web_cache": conversation.web_cache,
+            "todos": list(getattr(conversation, "todos", None) or []),
             "system_prompt": conversation.system_prompt,
         }
 
@@ -99,6 +100,7 @@ class SessionManager:
             elif hasattr(wc_data, 'url'):
                 # Already a WebContent object (shouldn't happen from JSON but be safe)
                 conversation.web_cache[url] = wc_data
+        conversation.todos = list(data.get("todos", []))
         conversation.system_prompt = data.get("system_prompt", "")
         conversation._structure_injected = False
         logger.info(f"Session restored: {name}")

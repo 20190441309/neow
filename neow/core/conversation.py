@@ -60,6 +60,9 @@ class ConversationManager:
             self.tool_executor = ToolExecutor()
         else:
             self.tool_executor = tool_executor
+        registry = getattr(self.tool_executor, "registry", None)
+        if registry is not None and "todo_write" in registry:
+            registry.bind("todo_write", self.write_todos)
         self.messages: List[Dict[str, Any]] = []
         self.system_prompt: str = ""
         self.tools: List[Dict[str, Any]] = []
@@ -73,6 +76,8 @@ class ConversationManager:
         # Instructions from AGENTS.md / NEOW.md (neow.core.memory.Memory).
         self.memory: Optional[Any] = None
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent
+        # Task list kept by the todo_write tool (neow.core.todos).
+        self.todos: List[Dict[str, str]] = []
         self.pending_lint_feedback: Optional[str] = None
         self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
         self.max_turns = DEFAULT_MAX_TURNS  # model requests allowed per user turn
@@ -262,9 +267,19 @@ class ConversationManager:
         )
         logger.debug(f"Added tool result for {tool_call_id}")
 
+    def write_todos(self, todos: Any) -> str:
+        """Implementation of the ``todo_write`` tool: replace the task list."""
+        from neow.core.todos import format_todos, todo_summary, validate_todos
+
+        self.todos = validate_todos(todos)
+        return f"Todos updated ({todo_summary(self.todos)}):\n" + format_todos(
+            self.todos
+        )
+
     def clear_history(self) -> None:
         """Clear conversation history."""
         self.messages.clear()
+        self.todos = []
         logger.debug("Conversation history cleared")
 
     def get_history(self) -> List[Dict[str, Any]]:

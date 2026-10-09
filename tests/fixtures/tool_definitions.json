@@ -364,5 +364,48 @@
         ]
       }
     }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "todo_write",
+      "description": "Create or update your task list for multi-step work; each call replaces the whole list. Mark a task in_progress before starting it (only one at a time) and completed as soon as it is done. Returns the updated checklist.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "todos": {
+            "type": "array",
+            "description": "The complete task list",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string",
+                  "description": "Imperative task description"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "in_progress",
+                    "completed"
+                  ]
+                }
+              },
+              "required": [
+                "content",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "todos"
+        ]
+      }
+    }
   }
 ]

@@ -102,8 +102,11 @@ class TestApprovalPolicy:
 
     def test_always_ask_blocks_everything(self):
         policy = ApprovalPolicy(mode=ApprovalMode.ALWAYS_ASK)
-        for tool_name in TOOL_TIERS:
+        for tool_name, tier in TOOL_TIERS.items():
             check = policy.check_approval(tool_name)
+            if tier == ApprovalTier.NONE:  # bookkeeping (todo_write) never asks
+                assert check.needs_approval is False
+                continue
             assert check.needs_approval is True, f"always-ask should block {tool_name}"
 
     def test_always_ask_blocks_dangerous(self):

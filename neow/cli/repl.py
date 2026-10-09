@@ -1025,6 +1025,28 @@ class REPL:
             else:
                 print_info("Cannot branch: at root node")
 
+    def _print_todos(self, progress: dict) -> None:
+        """Print the agent's task list after a ``todo_write`` call."""
+        if progress.get("status") != "ok":
+            print_warning(f"todo_write: {progress.get('result', '')}")
+            return
+        from rich.text import Text
+
+        from neow.core.todos import MARKS, todo_summary
+
+        todos = getattr(self.conversation, "todos", None) or []
+        styles = {
+            "pending": ("dim", ""),
+            "in_progress": ("bold cyan", "bold"),
+            "completed": ("green", "dim strike"),
+        }
+        out = Text(f"☰ Todos · {todo_summary(todos)}\n", style="bold gold1")
+        for todo in todos:
+            mark_style, text_style = styles[todo["status"]]
+            out.append(f"  {MARKS[todo['status']]} ", mark_style)
+            out.append(f"{todo['content']}\n", text_style)
+        console.print(out, end="")
+
     def _maybe_auto_compact(self) -> None:
         """Compact when the context nears the model's window.
 
@@ -1174,6 +1196,14 @@ class REPL:
                     if chunk.progress:
                         ptype = chunk.progress.get("type")
                         name = chunk.progress.get("name", "")
+                        if name == "todo_write":
+                            # Shown as a checklist instead of call/result panels.
+                            if ptype == "tool_end":
+                                _finalize_segment()
+                                status.stop()
+                                self._print_todos(chunk.progress)
+                                status.start()
+                            continue
                         if ptype == "tool_start":
                             last_started = chunk.progress.get("id")
                             _finalize_segment()

@@ -139,6 +139,9 @@ async def test_sidebar_tabs_cycle_and_refresh():
         assert screen.sidebar_visible
         await pilot.press("ctrl+t")
         await pilot.pause()
+        assert screen.sidebar_tab == "todos"
+        await pilot.press("ctrl+t")
+        await pilot.pause()
         assert screen.sidebar_tab == "tree"
         await pilot.press("ctrl+t")
         await pilot.pause()

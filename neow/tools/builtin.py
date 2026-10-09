@@ -24,6 +24,12 @@ def _search_code(query: str, directory: str = ".", file_pattern: str = "*") -> A
     return search_code(query, directory, file_pattern)
 
 
+def _todo_unbound(todos: Any) -> str:
+    """Placeholder: each ConversationManager binds its own ``write_todos``."""
+
+    raise RuntimeError("todo_write is not connected to a conversation")
+
+
 def builtin_specs() -> List[ToolSpec]:
     """Specs for every built-in tool, in the order the model sees them."""
 
@@ -410,6 +416,42 @@ def builtin_specs() -> List[ToolSpec]:
             func=hashline_edit,
             tier=ApprovalTier.WRITE,
             mutates_files=True,
+        ),
+        ToolSpec(
+            name="todo_write",
+            description=(
+                "Create or update your task list for multi-step work; each call "
+                "replaces the whole list. Mark a task in_progress before starting "
+                "it (only one at a time) and completed as soon as it is done. "
+                "Returns the updated checklist."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "todos": {
+                        "type": "array",
+                        "description": "The complete task list",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "string"},
+                                "content": {
+                                    "type": "string",
+                                    "description": "Imperative task description",
+                                },
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["pending", "in_progress", "completed"],
+                                },
+                            },
+                            "required": ["content", "status"],
+                        },
+                    }
+                },
+                "required": ["todos"],
+            },
+            func=_todo_unbound,
+            tier=ApprovalTier.NONE,
         ),
     ]
 

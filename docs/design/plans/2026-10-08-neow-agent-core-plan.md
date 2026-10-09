@@ -477,6 +477,17 @@ class AgentLoop:
 
 **测试：** `test_todo_write_validates_single_in_progress`、`test_todos_persist_in_session`、`test_tui_todo_card_updates_in_place`
 
+- [x] 已完成（765 passed，`tests/test_todos.py` 5 项）
+
+**实现记录：**
+- 校验在 `neow/core/todos.py`：`content` 非空、`status` 合法、`id` 不重复（缺省用序号）、最多一个 `in_progress`；模型把数组当 JSON 字符串传也接受。不合法时整次调用失败、旧清单不变，模型收到具体原因。
+- 工具实现是 `ConversationManager.write_todos`：会话创建时把 `todo_write` 绑定到自己的方法，所以子 agent、architect 规划器各有独立清单。返回给模型的是“Todos updated (1/3 done)”加清单全文。
+- 新增审批级别 `ApprovalTier.NONE`（“记账”类工具）：任何模式都不弹审批（按工具名的 deny/prompt 覆盖仍然生效）。否则 `always-ask` 下每次更新清单都要确认。`todo_write` 不是 `read_only`，不参与并行（避免同一批里两次更新互相覆盖）。
+- 保存/恢复：`SessionManager` 的 JSON 增加 `todos`；`/clear` 清空清单；handoff 压缩保留清单（任务还在继续）。
+- TUI：`todo_write` 不显示普通工具卡片，控制器在成功的 `tool_end` 后发出 `TodosUpdated`（带清单快照），时间线中每轮一张 `TodoCard`，本轮内原地更新（标题显示“x/y done”，进行中高亮、已完成划线）；失败时显示一条警告。侧栏新增 Todos 页（Ctrl+T 顺序：Context → Todos → Sessions → Git）。
+- REPL：不打印调用/结果面板，改为打印紧凑清单。
+- 已知不足：上下文压缩会把历史里的清单总结掉，模型之后只能靠摘要记得清单；必要时可把当前清单作为动态上下文注入（留待观察实际效果再做）。
+
 ### 任务 4.3 · 子 agent 工具化（`task`）
 
 **修复：** E12。
@@ -510,6 +521,8 @@ class AgentLoop:
 - 取消：等待循环每 0.1s 检查取消；取消后不再等待，未完成的调用补发 `tool_end`（status error，避免 TUI 卡片一直转圈），历史由 `repair_history` 填 “cancelled”；线程池 `shutdown(wait=False, cancel_futures=True)`。
 - 经典 REPL：并行时结果不紧跟在对应调用后面，结果面板标题改为 `✓ <工具名> · Result`（仅在结果不属于刚显示的调用时加名字）。
 - 系统提示：互不依赖的读取/搜索在一次回复中同时发起。
+
+**提交：** `619319e`
 
 ### 任务 4.5 · MCP 客户端
 

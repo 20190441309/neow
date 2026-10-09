@@ -44,6 +44,13 @@ class ToolFinished:
 
 
 @dataclass(frozen=True)
+class TodosUpdated:
+    """The agent replaced its task list (``todo_write``)."""
+
+    todos: tuple
+
+
+@dataclass(frozen=True)
 class Notice:
     """Out-of-band message from the agent loop (e.g. a turn limit)."""
 
@@ -70,6 +77,7 @@ TuiEvent = Union[
     ContentDelta,
     ToolStarted,
     ToolFinished,
+    TodosUpdated,
     Notice,
     TurnCompleted,
     TurnFailed,
@@ -82,6 +90,7 @@ __all__ = [
     "ContentDelta",
     "ToolStarted",
     "ToolFinished",
+    "TodosUpdated",
     "Notice",
     "TurnCompleted",
     "TurnFailed",

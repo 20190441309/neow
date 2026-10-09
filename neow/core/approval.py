@@ -28,6 +28,8 @@ class ApprovalTier(str, Enum):
     READ = "read"
     WRITE = "write"
     EXEC = "exec"
+    # Agent bookkeeping that touches neither files nor the system (todo_write).
+    NONE = "none"
 
 
 # Default tier assignment per tool name.
@@ -46,6 +48,7 @@ TOOL_TIERS: Dict[str, ApprovalTier] = {
     "delete_file": ApprovalTier.WRITE,
     "git_commit": ApprovalTier.WRITE,
     "execute_command": ApprovalTier.EXEC,
+    "todo_write": ApprovalTier.NONE,
 }
 
 
@@ -146,7 +149,13 @@ class ApprovalPolicy:
                 tier=tier,
             )
 
-        # 3. Mode-based decision.
+        # 3. Bookkeeping tools never interrupt the user.
+        if tier == ApprovalTier.NONE:
+            return ApprovalCheck(
+                needs_approval=False, reason="", tool_name=tool_name, tier=tier,
+            )
+
+        # 4. Mode-based decision.
         if self.mode == ApprovalMode.YOLO:
             return ApprovalCheck(
                 needs_approval=False, reason="", tool_name=tool_name, tier=tier,

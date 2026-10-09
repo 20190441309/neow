@@ -59,6 +59,9 @@ TOOL_USAGE_PROMPT = """## Using the Tools
   (directory layout) instead of shell commands; they skip ignored files.
   Start with `grep` in its default mode to find files, then read them or
   use `output_mode: "content"` to see the matching lines.
+- For tasks with three or more steps, plan them with `todo_write` first,
+  keep exactly one task `in_progress`, and mark each task `completed` right
+  after finishing it. Skip the list for simple one-step requests.
 - When several reads or searches do not depend on each other, request them
   all in one reply; read-only tools run in parallel.
 - `execute_command` for tests, builds and git operations not covered by the

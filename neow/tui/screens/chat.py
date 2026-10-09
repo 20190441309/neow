@@ -20,6 +20,7 @@ from neow.tui.bridge.events import (
     ReasoningDelta,
     ReasoningEnd,
     ReasoningStarted,
+    TodosUpdated,
     ToolFinished,
     ToolStarted,
     TurnCompleted,
@@ -32,6 +33,7 @@ from neow.tui.widgets.cards import (
     ErrorCard,
     SystemCard,
     ThinkingCard,
+    TodoCard,
     ToolCard,
     UserCard,
 )
@@ -49,7 +51,9 @@ from neow.tui.widgets.timeline import TimelineScroll
 from neow.tui.theme import get_palette
 from neow.utils.logger import logger
 
-SIDEBAR_TABS = ("context", "tree", "git")
+SIDEBAR_TABS = ("context", "todos", "tree", "git")
+# Tools shown by their own card type instead of a ToolCard.
+QUIET_TOOLS = {"todo_write"}
 
 
 class TuiEventMessage(Message):
@@ -90,6 +94,7 @@ class ChatScreen(Screen):
         self._segment_started = 0.0
         self._current_thinking: Optional[ThinkingCard] = None
         self._running_tools: Dict[str, ToolCard] = {}
+        self._todo_card: Optional[TodoCard] = None  # this turn's task list
         self._tool_started: Dict[str, float] = {}
         self._controller: Optional[ChatController] = None
         self.commands: Optional[CommandDispatcher] = None
@@ -240,6 +245,7 @@ class ChatScreen(Screen):
         self._segment_started = time.monotonic()
         self._running_tools = {}
         self._tool_started = {}
+        self._todo_card = None
         self._add_card(
             UserCard(text, number=self._turn_number, timestamp=self._timestamp())
         )
@@ -271,6 +277,24 @@ class ChatScreen(Screen):
         elif isinstance(event, ContentDelta):
             card = self._ensure_assistant()
             self.call_later(card.append_content, event.text)
+        elif isinstance(event, ToolStarted) and event.name in QUIET_TOOLS:
+            # Text after the call belongs below the card it produces.
+            if self._current_assistant is not None:
+                self._current_assistant.finish(time.monotonic() - self._segment_started)
+            self._current_assistant = None
+        elif isinstance(event, ToolFinished) and event.name in QUIET_TOOLS:
+            if event.is_error:
+                message = f"{event.name}: {event.result}"
+                self._add_card(SystemCard(message, level="warn"))
+        elif isinstance(event, TodosUpdated):
+            todos = list(event.todos)
+            if self._todo_card is not None:
+                self._todo_card.update_todos(todos)
+            else:
+                self._todo_card = TodoCard(todos)
+                self._add_card(self._todo_card)
+            if self.sidebar_tab == "todos":
+                self._refresh_sidebar()
         elif isinstance(event, ToolStarted):
             if self._current_assistant is not None:
                 self._current_assistant.finish(time.monotonic() - self._segment_started)
@@ -687,7 +711,12 @@ class ChatScreen(Screen):
         palette = get_palette(self.app)
         tab = self.sidebar_tab
         out = Text(no_wrap=True, overflow="ellipsis")
-        labels = {"context": "Context", "tree": "Sessions", "git": "Git"}
+        labels = {
+            "context": "Context",
+            "todos": "Todos",
+            "tree": "Sessions",
+            "git": "Git",
+        }
         active = f"bold {palette['bg']} on {palette['accent1']}"
         for index, name in enumerate(SIDEBAR_TABS):
             if index:
@@ -730,6 +759,17 @@ class ChatScreen(Screen):
                 item("◆", str(entry.path), palette["accent2"], f"{entry.chars:,} chars")
             if not memory_files:
                 empty("无 AGENTS.md / NEOW.md · /init 生成")
+        elif tab == "todos":
+            from neow.core.todos import todo_summary
+            from neow.tui.widgets.cards.todo import render_todos
+
+            todos = list(getattr(self.app.conversation, "todos", None) or [])
+            heading(f"TODOS · {todo_summary(todos)}" if todos else "TODOS")
+            if todos:
+                out.append_text(render_todos(todos, palette))
+                out.append("\n")
+            else:
+                empty("暂无任务 · 多步骤任务时 AI 会自动建立清单")
         elif tab == "tree":
             heading("RECENT SESSIONS")
             manager = getattr(self.app, "session_manager", None)
