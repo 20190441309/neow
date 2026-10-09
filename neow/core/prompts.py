@@ -80,7 +80,7 @@ Delete a file permanently.
 
 ### execute_command
 Run a shell command.
-- Parameters: `command` (string), `timeout` (integer, optional, default 30)
+- Parameters: `command` (string), `timeout` (integer, optional, default 120, max 600)
 
 ### search_code
 Search for text patterns in the codebase.

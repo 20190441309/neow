@@ -158,6 +158,12 @@ If a reply hits `max_output_tokens` while writing tool arguments, the half-writt
 { "agent": { "max_turns": 50 } }
 ```
 
+Shell commands run by the agent time out after 120 s by default (the model may ask for longer, up to `tools.command.max_timeout`, default 600). Pressing **Esc** in the TUI kills the running command and everything it started.
+
+```json
+{ "tools": { "command": { "max_timeout": 600 } } }
+```
+
 **Key resolution order:** `api_key` → `api_key_env` → `NEOW_<MODEL_NAME>_API_KEY` → `NEOW_DEEPSEEK_API_KEY` / `NEOW_ANTHROPIC_API_KEY` / `NEOW_OPENAI_API_KEY`. Keys are never logged or echoed.
 
 `/model` lists every configured model with its provider and endpoint. Token prices for custom models can be added under `token.prices` keyed by the model name (unset models count as $0).

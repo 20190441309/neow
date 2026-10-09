@@ -164,7 +164,7 @@ def builtin_specs() -> List[ToolSpec]:
                     "command": {"type": "string", "description": "Command to execute"},
                     "timeout": {
                         "type": "integer",
-                        "description": "Timeout in seconds (default: 30)",
+                        "description": "Timeout in seconds (default: 120, max: 600)",
                     },
                 },
                 "required": ["command"],

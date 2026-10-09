@@ -1,11 +1,15 @@
 """Command execution tools for Neow CLI."""
 
+import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import time
 from typing import Optional
 
+from neow.core.cancellation import current_cancel_token
 from neow.utils.logger import logger
 
 
@@ -270,7 +274,88 @@ def _translate_unix_command(command: str) -> str:
     return command
 
 
-def execute_command(command: str, timeout: int = 30, cwd: Optional[str] = None) -> str:
+DEFAULT_TIMEOUT = 120
+_max_timeout = 600
+POLL_INTERVAL = 0.1
+KILL_GRACE = 1.0
+
+
+def configure(*, max_timeout: Optional[int] = None) -> None:
+    """Apply ``tools.command`` settings from the config."""
+    global _max_timeout
+    if max_timeout:
+        _max_timeout = int(max_timeout)
+
+
+def effective_timeout(timeout: Optional[int]) -> int:
+    """Requested timeout, defaulted and capped at the configured maximum."""
+    if not timeout or timeout <= 0:
+        return DEFAULT_TIMEOUT
+    return min(int(timeout), _max_timeout)
+
+
+def _spawn(command: str, cwd: Optional[str]) -> subprocess.Popen:
+    """Start *command* in its own process group so it can be killed whole."""
+    options = dict(
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        errors="replace",
+        cwd=cwd,
+    )
+    if sys.platform == "win32":
+        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        shell_path = _get_shell_for_windows()
+        if shell_path:
+            # Translate Unix commands to PowerShell cmdlet syntax
+            translated = _translate_for_powershell(command)
+            logger.debug(f"PowerShell command: {translated}")
+            return subprocess.Popen(
+                [shell_path, "-NoProfile", "-Command", translated], **options
+            )
+        # Fallback: translate common Unix commands for cmd.exe
+        return subprocess.Popen(_translate_unix_command(command), shell=True, **options)
+    # Unix: /bin/sh in a new session (= new process group)
+    return subprocess.Popen(command, shell=True, start_new_session=True, **options)
+
+
+def _terminate(proc: subprocess.Popen) -> None:
+    """Stop the whole process tree: polite signal first, then force."""
+    if sys.platform == "win32":
+        try:
+            proc.send_signal(signal.CTRL_BREAK_EVENT)
+            proc.wait(KILL_GRACE)
+        except Exception:
+            pass
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True
+        )
+        return
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            return
+        try:
+            proc.wait(KILL_GRACE)
+        except subprocess.TimeoutExpired:
+            continue
+    # The shell is gone; make sure nothing it started survives it.
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _with_output(message: str, stdout: str, stderr: str) -> str:
+    output = (stdout or "") + (stderr or "")
+    return f"{message}\n{output}".rstrip() if output.strip() else message
+
+
+def execute_command(
+    command: str, timeout: int = DEFAULT_TIMEOUT, cwd: Optional[str] = None
+) -> str:
     """Execute a shell command.
 
     On Windows, PowerShell is preferred because it ships with aliases for
@@ -279,68 +364,54 @@ def execute_command(command: str, timeout: int = 30, cwd: Optional[str] = None) 
     cmdlet syntax.  When PowerShell is not available, a best-effort
     translation table maps Unix commands to their ``cmd.exe`` equivalents.
 
+    The command runs in its own process group.  It is killed, together
+    with everything it started, on timeout or when the current turn's
+    :class:`~neow.core.cancellation.CancelToken` is cancelled (Esc).
+
     Args:
         command: Command to execute.
-        timeout: Timeout in seconds (default 30).
+        timeout: Timeout in seconds (default 120, capped by
+            ``tools.command.max_timeout``).
         cwd: Working directory (optional).
 
     Returns:
-        Command output as string.
-
-    Raises:
-        CommandError: If command fails or times out.
+        stdout (plus stderr) on success; ``Error: ...`` with the exit code
+        and both streams on failure, timeout or cancellation.
     """
+    timeout = effective_timeout(timeout)
+    token = current_cancel_token()
+    logger.debug(f"Executing command: {command}")
     try:
-        logger.debug(f"Executing command: {command}")
-
-        if sys.platform == "win32":
-            shell_path = _get_shell_for_windows()
-            if shell_path:
-                # Translate Unix commands to PowerShell cmdlet syntax
-                translated = _translate_for_powershell(command)
-                logger.debug(f"PowerShell command: {translated}")
-                result = subprocess.run(
-                    [shell_path, "-NoProfile", "-Command", translated],
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=cwd,
-                )
-            else:
-                # Fallback: translate common Unix commands for cmd.exe
-                translated = _translate_unix_command(command)
-                result = subprocess.run(
-                    translated,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout,
-                    cwd=cwd,
-                )
-        else:
-            # Unix: use shell=True (invokes /bin/sh)
-            result = subprocess.run(
-                command,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=cwd,
-            )
-
-        if result.returncode != 0:
-            error_msg = (
-                result.stderr or f"Command failed with return code {result.returncode}"
-            )
-            logger.debug(f"Command failed: {error_msg}")
-            return f"Error: {error_msg}"
-
-        logger.debug(f"Command output: {result.stdout[:100]}...")
-        return result.stdout
-
-    except subprocess.TimeoutExpired:
-        logger.debug(f"Command timed out after {timeout} seconds")
-        return f"Error: Command timed out after {timeout} seconds"
+        proc = _spawn(command, cwd)
     except Exception as e:
         logger.debug(f"Command execution failed: {e}")
         return f"Error: {e}"
+
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            stdout, stderr = proc.communicate(timeout=POLL_INTERVAL)
+            break
+        except subprocess.TimeoutExpired:
+            if token is not None and token.cancelled():
+                message = "Error: cancelled by user"
+            elif time.monotonic() >= deadline:
+                message = f"Error: Command timed out after {timeout} seconds"
+            else:
+                continue
+        logger.debug(f"{message}: {command}")
+        _terminate(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            stdout, stderr = "", ""
+        return _with_output(message, stdout, stderr)
+
+    if proc.returncode != 0:
+        logger.debug(f"Command failed with exit code {proc.returncode}")
+        return _with_output(f"Error: exit code {proc.returncode}", stdout, stderr)
+
+    logger.debug(f"Command output: {stdout[:100]}...")
+    if stderr and stderr.strip():
+        return f"{stdout}{stderr}"
+    return stdout

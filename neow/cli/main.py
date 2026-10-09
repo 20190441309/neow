@@ -154,6 +154,11 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         # Wire security guard
         executor.security_guard = SecurityGuard()
         executor.allowed_commands = cfg.tools.get("allowed_commands", [])
+        from neow.tools import command as command_tool
+
+        command_tool.configure(
+            max_timeout=(cfg.tools.get("command") or {}).get("max_timeout")
+        )
         # Wire approval policy
         from neow.core.approval import ApprovalMode, ApprovalPolicy
         approval_cfg = cfg.approval

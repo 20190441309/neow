@@ -7,10 +7,10 @@ history valid: each assistant ``tool_call`` has a matching tool result.
 """
 
 import json
-import threading
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
+from neow.core.cancellation import CancelToken, cancellation_scope
 from neow.core.executor import ToolDenied
 from neow.models.base import ModelResponse, StreamChunk, normalize_finish_reason
 from neow.utils import sanitize_text
@@ -27,19 +27,6 @@ TRUNCATED_RESULT = (
 
 # Tools whose successful run should refresh a file held in conversation context.
 FILE_MUTATING_TOOLS = {"write_file", "edit_file", "create_file", "delete_file"}
-
-
-class CancelToken:
-    """Thread-safe cancellation flag shared by the UI and the loop."""
-
-    def __init__(self) -> None:
-        self._event = threading.Event()
-
-    def cancel(self) -> None:
-        self._event.set()
-
-    def cancelled(self) -> bool:
-        return self._event.is_set()
 
 
 def validate_history(messages: List[Dict[str, Any]]) -> List[str]:
@@ -304,7 +291,8 @@ class AgentLoop:
                 result, status = parse_error, "error"
             else:
                 try:
-                    result = str(conv.tool_executor.execute(name, arguments))
+                    with cancellation_scope(cancel):
+                        result = str(conv.tool_executor.execute(name, arguments))
                 except ToolDenied as e:
                     result, status = f"Error: {e}", "denied"
                 except Exception as e:

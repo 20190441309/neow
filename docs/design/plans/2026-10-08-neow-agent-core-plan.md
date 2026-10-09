@@ -259,6 +259,8 @@ class AgentLoop:
 - `tool_end` 进度事件新增 `status: ok | error | denied`；TUI 控制器优先用它（缺省时回退到旧的字符串判断），安全拦截现在也显示 ⊘。
 - 只有 `status == ok` 时才刷新上下文文件。
 
+**提交：** `27f9bef`
+
 ### 任务 1.4 · 重试与退避
 
 **修复：** E6。
@@ -286,7 +288,16 @@ class AgentLoop:
 - 输出边读边收集，超长按任务 2.1 截断。
 - Esc 时：流式阶段立即关闭流；工具阶段终止当前进程；`repair_history` 保证历史合法。
 
-**测试：** `test_cancel_kills_running_command`（`sleep 30` 在 1 秒内被终止）、`test_cancel_then_new_turn_history_valid`、`test_default_timeout_120`
+**测试：** `tests/test_command_cancel.py`（`test_cancel_kills_running_command`——连孙进程一起终止、`test_timeout_kills_command_and_reports_partial_output`、`test_default_timeout_is_120`、`test_timeout_is_clamped_to_maximum`、`test_failure_reports_exit_code_stdout_and_stderr`、`test_cancel_then_new_turn_history_valid`）
+
+- [x] 已完成（688 passed）
+
+**实现记录（与设计的差异）：**
+- 取消令牌通过 `contextvars`（新模块 `neow/core/cancellation.py`）传给工具：`AgentLoop` 在执行每个工具时进入 `cancellation_scope(token)`，`execute_command` 读 `current_cancel_token()`。工具签名不变，模型看不到这个参数。`CancelToken` 从 `agent_loop` 挪到这里（`agent_loop` 仍可导入）。
+- `Popen` + 每 0.1 秒轮询；POSIX 用 `start_new_session` 新建进程组，终止时 SIGTERM → 1 秒 → SIGKILL，并在 shell 退出后再对整组补一次 SIGKILL；Windows 用 `CTRL_BREAK_EVENT` + `taskkill /T /F`（未在 Windows 上实测）。
+- `stdin` 改为 `DEVNULL`，避免命令在 TUI 里等待终端输入而挂住。
+- 行为修正：失败时返回 `Error: exit code N` 加 **stdout 和 stderr**（旧代码只返回 stderr，`pytest` 等把失败详情写在 stdout 的工具，模型看不到原因）；成功时 stderr 非空也一并返回；超时/取消时附上已产生的输出。
+- `tools.command.max_timeout`（默认 600）通过 `command.configure()` 在启动时生效；“输出超长截断”留给任务 2.1 统一处理。
 
 ---
 
