@@ -563,6 +563,8 @@ class AgentLoop:
 - `/mcp` 显示每个服务器的状态、传输、来源、命令/URL、错误与工具列表；`/mcp reconnect <name>`（TUI 中在后台线程执行，不卡界面）。退出时 `atexit` 关闭所有连接。
 - 与计划不同：在计划的两个配置来源之外，也支持（需确认的）仓库 `.neow.json`，因为当前 `Config` 在没有用户配置时会读取它。
 
+**提交：** `f9171df`
+
 ---
 
 ## 阶段 5 · 安全
@@ -578,6 +580,15 @@ class AgentLoop:
 - 现有 `EventBus` 保留给 Python 插件，并让它也能收到这些事件。
 
 **测试：** `test_pre_tool_hook_blocks_with_exit_2`、`test_hook_can_rewrite_input`、`test_hook_timeout_does_not_block_loop`、`test_post_tool_hook_receives_output`
+
+- [x] 已完成（784 passed，`tests/test_hooks.py` 8 项）
+
+**实现记录：**
+- 新模块 `neow/core/hooks.py`：`parse_hooks` 同时接受计划中的扁平格式和 Claude Code 的嵌套格式（`{"matcher", "hooks": [{"type": "command", ...}]}`）及其事件名（`PreToolUse` 等），便于直接迁移。`matcher` 为对工具名的完整匹配正则；无效正则只记警告且不匹配任何工具（不会意外匹配全部）。
+- `HookRunner.run(event, tool_name, **data)`：stdin 传 JSON（`hook_event_name`、`session_id`、`cwd`、`prompt` / `tool_name` / `tool_input` / `tool_output` / `last_message`），环境变量 `NEOW_HOOK_EVENT`。退出码 2 或 stdout JSON `{"decision": "block"}` 阻止；`{"tool_input": {...}}` 改写参数（多个 hook 依次链式改写）；`user_prompt_submit` 的普通 stdout 或 JSON `additional_context` 追加到提示中。其他非零退出、超时、命令不存在只记警告。同一事件同时发到插件 `EventBus`。
+- `AgentLoop` 集成：`user_prompt_submit` 在构建消息前运行，被阻止时不写入历史、不请求模型，只发一条错误提示；`pre_tool_use` 在 `_execute` 中、审批之前运行（被阻止状态为 denied，结果 `Error: blocked by hook: <stderr>`）；`post_tool_use` 被“阻止”时无法撤销调用，把理由追加到工具结果作为反馈；`stop` 在回合结束时运行（含 `cancelled` 标记）。工具 hook 在任意线程都能运行（并行只读调用、子 agent）。
+- 子 agent 继承父会话的 hooks：工具 hook 同样约束子 agent；回合级事件（`user_prompt_submit` / `stop`）不对子 agent 触发。
+- 安全：只有用户自己的配置（`~/.neow/config.json` 或 `--config`）能定义 hooks；没有用户配置时读到的仓库 `.neow.json` 里的 hooks 被忽略并提示，因为它们会在每次工具调用时执行任意命令。`session_start` 在启动时运行，会话 id 为每次启动生成的 uuid。
 
 ### 任务 5.2 · 文件回退点 `/rewind`
 

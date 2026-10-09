@@ -197,6 +197,19 @@ Shell commands run by the agent time out after 120 s by default (the model may a
 
 Their tools appear as `mcp__<server>__<tool>` and need approval like shell commands, unless the tool is marked read-only or the server has `"trusted": true`. Servers defined by the repository start only after you confirm them once (again whenever their command, URL, environment or headers change). Connections start in the background; `/mcp` shows status, errors and tools, `/mcp reconnect <name>` restarts one. Server logs go to `~/.neow/logs/`.
 
+**Hooks.** Run your own commands at points in the agent loop, with the same semantics as Claude Code (its configuration format and event names are accepted too). Only `~/.neow/config.json` or a file passed with `--config` may define hooks.
+
+```json
+{
+  "hooks": {
+    "pre_tool_use": [{"matcher": "execute_command", "command": "~/.neow/guard.sh", "timeout": 30}],
+    "post_tool_use": [{"matcher": "edit_file|write_file", "command": "ruff format --quiet ."}]
+  }
+}
+```
+
+Events: `session_start`, `user_prompt_submit`, `pre_tool_use` (runs before the approval prompt), `post_tool_use`, `stop`. The command gets a JSON object on stdin (`tool_name`, `tool_input`, `tool_output`, `prompt`, `session_id`, `cwd`, …). Exit code `2` blocks, and stderr is shown to the model; on exit `0`, stdout may be `{"decision": "block", "reason": "..."}` or, for `pre_tool_use`, `{"tool_input": {...}}` to change the arguments. Other failures and timeouts are only logged. Tool hooks also apply to sub-agents.
+
 **Prompt caching.** The system prompt stays the same for the whole session; files added with `/add`, fetched pages and files matching your question are sent with your message, and only again when they change. Providers can therefore reuse the cached prefix (Anthropic requests carry `cache_control` breakpoints; OpenAI and DeepSeek cache automatically). `/cost` shows how much input was served from cache. Cached input is priced at `cache_read` / `cache_write` if set under `token.prices.<model>`, otherwise at 0.1× / 1.25× the input price.
 
 **Project memory.** At startup Neow loads instructions from `~/.neow/NEOW.md` (your own preferences) and from `AGENTS.md` / `NEOW.md` in every directory from the git root down to the current directory; more specific files come later and win. A line containing only `@docs/style.md` imports that file (up to 5 levels). `/init` asks the agent to explore the repository and write an `AGENTS.md` (the write goes through approval as usual); `/memory` lists the loaded files, `/memory add <text>` appends a note to the project `NEOW.md`, `/memory reload` re-reads them.

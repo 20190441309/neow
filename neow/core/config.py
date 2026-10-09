@@ -203,6 +203,11 @@ class Config:
         })
 
     @property
+    def hooks(self) -> Dict[str, Any]:
+        """Hook commands by event (see neow.core.hooks)."""
+        return self._config.get("hooks") or {}
+
+    @property
     def mcp(self) -> Dict[str, Any]:
         """MCP client configuration (``servers``: name -> server entry)."""
         return self._config.get("mcp") or {}

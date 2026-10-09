@@ -87,6 +87,8 @@ class ConversationManager:
         self.memory: Optional[Any] = None
         # MCP connections (neow.core.mcp_client.MCPManager), for /mcp.
         self.mcp: Optional[Any] = None
+        # User hooks (neow.core.hooks.HookRunner), run by the agent loop.
+        self.hooks: Optional[Any] = None
         self.web_cache: Dict[str, Any] = {}  # url -> WebContent
         # Task list kept by the todo_write tool (neow.core.todos).
         self.todos: List[Dict[str, str]] = []

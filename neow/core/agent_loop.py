@@ -185,6 +185,14 @@ class AgentLoop:
 
         conv = self.conversation
         cancel = cancel or CancelToken()
+        hooks = self._turn_hooks()
+        if hooks:
+            outcome = hooks.run("user_prompt_submit", prompt=user_input)
+            if outcome.blocked:
+                yield _notice(f"提示被 hook 拦截：{outcome.reason}", "error")
+                return
+            if outcome.context:
+                user_input = "\n\n".join([user_input, *outcome.context])
         build_context = getattr(conv, "build_context_message", None)
         context = build_context(user_input) if build_context else None
         if context:
@@ -235,6 +243,12 @@ class AgentLoop:
             repaired = repair_history(conv.messages, reason)
             if repaired:
                 logger.info(f"Filled {repaired} unanswered tool call(s): {reason}")
+            if hooks:
+                hooks.run(
+                    "stop",
+                    last_message=self.result.content,
+                    cancelled=cancel.cancelled(),
+                )
 
     # -- one model request ------------------------------------------------
 
@@ -345,20 +359,42 @@ class AgentLoop:
             }
         )
 
+    def _turn_hooks(self):
+        """Hooks for turn-level events; sub-agent turns do not fire them."""
+        if getattr(self.conversation, "usage_source", "main") != "main":
+            return None
+        return getattr(self.conversation, "hooks", None) or None
+
     def _execute(self, call: "_Call", cancel: CancelToken) -> Tuple[str, str]:
         """Run one call; returns ``(result, status)``. Safe in any thread."""
         if call.error:
             return call.error, "error"
+        hooks = getattr(self.conversation, "hooks", None) or None
+        arguments = call.arguments
+        if hooks:
+            # Before approval: a hook may refuse without bothering the user.
+            outcome = hooks.run("pre_tool_use", call.name, tool_input=arguments)
+            if outcome.blocked:
+                return f"Error: blocked by hook: {outcome.reason}", "denied"
+            if outcome.tool_input is not None:
+                arguments = call.arguments = outcome.tool_input
         try:
             with cancellation_scope(cancel):
                 result = str(
-                    self.conversation.tool_executor.execute(call.name, call.arguments)
+                    self.conversation.tool_executor.execute(call.name, arguments)
                 )
         except ToolDenied as e:
             return f"Error: {e}", "denied"
         except Exception as e:
             return f"Error: {e}", "error"
-        return result, "error" if result.startswith("Error:") else "ok"
+        status = "error" if result.startswith("Error:") else "ok"
+        if hooks:
+            outcome = hooks.run(
+                "post_tool_use", call.name, tool_input=arguments, tool_output=result
+            )
+            if outcome.blocked:
+                result += f"\n\nHook feedback: {outcome.reason}"
+        return result, status
 
     def _finish(
         self, call: "_Call", result: str, status: str, record: bool = True

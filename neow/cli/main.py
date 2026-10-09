@@ -115,6 +115,28 @@ def setup_mcp(cfg: Config, executor: ToolExecutor, interactive: bool, wait: bool
     return manager
 
 
+def setup_hooks(cfg: Config, event_bus=None):
+    """Hooks from the user's own config, plus the ``session_start`` event.
+
+    A repository ``.neow.json`` (read when there is no user config) cannot
+    define hooks: they run arbitrary commands on every tool call.
+    """
+    import uuid
+
+    from neow.core.hooks import HookRunner
+
+    raw = cfg.hooks
+    if raw and not getattr(cfg, "user_owned", True):
+        print_warning(
+            f"忽略 {cfg.source_path} 中的 hooks：只有 ~/.neow/config.json 或 "
+            "--config 指定的配置文件可以定义 hooks"
+        )
+        raw = {}
+    runner = HookRunner(raw, session_id=uuid.uuid4().hex, event_bus=event_bus)
+    runner.run("session_start", source="startup")
+    return runner
+
+
 def setup_tools(executor: ToolExecutor) -> None:
     """Bind the real built-in tool implementations.
 
@@ -267,6 +289,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
             # One-shot runs need the tools before the first request.
             wait=bool(prompt or message_file),
         )
+        conversation.hooks = setup_hooks(cfg, event_bus)
         conversation.tool_provider = executor.get_tool_definitions
 
         # Read message from file if specified
