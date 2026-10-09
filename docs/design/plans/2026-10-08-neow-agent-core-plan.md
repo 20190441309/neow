@@ -439,6 +439,8 @@ class AgentLoop:
 - TUI：补全、帮助页、侧栏 Context 页新增 MEMORY 区块（文件路径 + 字符数）；REPL 同样支持两个命令。
 - 已知不足：architect 规划器与子 agent 使用独立会话，暂不注入记忆（留到 4.3 子 agent 工具化时统一处理）。
 
+**提交：** `cb9854b`
+
 ---
 
 ## 阶段 4 · 生态
@@ -453,6 +455,15 @@ class AgentLoop:
 - 三者都是 `read_only=True`、tier read。
 
 **测试：** `test_grep_uses_ripgrep_when_available`、`test_grep_python_fallback_respects_gitignore`、`test_glob_sorted_by_mtime`、`test_list_dir_depth`
+
+- [x] 已完成（755 passed，`tests/test_search_tools.py` 12 项；装了 rg 时额外跑 rg 与回退实现的一致性测试，已用 ripgrep 15.1 验证）
+
+**实现记录：**
+- 新模块 `neow/tools/fs_search.py`。文件列表统一来自 `git ls-files --cached --others --exclude-standard`（已跟踪 + 未跟踪但未忽略，剔除工作区里已删除的文件）；不在 git 仓库时用 `os.walk` 并跳过 `SKIP_DIRS`。
+- `grep`：有 `rg` 时用 `rg --json --hidden --glob !.git`（不在仓库时额外排除 `SKIP_DIRS`，与回退实现一致）；rg 出错（退出码非 0/1、超时）自动回退到 Python。回退实现跳过二进制文件（前 8KB 含 NUL）。输出：默认文件列表；`content` 为 `path:N:text`，上下文行为 `path-N-text`，不连续处用 `--` 分隔；`count` 为 `path:N`。超过 `head_limit` 时注明“showing N of M”。正则无效、路径不存在、`output_mode` 非法都返回明确错误。
+- glob 语义自己实现（`*` 不跨目录、`**` 跨目录、`{a,b}`、`[...]`/`[!...]`）：`glob` 工具按完整相对路径匹配，所以 `*.py` 只匹配顶层；`grep` 的 `glob` 过滤与 rg 一致——不含 `/` 时只比较文件名。
+- `glob` 按修改时间倒序、最多 200 条；`list_dir` 输出缩进树（目录在前、以 `/` 结尾），超过 500 项截断。
+- `search_code` 保留，描述标注 Deprecated；系统提示改为引导用 `grep` / `glob` / `list_dir`。TUI 工具卡片支持三个新工具（顺带修复：`search_code` 卡片标题读的是不存在的 `pattern` 参数，一直为空）。
 
 ### 任务 4.2 · 任务清单工具 `todo_write`
 

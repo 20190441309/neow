@@ -55,8 +55,10 @@ def _tool_summary(name: str, args: Dict[str, Any]) -> str:
         return str(args.get("file_path") or args.get("path") or "")
     if name == "execute_command":
         return str(args.get("command", ""))[:60]
-    if name == "search_code":
-        return str(args.get("pattern", ""))[:60]
+    if name in ("search_code", "grep", "glob"):
+        return str(args.get("pattern") or args.get("query") or "")[:60]
+    if name == "list_dir":
+        return str(args.get("path") or ".")
     if name in ("web", "fetch_url"):
         return str(args.get("url", ""))[:60]
     if name == "git_commit":
@@ -106,8 +108,13 @@ def render_tool_body(
         out.append(f"$ {args.get('command', '')}\n", style=text_style)
         out.append(result or "(no output)", style=dim)
         return out
-    if name == "search_code":
-        matches = [line for line in result.splitlines() if line.strip()]
+    if name in ("search_code", "grep", "glob"):
+        matches = [
+            line
+            for line in result.splitlines()
+            if line.strip() and line not in ("--", "No matches found", "No files found")
+            and not line.startswith("… showing")
+        ]
         out.append(f"{len(matches)} 处命中\n", style=text_style)
         out.append("\n".join(matches[:10]) or "(no matches)", style=dim)
         return out

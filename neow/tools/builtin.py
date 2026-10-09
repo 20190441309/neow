@@ -13,6 +13,7 @@ from neow.tools.file_ops import (
     read_file,
     write_file,
 )
+from neow.tools.fs_search import glob, grep, list_dir
 from neow.tools.git import git_commit, git_diff, git_log, git_status
 from neow.tools.search import search_code
 
@@ -190,10 +191,113 @@ def builtin_specs() -> List[ToolSpec]:
             tier=ApprovalTier.EXEC,
         ),
         ToolSpec(
+            name="grep",
+            description=(
+                "Search file contents for a regular expression (ripgrep when "
+                "installed). Skips files ignored by git. Returns matching file "
+                "paths by default; output_mode 'content' returns "
+                "'path:line:text' lines, 'count' returns 'path:N'."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Regular expression to search for",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "File or directory to search (default: "
+                        "current directory)",
+                    },
+                    "glob": {
+                        "type": "string",
+                        "description": "Only search files matching this glob, "
+                        "e.g. '*.py' or 'src/**/*.{ts,tsx}'",
+                    },
+                    "output_mode": {
+                        "type": "string",
+                        "enum": ["files_with_matches", "content", "count"],
+                        "description": "What to return (default: "
+                        "files_with_matches)",
+                    },
+                    "context": {
+                        "type": "integer",
+                        "description": "Lines of context around each match "
+                        "(content mode only)",
+                    },
+                    "case_insensitive": {
+                        "type": "boolean",
+                        "description": "Ignore case (default: false)",
+                    },
+                    "head_limit": {
+                        "type": "integer",
+                        "description": "Maximum entries returned (default: 100)",
+                    },
+                },
+                "required": ["pattern"],
+            },
+            func=grep,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="glob",
+            description=(
+                "Find files by name pattern, e.g. '**/*.py' or 'src/*.{js,ts}'. "
+                "Skips files ignored by git. Returns up to 200 paths, most "
+                "recently modified first."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Glob relative to path; '*' stays within "
+                        "a directory, '**' crosses directories",
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Directory to search (default: current "
+                        "directory)",
+                    },
+                },
+                "required": ["pattern"],
+            },
+            func=glob,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="list_dir",
+            description=(
+                "List a directory as an indented tree (directories end with "
+                "'/'), skipping files ignored by git."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Directory to list (default: current "
+                        "directory)",
+                    },
+                    "depth": {
+                        "type": "integer",
+                        "description": "How many levels to show (default: 1)",
+                    },
+                },
+            },
+            func=list_dir,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
             name="search_code",
             description=(
-                "Search files for a regex (case-insensitive) and return matches "
-                "with file path, line number and line text."
+                "Deprecated: use grep. Search files for a regex "
+                "(case-insensitive) and return matches with file path, line "
+                "number and line text."
             ),
             parameters={
                 "type": "object",

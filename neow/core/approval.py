@@ -34,6 +34,9 @@ class ApprovalTier(str, Enum):
 TOOL_TIERS: Dict[str, ApprovalTier] = {
     "read_file": ApprovalTier.READ,
     "search_code": ApprovalTier.READ,
+    "grep": ApprovalTier.READ,
+    "glob": ApprovalTier.READ,
+    "list_dir": ApprovalTier.READ,
     "git_status": ApprovalTier.READ,
     "git_diff": ApprovalTier.READ,
     "git_log": ApprovalTier.READ,
