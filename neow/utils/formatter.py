@@ -498,12 +498,16 @@ def format_tool_call_panel(
     )
 
 
-def format_tool_result_panel(result: str, is_error: bool = False) -> Panel:
+def format_tool_result_panel(
+    result: str, is_error: bool = False, name: str = ""
+) -> Panel:
     """Format tool result as a compact panel.
 
     Args:
         result: Tool execution result.
         is_error: Whether the result is an error.
+        name: Tool name for the title (used when results arrive out of
+            order, e.g. from parallel calls).
 
     Returns:
         Rich Panel object.
@@ -524,7 +528,8 @@ def format_tool_result_panel(result: str, is_error: bool = False) -> Panel:
 
     return Panel(
         display,
-        title=f"[{title_style}]{icon} Result[/{title_style}]",
+        title=f"[{title_style}]{icon} {name + ' · ' if name else ''}Result"
+        f"[/{title_style}]",
         border_style=border,
         padding=(0, 1),
     )
@@ -545,9 +550,9 @@ def print_tool_call(
     console.print(format_tool_call_panel(tool_name, parameters, verbose=verbose))
 
 
-def print_tool_result(result: str, is_error: bool = False) -> None:
+def print_tool_result(result: str, is_error: bool = False, name: str = "") -> None:
     """Print tool result with panel formatting."""
-    console.print(format_tool_result_panel(result, is_error))
+    console.print(format_tool_result_panel(result, is_error, name))
 
 
 # ── Feature 4: Status Bar ─────────────────────────────────────────

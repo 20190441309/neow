@@ -1168,12 +1168,14 @@ class REPL:
                     live = None
                     content_buffer = ""
 
+            last_started = None
             try:
                 for chunk in stream:
                     if chunk.progress:
                         ptype = chunk.progress.get("type")
                         name = chunk.progress.get("name", "")
                         if ptype == "tool_start":
+                            last_started = chunk.progress.get("id")
                             _finalize_segment()
                             status.stop()
                             print_tool_call(
@@ -1188,7 +1190,14 @@ class REPL:
                             _finalize_segment()
                             if tool_result:
                                 status.stop()
-                                print_tool_result(tool_result)
+                                # Parallel calls finish after all have started:
+                                # name the tool unless it is the one just shown.
+                                label = (
+                                    ""
+                                    if chunk.progress.get("id") == last_started
+                                    else name
+                                )
+                                print_tool_result(tool_result, name=label)
                                 status.start()
                             spinner_text = "Thinking..."
                         elif ptype == "reasoning_start":

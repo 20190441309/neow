@@ -7,6 +7,8 @@ history valid: each assistant ``tool_call`` has a matching tool result.
 """
 
 import json
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
@@ -18,6 +20,7 @@ from neow.utils.logger import logger
 
 DEFAULT_MAX_TURNS = 50
 DEFAULT_MAX_TOOL_OUTPUT_CHARS = 30000
+MAX_PARALLEL_TOOLS = 8
 CANCELLED_RESULT = "Error: cancelled before execution"
 MAX_TURNS_RESULT = "Error: not executed (tool call limit reached)"
 TRUNCATED_RESULT = (
@@ -298,51 +301,110 @@ class AgentLoop:
     def _run_tools(
         self, tool_calls: List[Dict[str, Any]], cancel: CancelToken
     ) -> Generator[StreamChunk, None, None]:
-        conv = self.conversation
-        for call in tool_calls:
+        calls = [self._prepare(call) for call in tool_calls]
+        executor = self.conversation.tool_executor
+        can_parallel = getattr(executor, "can_run_concurrently", None)
+        if (
+            len(calls) > 1
+            and can_parallel is not None
+            and all(c.error or can_parallel(c.name, c.arguments) is True for c in calls)
+        ):
+            yield from self._run_parallel(calls, cancel)
+            return
+        for call in calls:
             if cancel.cancelled():
                 return
-            name = call["function"]["name"]
-            call_id = call["id"]
-            arguments, parse_error = parse_tool_arguments(
-                call["function"].get("arguments")
-            )
-            yield StreamChunk(
-                progress={
-                    "type": "tool_start",
-                    "name": name,
-                    "args": arguments if isinstance(arguments, dict) else {},
-                    "id": call_id,
-                }
-            )
-            status = "ok"
-            if parse_error:
-                result, status = parse_error, "error"
-            else:
-                try:
-                    with cancellation_scope(cancel):
-                        result = str(conv.tool_executor.execute(name, arguments))
-                except ToolDenied as e:
-                    result, status = f"Error: {e}", "denied"
-                except Exception as e:
-                    result, status = f"Error: {e}", "error"
-                if status == "ok" and result.startswith("Error:"):
-                    status = "error"
-            yield StreamChunk(
-                progress={
-                    "type": "tool_end",
-                    "name": name,
-                    "result": result[:500],
-                    "id": call_id,
-                    "status": status,
-                }
-            )
-            if status == "ok":
-                self._refresh_context(name, arguments)
-            limit = getattr(
-                conv, "max_tool_output_chars", DEFAULT_MAX_TOOL_OUTPUT_CHARS
-            )
-            conv.add_tool_result(call_id, truncate_tool_output(result, limit))
+            yield self._start_event(call)
+            result, status = self._execute(call, cancel)
+            yield from self._finish(call, result, status)
+
+    def _prepare(self, call: Dict[str, Any]) -> "_Call":
+        arguments, error = parse_tool_arguments(call["function"].get("arguments"))
+        return _Call(call["id"], call["function"]["name"], arguments, error)
+
+    @staticmethod
+    def _start_event(call: "_Call") -> StreamChunk:
+        args = call.arguments if isinstance(call.arguments, dict) else {}
+        return StreamChunk(
+            progress={
+                "type": "tool_start",
+                "name": call.name,
+                "args": args,
+                "id": call.id,
+            }
+        )
+
+    def _execute(self, call: "_Call", cancel: CancelToken) -> Tuple[str, str]:
+        """Run one call; returns ``(result, status)``. Safe in any thread."""
+        if call.error:
+            return call.error, "error"
+        try:
+            with cancellation_scope(cancel):
+                result = str(
+                    self.conversation.tool_executor.execute(call.name, call.arguments)
+                )
+        except ToolDenied as e:
+            return f"Error: {e}", "denied"
+        except Exception as e:
+            return f"Error: {e}", "error"
+        return result, "error" if result.startswith("Error:") else "ok"
+
+    def _finish(
+        self, call: "_Call", result: str, status: str, record: bool = True
+    ) -> Generator[StreamChunk, None, None]:
+        yield StreamChunk(
+            progress={
+                "type": "tool_end",
+                "name": call.name,
+                "result": result[:500],
+                "id": call.id,
+                "status": status,
+            }
+        )
+        if record:
+            self._record_result(call, result, status)
+
+    def _record_result(self, call: "_Call", result: str, status: str) -> None:
+        conv = self.conversation
+        if status == "ok":
+            self._refresh_context(call.name, call.arguments)
+        limit = getattr(conv, "max_tool_output_chars", DEFAULT_MAX_TOOL_OUTPUT_CHARS)
+        conv.add_tool_result(call.id, truncate_tool_output(result, limit))
+
+    def _run_parallel(
+        self, calls: List["_Call"], cancel: CancelToken
+    ) -> Generator[StreamChunk, None, None]:
+        """Run read-only calls together; history keeps the original order."""
+        for call in calls:
+            yield self._start_event(call)
+        pool = ThreadPoolExecutor(
+            max_workers=min(MAX_PARALLEL_TOOLS, len(calls)),
+            thread_name_prefix="neow-tool",
+        )
+        futures = {pool.submit(self._execute, call, cancel): call for call in calls}
+        done: Dict[str, Tuple[str, str]] = {}
+        try:
+            pending = set(futures)
+            while pending and not cancel.cancelled():
+                finished, pending = wait(
+                    pending, timeout=0.1, return_when=FIRST_COMPLETED
+                )
+                for future in finished:
+                    call = futures[future]
+                    done[call.id] = future.result()
+                    yield from self._finish(call, *done[call.id], record=False)
+            # Close the UI cards of calls abandoned by a cancel.
+            for call in calls:
+                if call.id not in done:
+                    yield from self._finish(
+                        call, "Error: cancelled", "error", record=False
+                    )
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+            # Calls still running after a cancel are answered by repair_history.
+            for call in calls:
+                if call.id in done:
+                    self._record_result(call, *done[call.id])
 
     def _refresh_context(self, tool_name: str, arguments: Dict[str, Any]) -> None:
         conv = self.conversation
@@ -377,6 +439,14 @@ class AgentLoop:
             message["reasoning_content"] = reasoning
         self.conversation.messages.append(message)
         self._unsaved_content = ""
+
+
+@dataclass
+class _Call:
+    id: str
+    name: str
+    arguments: Any
+    error: Optional[str]
 
 
 __all__ = [

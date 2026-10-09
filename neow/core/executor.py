@@ -267,6 +267,23 @@ class ToolExecutor:
             logger.debug(f"Tool '{tool_name}' execution failed: {e}")
             raise ToolError(f"Tool execution failed: {e}")
 
+    def can_run_concurrently(self, tool_name: str, parameters: Any) -> bool:
+        """True for read-only calls that will not stop to ask the user.
+
+        Such calls may run in parallel with each other; anything that
+        writes, executes or needs approval runs on its own.
+        """
+        spec = self.registry.get(tool_name)
+        if spec is None or not spec.read_only or not isinstance(parameters, dict):
+            return False
+        if self.approval_policy:
+            check = self.approval_policy.check_approval(
+                tool_name, parameters, tier=spec.tier
+            )
+            if check.needs_approval:
+                return False
+        return True
+
     # -- read before edit ---------------------------------------------------
 
     def _check_read_before_edit(

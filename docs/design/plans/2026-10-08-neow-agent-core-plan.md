@@ -465,6 +465,8 @@ class AgentLoop:
 - `glob` 按修改时间倒序、最多 200 条；`list_dir` 输出缩进树（目录在前、以 `/` 结尾），超过 500 项截断。
 - `search_code` 保留，描述标注 Deprecated；系统提示改为引导用 `grep` / `glob` / `list_dir`。TUI 工具卡片支持三个新工具（顺带修复：`search_code` 卡片标题读的是不存在的 `pattern` 参数，一直为空）。
 
+**提交：** `d2c0833`
+
 ### 任务 4.2 · 任务清单工具 `todo_write`
 
 **设计：**
@@ -499,6 +501,15 @@ class AgentLoop:
 - 系统提示：鼓励在一次回复中并行发起互不依赖的读取/搜索。
 
 **测试：** `test_parallel_read_only_calls_run_concurrently`（用 `sleep` 计时）、`test_mixed_calls_run_sequentially`、`test_results_preserve_call_order`
+
+- [x] 已完成（760 passed，`tests/test_parallel_tools.py` 5 项，连续跑 5 次稳定）
+
+**实现记录：**
+- 判定放在 `ToolExecutor.can_run_concurrently`：工具已注册、`read_only`、参数是 dict，且审批策略判定**不需要确认**。最后一条是设计之外补的：`always-ask` 模式下只读工具也要弹审批，多个线程同时弹审批框不可行，这种情况整批按顺序执行，审批始终在主线程逐个进行。参数 JSON 解析失败的调用不影响并行（它本来就不执行）；批次里只要有一个写入/执行/未知工具，整批按顺序执行（保持原有语义，避免读到写入前后不一致的状态）。
+- `AgentLoop._run_parallel`：先一次性发出全部 `tool_start`，线程池（上限 8，线程名 `neow-tool`）执行，`tool_end` 按**完成顺序**发出（TUI 卡片耗时准确）；工具结果按**原始调用顺序**写入历史。每个线程内设置 `cancellation_scope`（contextvars 不会自动传入线程池）。
+- 取消：等待循环每 0.1s 检查取消；取消后不再等待，未完成的调用补发 `tool_end`（status error，避免 TUI 卡片一直转圈），历史由 `repair_history` 填 “cancelled”；线程池 `shutdown(wait=False, cancel_futures=True)`。
+- 经典 REPL：并行时结果不紧跟在对应调用后面，结果面板标题改为 `✓ <工具名> · Result`（仅在结果不属于刚显示的调用时加名字）。
+- 系统提示：互不依赖的读取/搜索在一次回复中同时发起。
 
 ### 任务 4.5 · MCP 客户端
 
