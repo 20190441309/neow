@@ -385,6 +385,8 @@ class AgentLoop:
 - `context_window` 在模型配置中可设，默认 Claude 200k、其余 128k；工厂在构造后设置属性（不改构造参数，旧的构造调用断言不受影响）。
 - 自动压缩至少需要 5 条消息（`compact_incremental` 本身少于这个数也不会压缩）。REPL 的自动压缩包在 `_maybe_auto_compact()` 里，任何异常只记日志，不影响本轮。
 
+**提交：** `c145549`
+
 ### 任务 2.4 · 提示词与工具集清理
 
 **修复：** E16。
@@ -395,7 +397,15 @@ class AgentLoop:
 - **先读后改**：executor 记录本会话 `read_file` 过的路径与哈希；`edit_file` / `hashline_edit` 对未读或已变更的文件返回错误，提示先读取（与 Claude Code 行为一致）。`write_file` 覆盖已存在文件同样要求先读。
 - 工具描述统一为英文、动词开头、说明返回格式。
 
-**测试：** `test_edit_requires_prior_read`、`test_edit_rejects_stale_file`、`test_prompt_has_no_duplicate_param_docs`
+**测试：** `tests/test_read_before_edit.py`（`test_edit_requires_prior_read`、`test_edit_rejects_stale_file`、`test_consecutive_edits_need_one_read`、`test_overwriting_requires_read_but_new_files_do_not`、`test_paths_are_normalised`、`test_guard_can_be_disabled`、`test_prompt_has_no_duplicate_param_docs`）
+
+- [x] 已完成（734 passed）
+
+**实现记录：**
+- “先读后改”放在 `ToolExecutor`：`read_file` 成功后记录文件哈希；`edit_file` / `hashline_edit` / 覆盖已存在文件的 `write_file` 在参数校验之后、审批之前检查——没读过，或当前哈希与记录不符（用户或命令改过），都拒绝并提示重新读取。agent 自己的编辑、`create_file`、新建文件的 `write_file` 会更新记录，所以连续编辑只需读一次；`delete_file` 清除记录。路径统一为绝对路径。`require_read_before_edit` 可关闭。
+- 提示词：删掉逐个工具的参数说明（schema 里已有），改为一段“什么时候用哪个工具”的指导；“修改前必须展示改动 / 先征得确认”改为“需要确认的操作走审批机制，回复里不要再要求确认”；合并了重复的 Safety 段落。系统提示从约 6000 字符减到约 2800 字符。
+- 工具描述：`edit_file`、`write_file`、`execute_command`、`search_code` 改为说明返回格式与“需先读取”；快照随之更新。
+- 已知不足：通过 `/add` 加入上下文的文件，模型虽然看过内容，但执行器没有记录，第一次编辑前仍需 `read_file` 一次。
 
 ---
 

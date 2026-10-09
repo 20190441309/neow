@@ -60,8 +60,8 @@ def builtin_specs() -> List[ToolSpec]:
         ToolSpec(
             name="write_file",
             description=(
-                "Write content to a file. Creates the file if it doesn't exist, "
-                "overwrites if it does."
+                "Write content to a file, creating it or replacing it entirely. "
+                "Replacing an existing file requires having read it first."
             ),
             parameters={
                 "type": "object",
@@ -84,8 +84,9 @@ def builtin_specs() -> List[ToolSpec]:
         ToolSpec(
             name="edit_file",
             description=(
-                "Replace specific text in a file. Supports line-range targeting "
-                "and first-only replacement."
+                "Replace exact text in a file (read the file first). Optionally "
+                "only the first match, or only within a line range. Returns the "
+                "number of replacements."
             ),
             parameters={
                 "type": "object",
@@ -170,7 +171,10 @@ def builtin_specs() -> List[ToolSpec]:
         ),
         ToolSpec(
             name="execute_command",
-            description="Run a shell command",
+            description=(
+                "Run a shell command and return its output. Failures return "
+                "'Error: exit code N' with stdout and stderr."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
@@ -187,7 +191,10 @@ def builtin_specs() -> List[ToolSpec]:
         ),
         ToolSpec(
             name="search_code",
-            description="Search for text patterns in the codebase",
+            description=(
+                "Search files for a regex (case-insensitive) and return matches "
+                "with file path, line number and line text."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
