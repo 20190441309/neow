@@ -266,8 +266,18 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
         executor.allowed_commands = cfg.tools.get("allowed_commands", [])
         from neow.tools import command as command_tool
 
-        command_tool.configure(
-            max_timeout=(cfg.tools.get("command") or {}).get("max_timeout")
+        command_cfg = cfg.tools.get("command") or {}
+        command_tool.configure(max_timeout=command_cfg.get("max_timeout"))
+        from neow.tools import sandbox
+
+        sandbox_mode = command_cfg.get("sandbox", "off")
+        if sandbox_mode not in sandbox.MODES:
+            print_warning(f"Unknown tools.command.sandbox {sandbox_mode!r}; using off")
+        sandbox.configure(
+            mode=sandbox_mode,
+            network=command_cfg.get("sandbox_network", False),
+            writable=command_cfg.get("sandbox_writable", []),
+            bwrap=command_cfg.get("bwrap_path"),
         )
         # Wire approval policy
         from neow.core.approval import ApprovalMode, ApprovalPolicy

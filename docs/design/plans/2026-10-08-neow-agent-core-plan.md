@@ -624,7 +624,15 @@ class AgentLoop:
 
 **测试：** 在有 `bwrap` 的环境运行（否则 skip）：`test_sandbox_blocks_write_outside_cwd`、`test_sandbox_blocks_network`
 
-- [ ] 暂缓（2026-10-10，按用户决定跳过，先做阶段 6）
+- [x] 已完成（2026-10-10；先跳过、阶段 6 之后补做。804 passed：`tests/test_sandbox.py` 7 项，其中 3 项需要 `bwrap`，已用 bubblewrap 0.9.0 实测）
+
+**实现记录：**
+- 新模块 `neow/tools/sandbox.py`。配置 `tools.command.sandbox: off|auto|strict`（默认 off，未知值按 off 并提示）、`sandbox_network`（默认 false）、`sandbox_writable`（额外可写目录）、`bwrap_path`。
+- Linux：`bwrap --ro-bind / / --dev /dev --proc /proc`，可写绑定项目根（git 根，否则工作目录）、工作目录、系统临时目录和额外目录；默认 `--unshare-net`；`--die-with-parent`；不新建会话，所以超时/Esc 时按进程组终止依然有效（有测试）。macOS：`sandbox-exec` 配置 `(allow default)(deny file-write*)`，放行同样的目录及 `/private/var/folders`、`/dev/null`、`/dev/tty`，默认 `(deny network*)`（未在 macOS 上实测，只测了生成的配置）。Windows 不支持。
+- `auto` 不可用时照常执行，并在第一次的输出前加一行 `[sandbox unavailable: …]`；`strict` 直接拒绝，返回 `Error: sandbox required …`，命令不会执行。
+- 审批提示：`execute_command` 的审批理由后附 `[sandboxed: writes limited to the project and temp dir, no network]` / `[not sandboxed: …]` / `[will not run …]`。
+- 网络隔离的测试：在宿主机回环上开一个端口，沙箱内连接被拒绝（独立网络命名空间），允许网络时可以连上。注意 `bwrap` 在新命名空间里会启用回环，所以沙箱内部仍能监听本地端口。
+- 已知限制：沙箱只隔离写入和网络，不隔离读取（命令仍能读 `~/.ssh` 等）；需要写 `~/.cache`、`~/.npm` 等的工具要把目录加入 `sandbox_writable`；git 根在家目录时整个家目录可写。
 
 ---
 

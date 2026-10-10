@@ -10,6 +10,7 @@ import time
 from typing import Optional
 
 from neow.core.cancellation import current_cancel_token
+from neow.tools import sandbox
 from neow.utils.logger import logger
 
 
@@ -294,8 +295,13 @@ def effective_timeout(timeout: Optional[int]) -> int:
     return min(int(timeout), _max_timeout)
 
 
-def _spawn(command: str, cwd: Optional[str]) -> subprocess.Popen:
-    """Start *command* in its own process group so it can be killed whole."""
+def _spawn(
+    command: str, cwd: Optional[str], argv: Optional[list] = None
+) -> subprocess.Popen:
+    """Start *command* in its own process group so it can be killed whole.
+
+    *argv*, when given, is the sandboxed command line (see ``sandbox``).
+    """
     options = dict(
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -317,6 +323,8 @@ def _spawn(command: str, cwd: Optional[str]) -> subprocess.Popen:
         # Fallback: translate common Unix commands for cmd.exe
         return subprocess.Popen(_translate_unix_command(command), shell=True, **options)
     # Unix: /bin/sh in a new session (= new process group)
+    if argv:
+        return subprocess.Popen(argv, start_new_session=True, **options)
     return subprocess.Popen(command, shell=True, start_new_session=True, **options)
 
 
@@ -353,6 +361,16 @@ def _with_output(message: str, stdout: str, stderr: str) -> str:
     return f"{message}\n{output}".rstrip() if output.strip() else message
 
 
+def _noted(note: str, result: str) -> str:
+    """Prefix a sandbox fallback note, keeping a leading ``Error:`` first."""
+    if not note:
+        return result
+    if result.startswith("Error:"):
+        head, _, rest = result.partition("\n")
+        return f"{head}\n{note}\n{rest}".rstrip()
+    return f"{note}\n{result}"
+
+
 def execute_command(
     command: str, timeout: int = DEFAULT_TIMEOUT, cwd: Optional[str] = None
 ) -> str:
@@ -381,8 +399,11 @@ def execute_command(
     timeout = effective_timeout(timeout)
     token = current_cancel_token()
     logger.debug(f"Executing command: {command}")
+    argv, note = (None, "") if sys.platform == "win32" else sandbox.plan(command, cwd)
+    if note.startswith("Error:"):
+        return note
     try:
-        proc = _spawn(command, cwd)
+        proc = _spawn(command, cwd, argv)
     except Exception as e:
         logger.debug(f"Command execution failed: {e}")
         return f"Error: {e}"
@@ -405,13 +426,15 @@ def execute_command(
             stdout, stderr = proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             stdout, stderr = "", ""
-        return _with_output(message, stdout, stderr)
+        return _noted(note, _with_output(message, stdout, stderr))
 
     if proc.returncode != 0:
         logger.debug(f"Command failed with exit code {proc.returncode}")
-        return _with_output(f"Error: exit code {proc.returncode}", stdout, stderr)
+        return _noted(
+            note, _with_output(f"Error: exit code {proc.returncode}", stdout, stderr)
+        )
 
     logger.debug(f"Command output: {stdout[:100]}...")
     if stderr and stderr.strip():
-        return f"{stdout}{stderr}"
-    return stdout
+        return _noted(note, f"{stdout}{stderr}")
+    return _noted(note, stdout)

@@ -241,7 +241,13 @@ class ToolExecutor:
             )
             if approval.needs_approval:
                 if self.approval_callback:
-                    approved = self.approval_callback(tool_name, parameters, approval.reason)
+                    reason = approval.reason
+                    if tool_name == "execute_command":
+                        from neow.tools import sandbox
+
+                        where = sandbox.status(parameters.get("cwd"))
+                        reason = f"{reason} [{where}]" if where else reason
+                    approved = self.approval_callback(tool_name, parameters, reason)
                     if not approved:
                         raise ToolDenied(f"User denied: {tool_name}")
                 else:

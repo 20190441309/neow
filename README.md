@@ -170,6 +170,12 @@ Shell commands run by the agent time out after 120 s by default (the model may a
 { "tools": { "command": { "max_timeout": 600 } } }
 ```
 
+**Command sandbox (experimental).** With `"sandbox": "auto"` (or `"strict"`) under `tools.command`, commands run with the file system read-only except the project, the temp directory and any `sandbox_writable` paths, and without network unless `"sandbox_network": true`. Linux uses [bubblewrap](https://github.com/containers/bubblewrap) (`apt install bubblewrap`), macOS `sandbox-exec`. `auto` runs commands normally (with a note) when no sandbox is available; `strict` refuses them. The approval prompt says whether a command will be sandboxed. The sandbox limits writes and network, not reads.
+
+```json
+{ "tools": { "command": { "sandbox": "auto", "sandbox_writable": ["~/.cache"] } } }
+```
+
 **Key resolution order:** `api_key` → `api_key_env` → `NEOW_<MODEL_NAME>_API_KEY` → `NEOW_DEEPSEEK_API_KEY` / `NEOW_ANTHROPIC_API_KEY` / `NEOW_OPENAI_API_KEY`. Keys are never logged or echoed.
 
 `/model` lists every configured model with its provider and endpoint. Token prices for custom models can be added under `token.prices` keyed by the model name (unset models count as $0).
