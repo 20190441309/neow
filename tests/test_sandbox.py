@@ -93,12 +93,13 @@ def test_approval_prompt_says_whether_sandboxed(project, monkeypatch):
     monkeypatch.setattr(sandbox.sys, "platform", "linux")
     with pytest.raises(Exception):
         executor.execute("execute_command", {"command": "ls"})
-    assert "sandboxed: writes limited to the project" in reasons[-1]
+    assert "沙箱中运行：只能写项目和临时目录" in reasons[-1]
+    assert reasons[-1].startswith("执行命令操作需要确认：execute_command")
 
     sandbox.configure(mode="off")
     with pytest.raises(Exception):
         executor.execute("execute_command", {"command": "ls"})
-    assert "sandbox" not in reasons[-1]
+    assert "沙箱" not in reasons[-1]
 
 
 @needs_bwrap

@@ -33,6 +33,7 @@ class RewindResult:
     deleted: List[str] = field(default_factory=list)
     commands: List[str] = field(default_factory=list)  # changes we cannot undo
     messages_removed: int = 0
+    cut_index: Optional[int] = None  # history length after a conversation rewind
 
     def summary(self) -> str:
         lines = []
@@ -68,8 +69,14 @@ class CheckpointStore:
         self.dir = self.root / self.session_id
         self.keep_turns = keep_turns
         self.current: Optional[int] = None
+        self.last_result: Optional[RewindResult] = None  # of the last /rewind
         self._lock = threading.Lock()
         self._next = 1 + max((t["turn"] for t in self.turns()), default=0)
+
+    @property
+    def next_turn(self) -> int:
+        """Number the next :meth:`begin_turn` will assign."""
+        return self._next
 
     # -- recording ------------------------------------------------------
 
@@ -183,10 +190,12 @@ class CheckpointStore:
                     )
                 del conversation.messages[index:]
                 result.messages_removed = len(removed)
+                result.cut_index = index
             if files:
                 for meta in later:
                     shutil.rmtree(self._turn_dir(meta["turn"]), ignore_errors=True)
                 self.current = None
+                self._next = turn  # numbering continues from the rewound turn
         return result
 
     def _restore(self, later: List[Dict[str, Any]], result: RewindResult) -> None:
@@ -258,6 +267,7 @@ def rewind_command(store: Optional[CheckpointStore], args: str, conversation: An
         )
     except ValueError as exc:
         return str(exc), "error"
+    store.last_result = result
     return result.summary(), "warn" if result.commands else "info"
 
 

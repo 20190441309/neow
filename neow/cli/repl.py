@@ -234,7 +234,10 @@ class REPL:
         self._session_name: Optional[str] = None
         self._idle_compact_done = False  # prevent repeated idle compacts
         self._stream_status = None  # Rich Status spinner, set during streaming
-        self._msg_counter = 0  # 1-based sequence number for user/assistant panels
+        # Number of the current agent turn, shown on its user and assistant
+        # panels; matches the checkpoint numbers listed by /rewind.
+        self._msg_counter = 0
+        self._turns_started = 0
         self.verbose_tools = False  # /verbose toggle: expand tool call parameters
         self._setup_session()
 
@@ -533,19 +536,23 @@ class REPL:
                 sys.stdout.write("\033[A\033[2K\r")
                 sys.stdout.flush()
                 # Separate conversation turns with a thin dim rule.
-                if self._msg_counter > 0:
+                if self._turns_started or self._msg_counter:
                     print_turn_separator()
-                self._msg_counter += 1
-                user_num = self._msg_counter
+                # Commands (known, plugin or mistyped) never reach the model
+                # and are not numbered turns.
+                parsed = parse_command(user_input)
+                is_command = bool(parsed.command or parsed.raw_command)
+                user_num = None
+                if not is_command:
+                    self._msg_counter = user_num = self._next_turn_number()
+                    self._turns_started += 1
                 print_user_message(
                     "> " + user_input,
                     msg_num=user_num,
                     timestamp=_now_ts(),
                 )
 
-                # Check for commands
-                parsed = parse_command(user_input)
-                if parsed.command:
+                if is_command:
                     if self._handle_command(parsed):
                         break
                     continue
@@ -618,7 +625,6 @@ class REPL:
             )
         elif parsed.command == Command.CLEAR:
             self.conversation.clear_history()
-            self._msg_counter = 0
             print_info("Conversation history cleared")
         elif parsed.command == Command.EXIT:
             if self.event_bus:
@@ -1046,6 +1052,14 @@ class REPL:
             else:
                 print_info("Cannot branch: at root node")
 
+    def _next_turn_number(self) -> int:
+        """Number the next agent turn will get (the /rewind checkpoint number)."""
+        store = getattr(self.conversation, "checkpoints", None)
+        next_turn = getattr(store, "next_turn", None)
+        if isinstance(next_turn, int):
+            return next_turn
+        return self._turns_started + 1
+
     def _print_todos(self, progress: dict) -> None:
         """Print the agent's task list after a ``todo_write`` call."""
         if progress.get("status") != "ok":
@@ -1109,6 +1123,8 @@ class REPL:
         import time
         self._last_activity_time = time.monotonic()
         self._idle_compact_done = False
+        # Also covers turns started without the prompt (auto lint/test fixes).
+        self._msg_counter = self._next_turn_number()
 
         # Auto-detect URLs in input
         if self.config and self.config.web.get("auto_detect", True):
@@ -1141,7 +1157,6 @@ class REPL:
             else:
                 response = self.conversation.get_response(user_input)
                 if response.content:
-                    self._msg_counter += 1
                     print_assistant_message(
                         response.content,
                         msg_num=self._msg_counter,
@@ -1283,7 +1298,6 @@ class REPL:
                             # Allocate this assistant turn's number + timestamp
                             # on first content; reused by later segments.
                             if assistant_num is None:
-                                self._msg_counter += 1
                                 assistant_num = self._msg_counter
                                 assistant_ts = _now_ts()
                             status.stop()
@@ -1355,7 +1369,6 @@ class REPL:
             logger.error(f"Architect mode error: {e}")
             return
         if not todos:  # the planner answered directly
-            self._msg_counter += 1
             print_assistant_message(
                 text, msg_num=self._msg_counter, timestamp=_now_ts()
             )
@@ -1367,7 +1380,6 @@ class REPL:
             self._process_input_stream(prompt)
         else:
             response = self.conversation.get_response(prompt)
-            self._msg_counter += 1
             print_assistant_message(
                 response.content, msg_num=self._msg_counter, timestamp=_now_ts()
             )

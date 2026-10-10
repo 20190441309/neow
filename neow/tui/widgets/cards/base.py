@@ -177,6 +177,16 @@ class CardBase(Vertical, can_focus=True):
         if self.accent_key and palette.get(self.accent_key):
             self.set_accent(palette[self.accent_key])
 
+    # -- rewind --------------------------------------------------------
+
+    rewound = False
+
+    def mark_rewound(self) -> None:
+        """Dim the card: its turn was removed from the conversation."""
+        self.rewound = True
+        self.add_class("rewound")
+        self.styles.opacity = 0.45  # inline: overrides the entrance animation
+
     # -- text ----------------------------------------------------------
 
     def body_text(self) -> str:

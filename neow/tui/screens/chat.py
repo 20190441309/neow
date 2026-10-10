@@ -90,6 +90,9 @@ class ChatScreen(Screen):
         super().__init__()
         self._busy = False
         self._turn_number = 0
+        # Cards of each agent turn, keyed by the history length when it began
+        # (the checkpoint's cut point), so /rewind can grey them out.
+        self._turn_groups: List[Dict[str, Any]] = []
         self._turn_started = 0.0
         self._current_assistant: Optional[AssistantCard] = None
         self._segment_started = 0.0
@@ -143,6 +146,7 @@ class ChatScreen(Screen):
                 "diff": self._open_diff,
                 "commit_ai": self._commit_ai,
                 "submit": self.submit_prompt,
+                "rewound": self._mark_rewound,
                 "undo": self._undo_action,
                 "cost": self._open_cost,
                 "think": self._show_thinking,
@@ -239,7 +243,17 @@ class ChatScreen(Screen):
 
     def _start_turn(self, text: str) -> None:
         self._busy = True
-        self._turn_number += 1
+        conversation = self.app.conversation
+        store = getattr(conversation, "checkpoints", None)
+        next_turn = getattr(store, "next_turn", None)
+        # Same number as the /rewind checkpoint when checkpoints are on.
+        self._turn_number = (
+            next_turn if isinstance(next_turn, int) else self._turn_number + 1
+        )
+        messages = getattr(conversation, "messages", None)
+        self._turn_groups.append(
+            {"start": len(messages) if isinstance(messages, list) else 0, "cards": []}
+        )
         self._turn_started = time.monotonic()
         self._current_assistant = None
         self._current_thinking = None
@@ -361,6 +375,17 @@ class ChatScreen(Screen):
             self._add_card(ErrorCard("模型错误", event.message))
             self._finish_turn("")
 
+    def _mark_rewound(self, cut_index: int) -> None:
+        """Grey out the cards of turns /rewind removed from the conversation."""
+        kept = []
+        for group in self._turn_groups:
+            if group["start"] >= cut_index:
+                for card in group["cards"]:
+                    card.mark_rewound()
+            else:
+                kept.append(group)
+        self._turn_groups = kept
+
     def _add_card(self, card: CardBase) -> None:
         """Add a card, playing its entrance animation in full effects mode."""
 
@@ -370,6 +395,8 @@ class ChatScreen(Screen):
             # Consecutive tool calls stack into one tight group.
             card.set_class(isinstance(previous, ToolCard), "follows")
         card.apply_palette(get_palette(self.app))
+        if self._busy and self._turn_groups:
+            self._turn_groups[-1]["cards"].append(card)
         self.timeline.add_card(card)
         if getattr(self.app, "effects", "full") == "full":
             card.play_entrance()

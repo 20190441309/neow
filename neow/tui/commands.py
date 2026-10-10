@@ -373,7 +373,13 @@ class CommandDispatcher:
         from neow.core.checkpoints import rewind_command
 
         store = getattr(self.conversation, "checkpoints", None)
+        if store is not None:
+            store.last_result = None
         text, kind = rewind_command(store, args.strip(), self.conversation)
+        result = getattr(store, "last_result", None)
+        hook = self.hooks.get("rewound")
+        if hook is not None and result is not None and result.cut_index is not None:
+            hook(result.cut_index)
         return CommandResult(text, kind=kind)
 
     def _cmd_init(self, args: str) -> CommandResult:

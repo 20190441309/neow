@@ -172,12 +172,12 @@ def status(cwd: Optional[str] = None) -> str:
     argv, reason = sandbox_argv("true", cwd)
     if argv is None:
         return (
-            "will not run (sandbox unavailable)"
+            "沙箱不可用，命令不会执行"
             if _config.mode == "strict"
-            else f"not sandboxed: {reason}"
+            else f"不在沙箱中运行：{reason}"
         )
-    network = "network allowed" if _config.network else "no network"
-    return f"sandboxed: writes limited to the project and temp dir, {network}"
+    network = "允许联网" if _config.network else "禁止联网"
+    return f"沙箱中运行：只能写项目和临时目录，{network}"
 
 
 __all__ = ["MODES", "configure", "current", "plan", "sandbox_argv", "status"]

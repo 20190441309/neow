@@ -25,5 +25,9 @@ class UserCard(CardBase):
         self.text = text
         self.add_body(Static(Text(text)), text)
 
+    def mark_rewound(self) -> None:
+        super().mark_rewound()
+        self.set_title(subtitle="已回退")
+
 
 __all__ = ["UserCard"]

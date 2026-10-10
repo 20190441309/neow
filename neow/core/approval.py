@@ -53,6 +53,9 @@ TOOL_TIERS: Dict[str, ApprovalTier] = {
 }
 
 
+_TIER_LABELS = {ApprovalTier.WRITE: "写入", ApprovalTier.EXEC: "执行命令"}
+
+
 class ApprovalCheck:
     """Result of an approval check."""
 
@@ -124,7 +127,7 @@ class ApprovalPolicy:
         if is_dangerous:
             return ApprovalCheck(
                 needs_approval=True,
-                reason=f"Dangerous operation detected: {tool_name}",
+                reason=f"检测到危险操作：{tool_name}",
                 tool_name=tool_name,
                 tier=tier,
             )
@@ -138,14 +141,14 @@ class ApprovalPolicy:
         if override == "deny":
             return ApprovalCheck(
                 needs_approval=True,
-                reason=f"Tool '{tool_name}' is denied by policy",
+                reason=f"按配置禁止使用 {tool_name}",
                 tool_name=tool_name,
                 tier=tier,
             )
         if override == "prompt":
             return ApprovalCheck(
                 needs_approval=True,
-                reason=f"Tool '{tool_name}' requires confirmation (policy override)",
+                reason=f"按配置 {tool_name} 每次都需确认",
                 tool_name=tool_name,
                 tier=tier,
             )
@@ -167,7 +170,7 @@ class ApprovalPolicy:
             if tier in (ApprovalTier.WRITE, ApprovalTier.EXEC):
                 return ApprovalCheck(
                     needs_approval=True,
-                    reason=f"{tier.value} operation requires approval: {tool_name}",
+                    reason=f"{_TIER_LABELS.get(tier, tier.value)}操作需要确认：{tool_name}",
                     tool_name=tool_name,
                     tier=tier,
                 )
@@ -178,7 +181,7 @@ class ApprovalPolicy:
         # ALWAYS_ASK: everything needs approval.
         return ApprovalCheck(
             needs_approval=True,
-            reason=f"Approval required (always-ask mode): {tool_name}",
+            reason=f"always-ask 模式下每次都需确认：{tool_name}",
             tool_name=tool_name,
             tier=tier,
         )
