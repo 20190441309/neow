@@ -106,7 +106,7 @@ usage 数据已解析但未展示。
 ### 11. 安全加固
 安全规则目前仅靠 prompt 约束。
 
-- [x] `allowed_commands` 白名单真正生效
+- [x] `allowed_commands` 白名单真正生效（`;`/`&&`/`||`/`|`/`&` 链式命令逐段校验白名单，`$(...)`/反引号命令替换直接拒绝；默认白名单含 `python`/`npm` 时两者本身仍能任意执行代码，白名单管不了解释器内部行为，见 `neow/core/security.py`）
 - [x] 危险命令（`rm -rf`, `drop table` 等需二次确认）
 - [x] 文件写入前确认（可配置）
 - [x] 敏感文件保护（`.env`, `id_rsa` 等默认不可读写）
@@ -181,7 +181,7 @@ usage 数据已解析但未展示。
 - [x] 用户按工具名覆盖策略（`tools.approval.<tool>: allow|deny|prompt`）
 - [x] 危险操作强制 prompt（`rm -rf`、`git push --force` 等）
 - [x] `/approval` REPL 命令：查看/切换模式
-- [x] SubAgent 自动使用 yolo 模式（独立 executor + yolo policy）
+- [x] SubAgent 独立 executor；默认 `agent.subagent_approval: inherit`，继承并转发父会话审批（弹窗路由回父线程），显式设为 `yolo` 才跳过审批
 
 ### 16. Compaction v2 ✅
 升级 `/compact` 为增量式、自动触发的上下文管理。
