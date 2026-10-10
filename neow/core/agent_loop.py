@@ -172,6 +172,7 @@ class AgentLoop:
         self.conversation = conversation
         self.max_turns = max_turns
         self.result = ModelResponse(content="")
+        self.requests = 0  # model requests made in this turn
         self._unsaved_content = ""
 
     def run(
@@ -206,6 +207,7 @@ class AgentLoop:
         reason = CANCELLED_RESULT
         try:
             for request_number in range(1, self.max_turns + 1):
+                self.requests = request_number
                 response = yield from self._request(user_input, stream)
                 if cancel.cancelled():
                     break

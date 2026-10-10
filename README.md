@@ -232,6 +232,35 @@ Or pass a prompt directly for a one-shot command:
 neow "Explain the main.py file and suggest optimizations"
 ```
 
+### 🤖 Headless / CI
+
+`-p` runs one prompt without the UI. Choose the output with `--output-format`:
+
+```bash
+neow -p "Summarize the changes in this branch" --output-format text
+neow -p "List TODO comments" --output-format json        # one result object
+neow -p "Fix the failing test" --output-format stream-json --approval yolo
+git diff | neow -p "Review this diff" --allowed-tools "read_file,grep,glob"
+```
+
+- `json` prints `{"type": "result", "result", "is_error", "session_id", "num_turns", "usage", "cost", "duration_ms", "model"}`; `stream-json` prints one JSON event per line (`init`, `content_delta`, `tool_start`, `tool_end`, …) and the same `result` object last. Only the result goes to stdout; notices go to stderr.
+- Tools that would ask for approval are refused (the model is told why) unless you pass `--approval yolo`. Narrow the toolset with `--allowed-tools` / `--disallowed-tools` (comma or space separated, `*` wildcards such as `mcp__github__*`), and cap requests with `--max-turns N`.
+- Exit codes: `0` success, `1` the model request or startup failed, `2` invalid arguments, `130` interrupted.
+
+GitHub Actions example:
+
+```yaml
+- name: Review pull request
+  env:
+    NEOW_ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  run: |
+    git diff origin/main... > pr.diff
+    neow -m anthropic -p "Review this diff for bugs; reply in Markdown." \
+      --message-file pr.diff --allowed-tools "read_file,grep,glob" \
+      --output-format json > review.json
+    jq -r .result review.json >> "$GITHUB_STEP_SUMMARY"
+```
+
 ### 📋 Commands
 
 | Command | Description |

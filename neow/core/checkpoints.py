@@ -57,14 +57,14 @@ class CheckpointStore:
 
     def __init__(
         self,
-        root: Path = ROOT,
+        root: Optional[Path] = None,
         session_id: Optional[str] = None,
         keep_turns: int = KEEP_TURNS,
     ):
         self.session_id = session_id or (
             time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
         )
-        self.root = Path(root)
+        self.root = Path(root) if root is not None else ROOT
         self.dir = self.root / self.session_id
         self.keep_turns = keep_turns
         self.current: Optional[int] = None

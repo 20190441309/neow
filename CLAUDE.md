@@ -222,5 +222,5 @@ usage 数据已解析但未展示。
 - [x] **阶段 2 上下文效率**：工具输出统一截断与 `read_file` 分页、稳定系统提示与提示缓存、准确的上下文用量、提示词清理与“先读后改”
 - [x] **阶段 3 项目记忆**：加载 `AGENTS.md` / `NEOW.md`、`/init`、`/memory`
 - [x] **阶段 4 生态**：`grep`/`glob`/`list_dir`、`todo_write`、子 agent 工具化（`task`，不再 yolo）、只读工具并行、MCP 客户端
-- [ ] **阶段 5 安全**：可配置 hooks、文件回退点 `/rewind`、（实验）命令沙箱
-- [ ] **阶段 6 自动化**：无头模式 `--output-format json|stream-json`
+- [ ] **阶段 5 安全**：~~可配置 hooks~~ ✅、~~文件回退点 `/rewind`~~ ✅、（实验）命令沙箱 —— 暂缓
+- [x] **阶段 6 自动化**：无头模式 `--output-format json|stream-json`

@@ -79,6 +79,33 @@ def _run_non_interactive(conversation, prompt):
     return response.content or ""
 
 
+STDIN_WAIT = 2.0  # seconds to wait for piped input when a prompt was given
+
+
+def read_piped_stdin(stream=None, wait=None) -> str:
+    """Text piped into Neow, or ``""``.
+
+    With a prompt already given, stdin is only read if it has data (or is
+    at end of file) within *wait* seconds: CI runners and other programs
+    often leave a non-TTY stdin open without ever writing to it, and
+    reading it would hang forever.
+    """
+    stream = stream or sys.stdin
+    if wait is not None:
+        try:
+            import select
+
+            ready, _, _ = select.select([stream], [], [], wait)
+        except (OSError, ValueError, TypeError):  # e.g. Windows pipes
+            ready = [stream]
+        if not ready:
+            return ""
+    try:
+        return stream.read().strip()
+    except (OSError, ValueError):
+        return ""
+
+
 def setup_mcp(cfg: Config, executor: ToolExecutor, interactive: bool, wait: bool):
     """Start configured MCP servers; their tools join the executor's registry.
 
@@ -158,13 +185,38 @@ def setup_tools(executor: ToolExecutor) -> None:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.option("--plain", is_flag=True, help="Use the classic line REPL")
 @click.option("--tui", is_flag=True, help="Force the full-screen TUI")
-def main(prompt, file, message_file, config, model, verbose, plain, tui):
+@click.option("--print", "-p", "print_prompt", type=str, default=None,
+              help="Run PROMPT headless and print the result (scripts, CI)")
+@click.option("--output-format", type=click.Choice(["text", "json", "stream-json"]),
+              default=None, help="Headless output format (implies --print mode)")
+@click.option("--allowed-tools", type=str, default=None,
+              help="Only these tools (comma/space separated, * wildcards)")
+@click.option("--disallowed-tools", type=str, default=None,
+              help="Remove these tools (comma/space separated, * wildcards)")
+@click.option("--max-turns", type=click.IntRange(min=1), default=None,
+              help="Maximum model requests per turn")
+@click.option("--approval", type=click.Choice(["always-ask", "write", "yolo"]),
+              default=None, help="Approval mode for this run")
+def main(prompt, file, message_file, config, model, verbose, plain, tui,
+         print_prompt, output_format, allowed_tools, disallowed_tools, max_turns,
+         approval):
     """Neow - A lightweight, general-purpose AI CLI assistant."""
+    headless = print_prompt is not None or output_format is not None
+    if print_prompt is not None:
+        if prompt:
+            raise click.UsageError("give the prompt either as -p or as an argument")
+        prompt = print_prompt
+    if headless:
+        if not (prompt or message_file or not sys.stdin.isatty()):
+            raise click.UsageError("headless mode needs a prompt (-p, argument, "
+                                   "--message-file or stdin)")
+        # stdout carries only the result; notices and warnings go to stderr.
+        console.file = sys.stderr
     # Detect pipe input
     stdin_is_tty = sys.stdin.isatty()
     piped_input = ""
     if not stdin_is_tty:
-        piped_input = sys.stdin.read().strip()
+        piped_input = read_piped_stdin(wait=None if not prompt else STDIN_WAIT)
 
     # Merge piped input into prompt
     if piped_input:
@@ -224,13 +276,15 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
             mode=ApprovalMode(approval_cfg.get("mode", "write")),
             tool_overrides=approval_cfg.get("overrides", {}),
         )
+        if approval:
+            approval_policy.set_mode(ApprovalMode(approval))
         executor.approval_policy = approval_policy
 
 
         # Setup conversation manager (must be created before on_file_change callback)
         token_tracker = TokenTracker(cfg)
         conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
-        conversation.max_turns = cfg.agent["max_turns"]
+        conversation.max_turns = max_turns or cfg.agent["max_turns"]
         conversation.max_tool_output_chars = cfg.agent["max_tool_output_chars"]
         conversation.subagent_max_turns = cfg.agent["subagent_max_turns"]
         conversation.subagent_approval = cfg.agent["subagent_approval"]
@@ -285,7 +339,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         conversation.mcp = setup_mcp(
             cfg,
             executor,
-            interactive=stdin_is_tty and sys.stdout.isatty(),
+            interactive=stdin_is_tty and sys.stdout.isatty() and not headless,
             # One-shot runs need the tools before the first request.
             wait=bool(prompt or message_file),
         )
@@ -303,6 +357,31 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
         # Add --file arguments to context
         for f in file:
             conversation.add_context_file(f)
+
+        if allowed_tools or disallowed_tools:
+            from neow.cli.headless import filter_tools, parse_tool_list
+
+            filter_tools(
+                executor.registry,
+                parse_tool_list(allowed_tools),
+                parse_tool_list(disallowed_tools),
+            )
+
+        if headless:
+            from neow.cli.headless import refuse_approval, run_headless
+
+            if not prompt:
+                print_error("headless mode needs a prompt (stdin was empty)")
+                sys.exit(2)
+            executor.approval_callback = refuse_approval
+            sessions = SessionManager(Path.home() / ".neow" / "sessions")
+            code = run_headless(
+                conversation,
+                prompt,
+                output_format or "text",
+                save_session=lambda: sessions.save(conversation),
+            )
+            sys.exit(code)
 
         # Non-interactive mode
         if prompt:
@@ -350,6 +429,10 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui):
     except Exception as e:
         print_error(f"Fatal error: {e}")
         logger.error(f"Fatal error: {e}")
+        if output_format in ("json", "stream-json"):
+            import json
+
+            print(json.dumps({"type": "result", "result": str(e), "is_error": True}))
         sys.exit(1)
 
 

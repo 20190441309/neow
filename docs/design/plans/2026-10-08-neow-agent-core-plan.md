@@ -613,6 +613,8 @@ class AgentLoop:
 - 清理：每个会话保留最近 50 个回合，只保留最近 20 个会话目录。
 - 与计划不同：对话回退没有复用 session tree 的分支机制——实际保存会话用的是 JSON `SessionManager`，session tree 只供 `/tree`、`/branch` 使用；改为截断内存中的历史并把被丢弃的部分存档，效果相同且不依赖 session tree 的状态。测试名相应改为 `test_rewind_conversation_back_to_turn`。已知不足：`/clear` 或 `/load` 之后，旧检查点记录的消息下标与新历史不对应（回退对话会截到错误位置或无效果）；文件回退不受影响。
 
+**提交：** `5f181fd`
+
 ### 任务 5.3 · 命令沙箱（实验，可选）
 
 **设计：**
@@ -621,6 +623,8 @@ class AgentLoop:
 - 审批弹窗显示命令是否在沙箱中运行。
 
 **测试：** 在有 `bwrap` 的环境运行（否则 skip）：`test_sandbox_blocks_write_outside_cwd`、`test_sandbox_blocks_network`
+
+- [ ] 暂缓（2026-10-10，按用户决定跳过，先做阶段 6）
 
 ---
 
@@ -637,6 +641,16 @@ class AgentLoop:
 - 文档：`README.md` 增加 CI 用法示例（GitHub Actions）。
 
 **测试：** `test_headless_json_schema`、`test_stream_json_events_order`、`test_allowed_tools_filter`、`test_headless_denies_approval_tools_by_default`
+
+- [x] 已完成（797 passed，`tests/test_headless.py` 6 项，用 click `CliRunner` 走完整的 `main()`，只替换模型客户端）
+
+**实现记录：**
+- 新模块 `neow/cli/headless.py`。`-p/--print <prompt>` 或给出 `--output-format` 即进入无头模式（提示也可来自参数、`--message-file` 或 stdin）。stdout 只放结果：Rich 控制台在无头模式下改写到 stderr（日志本来就在 stderr）。
+- `json`：结束时一个对象 `{type: "result", result, is_error, session_id, num_turns, usage{input/output/cache_read/cache_write_tokens}, cost, duration_ms, model}`；`session_id` 是自动保存的会话名，可用 `/load` 打开。`stream-json`：先一行 `init`（模型、可用工具、cwd），之后与 `AgentLoop` 事件一一对应（`content_delta`、`reasoning_delta`、`tool_start`、`tool_progress`、`tool_end`、`notice`、`usage` 等），最后一行同样的 `result`。`AgentLoop` 新增 `requests` 计数作为 `num_turns`。
+- 审批：无头模式的审批回调直接抛出 `ToolDenied`，理由告诉模型“无头运行无法审批，可用只读工具，或由用户用 --approval yolo 重跑”；`--approval always-ask|write|yolo` 覆盖配置（交互模式也可用）。`--allowed-tools` / `--disallowed-tools` 接受逗号或空格分隔、支持 `*` 通配（如 `mcp__github__*`），在 MCP 连接完成后从注册表移除；`--max-turns N`。
+- 退出码：0 成功；1 模型请求失败或启动失败（json 格式下仍输出 `is_error: true` 的结果对象）；2 参数错误（click：非法格式、`-p` 与位置参数同时给出、`--max-turns 0`、无头模式没有提示）；130 被中断。
+- 顺带修复：stdin 不是 TTY 但一直不关闭时（CI、后台任务、被其他程序调用），原有单次模式会永远卡在读取 stdin。现在已给出提示时，stdin 只在 2 秒内可读（有数据或已到结尾）才读取。
+- 与计划不同：工具出错（如被拒绝、命令失败）不算失败，退出码仍为 0——它们是 agent 正常流程的一部分，模型会看到并处理；只有模型请求本身失败才返回 1。
 
 ---
 
