@@ -1,7 +1,7 @@
 # Neow CLI 开发路线图
 
 > 目标：对标 Aider，逐步构建专业的 AI 结对编程工具
-> 当前覆盖率：~50% | P0 已完成
+> 当前覆盖率：~95% | P0–P5 已完成（v0.9）
 
 ---
 
@@ -167,6 +167,7 @@ usage 数据已解析但未展示。
 | v0.5 | P3 全部（Web + 插件） | ~90% | ✅ 已完成 |
 | v0.6 | P4 全部（Approval Mode + Compaction v2 + Session Tree + Hashline Edit） | ~95% | ✅ 已完成 |
 | v0.7 – v0.9 | P5 全部（Agent 核心强化，见下） | — | ✅ 已完成 |
+| v1.0 | P6 全部（质量评测 + 多模态 + IDE 集成 + 性能成本优化） | — | 🚧 规划中 |
 
 ---
 
@@ -224,3 +225,38 @@ usage 数据已解析但未展示。
 - [x] **阶段 4 生态**：`grep`/`glob`/`list_dir`、`todo_write`、子 agent 工具化（`task`，不再 yolo）、只读工具并行、MCP 客户端
 - [x] **阶段 5 安全**：可配置 hooks、文件回退点 `/rewind`、（实验）命令沙箱
 - [x] **阶段 6 自动化**：无头模式 `--output-format json|stream-json`
+
+---
+
+## P6 - 规模化与打磨（v1.0）
+
+> 核心能力已齐备（~95%），P6 聚焦让 Neow 经得住真实、长期、多人使用的考验，而非再堆新功能。
+
+### 19. 质量与评测体系（优先级最高）
+目前主要靠手动验证，规模变大后容易退化且难发现回归。
+
+- [x] 搭建 eval 套件：固定任务集（多文件编辑、bug 修复、重构）+ 自动打分（`evals/`，见 `evals/README.md`；默认 scripted client，零成本、CI 友好，不评估真实模型质量）
+- [x] CI 中跑核心单测 + 关键 eval 子集，防止回归（`.github/workflows/ci.yml`；eval 子集即 `tests/test_evals.py`，随 `pytest` 一起跑）
+- [x] 重新评估 tree-sitter repo map 的必要性 — **结论：继续暂缓，但理由变了**。`tree-sitter` / `tree-sitter-languages` 现在都有 Windows 预编译 wheel，当初的 Windows 兼容性理由已过时；但目前没有真实 monorepo 痛点证据，`grep`/`glob`/`list_dir` + `AGENTS.md` 项目记忆已覆盖日常场景，而引入 tree-sitter 要为每种语言维护 grammar 依赖和 symbol 提取查询，维护成本不低。**重新开工触发条件**：用户反复反馈 grep 找不到定义/引用关系，或者在 >5 万行、命名约定不统一的 monorepo 里验证 grep 噪音过大。
+- [x] 记录失败案例库（prompt + 预期 + 实际），作为回归测试种子 — 基础设施已搭好：`evals/failures/`（流程 + 模板）+ `EvalTask.category`（区分 smoke / regression）。库目前是空的，没有编造案例填充——等真实使用中出现 eval/单测都没覆盖到的 bug 时，按模板记录并转成 `category="regression"` 的 `EvalTask`
+
+### 20. 多模态能力
+目前仅支持文本，无法处理截图/图片类输入，限制了 UI 调试、报错截图分析等场景。
+
+- [ ] `/add <image>` 或粘贴截图加入上下文（复用 Claude vision）
+- [ ] 终端内图片预览（支持的终端：iTerm2/kitty 协议）
+- [ ] 截图 diff（UI 改动前后对比，辅助视觉回归判断）
+
+### 21. 编辑器 / IDE 集成
+当前只能在终端 REPL 里用，离"结对编程"的无缝体验还有距离。
+
+- [ ] 评估 LSP server 模式 vs VSCode 插件桥接，二选一先落地最小可用版本
+- [ ] 编辑器内发起对话、接收 diff、一键应用/拒绝
+- [ ] 复用现有 approval mode / hashline edit 作为底层能力，不重复造轮子
+
+### 22. 性能与成本自动优化
+模型选择、并发策略目前靠用户手动配置，缺少自适应能力。
+
+- [ ] 简单任务自动路由到低成本模型（基于任务复杂度粗分类），复杂任务才上强模型
+- [ ] prompt cache 命中率监控与展示（`/cost` 扩展）
+- [ ] 评估将只读工具并行范围扩大到部分写操作（需配合 approval mode 的安全边界）
