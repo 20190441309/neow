@@ -245,3 +245,20 @@ class TestStatusBar:
         result = create_status_bar("model", 0, 128000, 0.0)
         assert "0%" in result
         assert "█" in result or "░" in result
+
+
+def test_print_info_keeps_square_brackets(monkeypatch):
+    """Command output like ``/rewind <n> [files|chat|both]`` is not markup."""
+    import io
+
+    from rich.console import Console
+
+    from neow.utils import formatter
+
+    buf = io.StringIO()
+    monkeypatch.setattr(
+        formatter, "console", Console(file=buf, width=120, theme=formatter.NEOW_THEME)
+    )
+    formatter.print_info("/rewind <编号> [files|chat|both] · node [abc12345]")
+    assert "[files|chat|both]" in buf.getvalue()
+    assert "[abc12345]" in buf.getvalue()

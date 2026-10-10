@@ -893,7 +893,7 @@ def print_warning(message: str) -> None:
 
 def print_info(message: str) -> None:
     """Print info message."""
-    console.print(f"[sev.info]Info:[/sev.info] {message}")
+    console.print(f"[sev.info]Info:[/sev.info] {escape(message)}")
 
 
 def print_welcome(
