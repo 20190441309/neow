@@ -56,7 +56,7 @@ class ThinkingCard(CardBase):
             rng=rng,
             frontier=frontier,
             colors=tuple(palette["gradient"]),
-            settled_color=palette["settled"],
+            settled_color=palette["accent3"],
         )
         self._reasoning = ""
         self._finished = False
@@ -71,8 +71,8 @@ class ThinkingCard(CardBase):
         super().apply_palette(palette)
         if palette.get("gradient"):
             self._engine.colors = tuple(palette["gradient"])
-        if palette.get("settled"):
-            self._engine.settled_color = palette["settled"]
+        if palette.get("accent3"):
+            self._engine.settled_color = palette["accent3"]
         self._apply_live()
 
     # -- lifecycle -----------------------------------------------------
@@ -130,10 +130,10 @@ class ThinkingCard(CardBase):
         if self.effects == "subtle":
             spinner = SPINNER_FRAMES[self._spinner_index % len(SPINNER_FRAMES)]
             return Text.assemble(
-                (self._reasoning + " ", palette["settled"]),
+                (self._reasoning + " ", palette["accent3"]),
                 (spinner, palette["accent2"]),
             )
-        return Text(self._reasoning, style=palette["settled"])
+        return Text(self._reasoning, style=palette["accent3"])
 
     def _tick(self) -> None:
         self._phase = self._engine.advance(self._phase)

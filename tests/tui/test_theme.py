@@ -105,7 +105,7 @@ def test_thinking_card_engine_follows_palette():
     card = ThinkingCard(effects="full")
     card.apply_palette(LIGHT)
     assert card._engine.colors == tuple(LIGHT["gradient"])
-    assert card._engine.settled_color == LIGHT["settled"]
+    assert card._engine.settled_color == LIGHT["accent3"]
 
 
 async def test_light_palette_reaches_status_bar():

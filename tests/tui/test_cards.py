@@ -7,6 +7,7 @@ from neow.tui.effects.spinner import BRAILLE_FRAMES
 from neow.tui.widgets.cards import ErrorCard, SystemCard, UserCard
 from neow.tui.widgets.cards.assistant import AssistantCard
 from neow.tui.widgets.cards.thinking import ThinkingCard
+from neow.tui.widgets.cards.todo import TodoCard
 from neow.tui.widgets.cards.tool import (
     ToolCard,
     render_tool_body,
@@ -112,6 +113,21 @@ async def test_streaming_appends_markdown_and_shows_cursor():
         assert card.cursor_visible
 
 
+async def test_streaming_cursor_is_scramble_tail_in_full_effects():
+    card = AssistantCard(number=2, timestamp="12:04", effects="full")
+    async with _host(card) as pilot:
+        await card.append_content("hello")
+        await pilot.pause()
+        assert card.cursor_visible
+        assert card._cursor_timer is not None
+        phase_before = card._phase
+        card._tick()
+        await pilot.pause()
+        assert card._phase != phase_before  # the scramble animation is advancing
+        card.finish(duration=1.0)
+        assert not card.cursor_visible and card._cursor_timer is None
+
+
 async def test_finish_removes_cursor_and_sets_meta():
     card = AssistantCard(number=2, timestamp="12:04")
     async with _host(card) as pilot:
@@ -147,6 +163,36 @@ async def test_assistant_buffers_content_before_mount():
     async with _host(card) as pilot:
         await pilot.pause()
         assert "early" in card.markdown_text()
+
+
+async def test_todo_in_progress_spinner_animates_and_stops():
+    todos = [
+        {"content": "a", "status": "in_progress"},
+        {"content": "b", "status": "pending"},
+    ]
+    card = TodoCard(todos, effects="full")
+    async with _host(card) as pilot:
+        await pilot.pause()
+        assert card._timer is not None
+        index_before = card._spinner_index
+        card._tick()
+        assert card._spinner_index != index_before
+        card.update_todos(
+            [
+                {"content": "a", "status": "completed"},
+                {"content": "b", "status": "pending"},
+            ]
+        )
+        await pilot.pause()
+        assert card._timer is None  # nothing in_progress left
+
+
+async def test_todo_spinner_disabled_when_effects_off():
+    card = TodoCard([{"content": "a", "status": "in_progress"}], effects="off")
+    async with _host(card) as pilot:
+        await pilot.pause()
+        assert card._timer is None
+        assert card._spinner_frame() is None
 
 
 def test_edit_file_body_has_inline_diff():
@@ -207,6 +253,19 @@ async def test_tool_denied_icon():
     card.start("write_file", {"file_path": "a.py"})
     card.finish(result="Error: User denied: write_file", is_error=True)
     assert card.status_icon == "⊘"
+
+
+async def test_subagent_card_is_indented_and_forked():
+    card = ToolCard(effects="off")
+    async with _host(card) as pilot:
+        card.start("task", {"agent_type": "explore", "description": "find callers"})
+        await pilot.pause()
+        assert "subagent" in card.classes
+        assert card.accent == "#a78bfa"
+        card.finish(result="done", is_error=False)
+        await pilot.pause()
+        assert "⎇" in card.status_icon
+        assert card.accent == "#a78bfa"
 
 
 async def test_user_toggle_during_run_disables_auto_collapse():

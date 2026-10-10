@@ -15,6 +15,8 @@ ACCENT_RUNNING = MIDNIGHT["tool_running"]
 ACCENT_DONE = MIDNIGHT["tool_done"]
 ACCENT_ERROR = MIDNIGHT["tool_error"]
 MAX_BODY_LINES = 30
+SUBAGENT_TOOL = "task"
+FORK_ICON = "⎇"
 
 _STATUS_ACCENT_KEYS = {
     "pending": "tool_running",
@@ -158,6 +160,13 @@ class ToolCard(CardBase):
         margin: 0 0 0 2;
         padding: 0 1;
     }
+    ToolCard.subagent {
+        margin-left: 2;
+    }
+    ToolCard.subagent .card-body {
+        margin: 0 0 0 2;
+        padding: 0 1;
+    }
     """
 
     def __init__(self, *, effects: str = "full"):
@@ -183,9 +192,12 @@ class ToolCard(CardBase):
     # -- palette -------------------------------------------------------
 
     def apply_palette(self, palette) -> None:
-        key = _STATUS_ACCENT_KEYS.get(self._status, "tool_running")
-        if palette.get(key):
-            self.set_accent(palette[key])
+        if self._name == SUBAGENT_TOOL and palette.get("subagent"):
+            self.set_accent(palette["subagent"])
+        else:
+            key = _STATUS_ACCENT_KEYS.get(self._status, "tool_running")
+            if palette.get(key):
+                self.set_accent(palette[key])
         self._render_body()
 
     def on_mount(self) -> None:
@@ -199,8 +211,18 @@ class ToolCard(CardBase):
         self._name = name
         self._args = dict(args or {})
         self._status = "running"
-        self.set_title(title=name, icon="⟳", subtitle=_tool_summary(name, self._args))
-        self.set_accent(widget_palette(self)["tool_running"])
+        palette = widget_palette(self)
+        is_subagent = name == SUBAGENT_TOOL
+        if is_subagent:
+            self.add_class("subagent")
+            self.rule = "heavy"
+            self.set_title(
+                title="子 agent", icon=FORK_ICON, subtitle=_tool_summary(name, self._args)
+            )
+            self.set_accent(palette["subagent"])
+        else:
+            self.set_title(title=name, icon="⟳", subtitle=_tool_summary(name, self._args))
+            self.set_accent(palette["tool_running"])
         self._render_body()
         if self.collapsed:
             self._set_collapsed(False)
@@ -217,7 +239,10 @@ class ToolCard(CardBase):
         if not self._spinner_on:
             return
         self._spinner_index += 1
-        self.set_title(icon=self._spinner_frame())
+        frame = self._spinner_frame()
+        if self._name == SUBAGENT_TOOL:
+            frame = f"{FORK_ICON}{frame}"
+        self.set_title(icon=frame)
 
     def _spinner_frame(self) -> str:
         return BRAILLE_FRAMES[self._spinner_index % len(BRAILLE_FRAMES)]
@@ -244,7 +269,10 @@ class ToolCard(CardBase):
 
         icon = {"done": "✓", "error": "✗", "denied": "⊘"}[self._status]
         palette = widget_palette(self)
-        accent = palette[_STATUS_ACCENT_KEYS[self._status]]
+        is_subagent = self._name == SUBAGENT_TOOL
+        if is_subagent:
+            icon = f"{FORK_ICON}{icon}"
+        accent = palette["subagent"] if is_subagent else palette[_STATUS_ACCENT_KEYS[self._status]]
         meta = "denied" if self._status == "denied" else ""
         if duration is not None:
             meta = _format_duration(duration)

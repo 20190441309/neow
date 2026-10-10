@@ -335,7 +335,7 @@ class ChatScreen(Screen):
             if self._todo_card is not None:
                 self._todo_card.update_todos(todos)
             else:
-                self._todo_card = TodoCard(todos)
+                self._todo_card = TodoCard(todos, effects=self.app.effects)
                 self._add_card(self._todo_card)
             if self.sidebar_tab == "todos":
                 self._refresh_sidebar()

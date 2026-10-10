@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from textual.widgets import Markdown, Static
 
+from neow.tui.effects.scramble import ScrambleEngine
 from neow.tui.theme import MIDNIGHT, widget_palette
 from neow.tui.widgets.cards.base import CardBase
 
 CURSOR = "▊"
 MAX_LINES = 300
+SCRAMBLE_FRONTIER = 10
+SCRAMBLE_FPS = 15
 
 
 class AssistantCard(CardBase):
@@ -62,6 +65,13 @@ class AssistantCard(CardBase):
         self._finished = False
         self._cursor_timer = None
         self._blink_on = True
+        self._phase = 0.0
+        palette = widget_palette(None)
+        self._engine = ScrambleEngine(
+            enabled=effects == "full",
+            frontier=SCRAMBLE_FRONTIER,
+            colors=tuple(palette["gradient"]),
+        )
         self._md = Markdown("")
         self._truncation = Static("", classes="truncation-hint")
         self._truncation.display = False
@@ -80,11 +90,15 @@ class AssistantCard(CardBase):
 
     def on_mount(self) -> None:
         super().on_mount()
-        self._cursor.styles.color = widget_palette(self)["accent2"]
+        if self.effects == "full" and not self._finished:
+            self._render_scramble()
+            self._cursor_timer = self.set_interval(1 / SCRAMBLE_FPS, self._tick)
+        else:
+            self._cursor.styles.color = widget_palette(self)["accent2"]
+            if self.effects != "full" and not self._finished:
+                self._cursor_timer = self.set_interval(0.5, self._blink)
         if self._pending:
             self.call_later(self._flush_pending)
-        if self.effects == "full" and not self._finished:
-            self._cursor_timer = self.set_interval(0.5, self._blink)
 
     def _blink(self) -> None:
         if not self.is_mounted or self._finished:
@@ -93,6 +107,26 @@ class AssistantCard(CardBase):
         self._blink_on = not self._blink_on
         self._cursor.styles.color = (
             palette["accent2"] if self._blink_on else palette["muted"]
+        )
+
+    def _tick(self) -> None:
+        if not self.is_mounted or self._finished:
+            return
+        self._phase = self._engine.advance(self._phase)
+        self._render_scramble()
+
+    def apply_palette(self, palette) -> None:
+        super().apply_palette(palette)
+        if palette.get("gradient"):
+            self._engine.colors = tuple(palette["gradient"])
+        if self.effects == "full" and not self._finished and self.is_mounted:
+            self._render_scramble()
+        elif self.is_mounted:
+            self._cursor.styles.color = palette["accent2" if self._blink_on else "muted"]
+
+    def _render_scramble(self) -> None:
+        self._cursor.update(
+            self._engine.frame("", " " * SCRAMBLE_FRONTIER, self._phase)
         )
 
     async def _flush_pending(self) -> None:
