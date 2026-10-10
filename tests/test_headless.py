@@ -41,10 +41,10 @@ def run(tmp_path, monkeypatch):
     # main() points the console at stderr; restore the unset (dynamic) value.
     monkeypatch.setattr(formatter.console, "_file", formatter.console._file)
 
-    def invoke(args, replies=(), client_cls=FakeClient):
+    def invoke(args, replies=(), client_cls=FakeClient, input=None):
         client = client_cls(list(replies))
         monkeypatch.setattr(cli, "create_model_client", lambda cfg, name: client)
-        result = CliRunner().invoke(cli.main, args, catch_exceptions=False)
+        result = CliRunner().invoke(cli.main, args, input=input, catch_exceptions=False)
         return result, client
 
     return invoke, work
@@ -165,6 +165,88 @@ def test_headless_denies_approval_tools_by_default(run):
 
     result, _ = invoke(["-p", "write", "--approval", "yolo"], script)
     assert result.exit_code == 0 and (work / "out.txt").read_text() == "x"
+
+
+def test_approval_interactive_requires_stream_json(run):
+    invoke, _ = run
+    result, _ = invoke(["-p", "x", "--output-format", "json", "--approval-interactive"])
+    assert result.exit_code == 2
+
+
+def test_approval_interactive_approved(run):
+    invoke, work = run
+    script = [
+        {"tool_calls": [_call("w1", "create_file", file_path="out.txt", content="x")]},
+        {"content": "Wrote it."},
+    ]
+    result, _ = invoke(
+        ["-p", "write", "--output-format", "stream-json", "--approval-interactive"],
+        script,
+        input=json.dumps({"id": 1, "approve": True}) + "\n",
+    )
+    assert result.exit_code == 0
+    events = _lines(result.stdout)
+    request = next(e for e in events if e["type"] == "approval_request")
+    assert request == {
+        "type": "approval_request",
+        "id": 1,
+        "tool": "create_file",
+        "args": {"file_path": "out.txt", "content": "x"},
+        "reason": request["reason"],
+    }
+    end = next(e for e in events if e["type"] == "tool_end")
+    assert end["status"] == "ok"
+    assert (work / "out.txt").read_text() == "x"
+
+
+def test_approval_interactive_denied_without_a_reply(run):
+    invoke, work = run
+    script = [
+        {"tool_calls": [_call("w1", "create_file", file_path="out.txt", content="x")]},
+        {"content": "Could not write."},
+    ]
+    # No input at all: stdin is immediately EOF, which must deny (fail safe).
+    result, _ = invoke(
+        ["-p", "write", "--output-format", "stream-json", "--approval-interactive"], script
+    )
+    assert result.exit_code == 0
+    end = next(e for e in _lines(result.stdout) if e["type"] == "tool_end")
+    assert end["status"] == "denied"
+    assert not (work / "out.txt").exists()
+
+
+def test_approval_interactive_denied_explicitly(run):
+    invoke, work = run
+    script = [
+        {"tool_calls": [_call("w1", "create_file", file_path="out.txt", content="x")]},
+        {"content": "Could not write."},
+    ]
+    result, _ = invoke(
+        ["-p", "write", "--output-format", "stream-json", "--approval-interactive"],
+        script,
+        input=json.dumps({"id": 1, "approve": False}) + "\n",
+    )
+    assert result.exit_code == 0
+    end = next(e for e in _lines(result.stdout) if e["type"] == "tool_end")
+    assert end["status"] == "denied"
+    assert not (work / "out.txt").exists()
+
+
+def test_approval_interactive_rejects_mismatched_id(run):
+    invoke, work = run
+    script = [
+        {"tool_calls": [_call("w1", "create_file", file_path="out.txt", content="x")]},
+        {"content": "Could not write."},
+    ]
+    result, _ = invoke(
+        ["-p", "write", "--output-format", "stream-json", "--approval-interactive"],
+        script,
+        # Approves the wrong request id -- must not be treated as a yes.
+        input=json.dumps({"id": 999, "approve": True}) + "\n",
+    )
+    end = next(e for e in _lines(result.stdout) if e["type"] == "tool_end")
+    assert end["status"] == "denied"
+    assert not (work / "out.txt").exists()
 
 
 def test_headless_exit_codes(run):

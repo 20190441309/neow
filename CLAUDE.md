@@ -250,9 +250,9 @@ usage 数据已解析但未展示。
 ### 21. 编辑器 / IDE 集成
 当前只能在终端 REPL 里用，离"结对编程"的无缝体验还有距离。
 
-- [ ] 评估 LSP server 模式 vs VSCode 插件桥接，二选一先落地最小可用版本
-- [ ] 编辑器内发起对话、接收 diff、一键应用/拒绝
-- [ ] 复用现有 approval mode / hashline edit 作为底层能力，不重复造轮子
+- [x] 评估 LSP server 模式 vs VSCode 插件桥接，二选一先落地最小可用版本 — **结论：桥接 CLI，不做 LSP server**。LSP 是给补全/诊断设计的协议，"聊天 + diff + 批准/拒绝"不是它的原生语义，硬塞进去（自定义 notification/code action）得到的工具支持跟直接做扩展差不多，却要多维护一个协议层；而 Neow 已经有 `--output-format stream-json` 的事件流，桥接成本低很多。代价：Neovim/Emacs 用户目前只能在终端里用 REPL/TUI，没有编辑器内插件——可接受，等真有人要求再加。
+- [x] 编辑器内发起对话、接收 diff、一键应用/拒绝 — 协议层：新增 `--approval-interactive`（需配合 `--output-format stream-json`），把"拒绝所有需审批的调用"换成"吐一行 `approval_request` JSON，阻塞等 stdin 回一行决定"（`neow/cli/headless.py:make_interactive_approval`）；同时跳过了 headless 原本会贪婪读 stdin 合并进 prompt 的逻辑（否则会把审批回复当成 piped 输入吃掉）。应用层：`editors/vscode/` 下的最小 VSCode 扩展，起子进程桥接这个协议，用 Output Channel 显示对话，`showInformationMessage` 做 Allow/Deny，文件改动用 VSCode 原生 diff 编辑器展示（不依赖 checkpoints，直接从磁盘读当前内容 + 工具参数算 before/after）
+- [x] 复用现有 approval mode / hashline edit 作为底层能力，不重复造轮子 — 没有新造一套审批/编辑逻辑：`--approval-interactive` 只是给已有的 `ApprovalPolicy`/`executor.approval_callback` 接了个新的 I/O 通道，扩展侧的 diff/apply 走的还是模型原本会调的 `edit_file`/`hashline_edit`/`write_file` 等工具，扩展只是把批准动作从"终端打字"换成"点按钮"
 
 ### 22. 性能与成本自动优化
 模型选择、并发策略目前靠用户手动配置，缺少自适应能力。

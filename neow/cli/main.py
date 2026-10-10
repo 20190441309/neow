@@ -197,11 +197,18 @@ def setup_tools(executor: ToolExecutor) -> None:
               help="Maximum model requests per turn")
 @click.option("--approval", type=click.Choice(["always-ask", "write", "yolo"]),
               default=None, help="Approval mode for this run")
+@click.option("--approval-interactive", is_flag=True,
+              help="Headless + --output-format stream-json only: instead of "
+                   "refusing tools that need approval, emit an "
+                   "approval_request line and block for a decision on stdin "
+                   "(for editor/IDE integrations, task 21)")
 def main(prompt, file, message_file, config, model, verbose, plain, tui,
          print_prompt, output_format, allowed_tools, disallowed_tools, max_turns,
-         approval):
+         approval, approval_interactive):
     """Neow - A lightweight, general-purpose AI CLI assistant."""
     headless = print_prompt is not None or output_format is not None
+    if approval_interactive and output_format != "stream-json":
+        raise click.UsageError("--approval-interactive needs --output-format stream-json")
     if print_prompt is not None:
         if prompt:
             raise click.UsageError("give the prompt either as -p or as an argument")
@@ -212,10 +219,11 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
                                    "--message-file or stdin)")
         # stdout carries only the result; notices and warnings go to stderr.
         console.file = sys.stderr
-    # Detect pipe input
+    # Detect pipe input (skipped under --approval-interactive: stdin there is
+    # the approval-reply channel, not prompt content).
     stdin_is_tty = sys.stdin.isatty()
     piped_input = ""
-    if not stdin_is_tty:
+    if not stdin_is_tty and not approval_interactive:
         piped_input = read_piped_stdin(wait=None if not prompt else STDIN_WAIT)
 
     # Merge piped input into prompt
@@ -378,12 +386,14 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
             )
 
         if headless:
-            from neow.cli.headless import refuse_approval, run_headless
+            from neow.cli.headless import make_interactive_approval, refuse_approval, run_headless
 
             if not prompt:
                 print_error("headless mode needs a prompt (stdin was empty)")
                 sys.exit(2)
-            executor.approval_callback = refuse_approval
+            executor.approval_callback = (
+                make_interactive_approval() if approval_interactive else refuse_approval
+            )
             sessions = SessionManager(Path.home() / ".neow" / "sessions")
             code = run_headless(
                 conversation,

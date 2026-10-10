@@ -14,19 +14,24 @@ Formats:
   ``reasoning_delta``, ``tool_start``, ``tool_progress``, ``tool_end``,
   ``notice``, ``usage``, …), and the same ``result`` object last.
 
-Nothing can be approved interactively, so tools that would ask are refused
-(the model is told so) unless the run uses ``--approval yolo``.
+Tools that need approval are refused (the model is told so) unless the run
+uses ``--approval yolo``, or ``--approval-interactive`` (requires
+``--output-format stream-json``), which opens an ``approval_request``/
+stdin-reply channel instead (see ``make_interactive_approval`` — this is
+what an editor/IDE integration, task 21, drives to show an allow/deny
+dialog).
 
 Exit codes: 0 success, 1 the model request failed, 2 bad arguments (from
 click), 130 interrupted.
 """
 
 import fnmatch
+import itertools
 import json
 import os
 import sys
 import time
-from typing import Any, Dict, Iterable, List, Optional, TextIO
+from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO
 
 from neow.core.agent_loop import AgentLoop, CancelToken
 from neow.core.executor import ToolDenied
@@ -69,6 +74,50 @@ def refuse_approval(name: str, args: Any, reason: str) -> bool:
         f"({reason}). Use read-only tools, or the user can rerun with "
         "--approval yolo."
     )
+
+
+def make_interactive_approval(
+    out: Optional[TextIO] = None, in_: Optional[TextIO] = None
+) -> Callable[[str, Dict[str, Any], str], bool]:
+    """Approval callback for ``--output-format stream-json``: ask over the pipe.
+
+    Writes one ``approval_request`` line to *out* and blocks for one reply
+    line on *in_* — the shape an editor/IDE integration (task 21) drives: it
+    reads stream-json events, shows a dialog for ``approval_request``, and
+    writes the decision back on stdin::
+
+        {"type": "approval_request", "id": 1, "tool": "write_file",
+         "args": {...}, "reason": "..."}
+        -> stdin: {"id": 1, "approve": true}
+
+    A closed pipe, unparseable reply, or mismatched id denies the call
+    (fail safe) rather than hanging or approving something unintended.
+    """
+    out = out or sys.stdout
+    in_ = in_ or sys.stdin
+    request_id = itertools.count(1)
+
+    def callback(name: str, args: Dict[str, Any], reason: str) -> bool:
+        this_id = next(request_id)
+        out.write(
+            json.dumps(
+                {"type": "approval_request", "id": this_id, "tool": name, "args": args, "reason": reason},
+                ensure_ascii=False,
+                default=str,
+            )
+            + "\n"
+        )
+        out.flush()
+        line = in_.readline()
+        if not line:
+            return False
+        try:
+            decision = json.loads(line)
+        except json.JSONDecodeError:
+            return False
+        return decision.get("id") == this_id and bool(decision.get("approve"))
+
+    return callback
 
 
 def _event(chunk: Any) -> Optional[Dict[str, Any]]:
