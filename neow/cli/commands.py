@@ -31,6 +31,7 @@ class Command(Enum):
     COMPACT = "compact"
     EXPORT = "export"
     IMAGE = "image"
+    IMGDIFF = "imgdiff"
     APPROVAL = "approval"
     TREE = "tree"
     BRANCH = "branch"
@@ -92,6 +93,7 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/compact": Command.COMPACT,
         "/export": Command.EXPORT,
         "/image": Command.IMAGE,
+        "/imgdiff": Command.IMGDIFF,
         "/approval": Command.APPROVAL,
         "/tree": Command.TREE,
         "/branch": Command.BRANCH,

@@ -149,6 +149,12 @@ class StreamChunk:
 class BaseModelClient(ABC):
     """Base class for AI model clients."""
 
+    # Whether this provider accepts image content blocks (see
+    # Conversation.queue_image). Text-only providers like DeepSeek leave
+    # this False so callers can warn instead of sending images that get
+    # silently ignored or rejected.
+    supports_vision: bool = False
+
     def __init__(self, api_key: str, model: str):
         """Initialize model client.
 

@@ -158,6 +158,34 @@ class CommandDispatcher:
         except KeyError as exc:
             return CommandResult(str(exc), kind="error")
 
+    def _cmd_image(self, args: str) -> CommandResult:
+        if not args:
+            return CommandResult("Usage: /image <file_path>", kind="error")
+        try:
+            return CommandResult(self.conversation.queue_image(args))
+        except (FileNotFoundError, ValueError) as exc:
+            return CommandResult(str(exc), kind="error")
+
+    def _cmd_imgdiff(self, args: str) -> CommandResult:
+        parts = args.split()
+        if len(parts) != 2:
+            return CommandResult("Usage: /imgdiff <before> <after>", kind="error")
+        import time
+
+        from neow.tools.imgdiff import ImageDiffError, diff_images
+
+        out_path = str(Path.home() / ".neow" / "imgdiff" / f"{int(time.time())}.png")
+        try:
+            result = diff_images(parts[0], parts[1], out_path)
+        except ImageDiffError as exc:
+            return CommandResult(str(exc), kind="error")
+        status = "differs" if result.changed else "no visual difference"
+        self.conversation.queue_image(result.out_path)
+        return CommandResult(
+            f"Diff ({status}, {result.size[0]}x{result.size[1]}): {result.out_path} — "
+            "queued for the next message (no inline preview in the TUI)"
+        )
+
     def _cmd_ls(self, args: str) -> CommandResult:
         files = self.conversation.list_context_files()
         if not files:

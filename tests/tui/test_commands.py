@@ -1,5 +1,7 @@
 """Command dispatcher tests (plan task 13)."""
 
+from pathlib import Path
+
 from neow.cli.commands import Command, ParsedCommand
 from neow.core.approval import ApprovalMode, ApprovalPolicy
 from neow.tui.commands import CommandDispatcher
@@ -96,6 +98,47 @@ def test_exit_returns_exit_signal():
 def test_compact_returns_compaction_kind():
     result = make_dispatcher().dispatch(ParsedCommand(Command.COMPACT))
     assert result.kind == "compaction" and result.text
+
+
+def test_image_requires_arg():
+    result = make_dispatcher().dispatch(ParsedCommand(Command.IMAGE, ""))
+    assert result.kind == "error" and "Usage" in result.text
+
+
+def test_image_queues_file():
+    result = make_dispatcher().dispatch(ParsedCommand(Command.IMAGE, "shot.png"))
+    assert result.kind != "error"
+    assert "Queued image: shot.png" in result.text
+
+
+def test_imgdiff_requires_two_args():
+    result = make_dispatcher().dispatch(ParsedCommand(Command.IMGDIFF, "only_one.png"))
+    assert result.kind == "error" and "Usage" in result.text
+
+
+def test_imgdiff_computes_diff_and_queues_result(tmp_path, monkeypatch):
+    from PIL import Image
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    before = tmp_path / "before.png"
+    after = tmp_path / "after.png"
+    Image.new("RGB", (5, 5), (255, 255, 255)).save(before)
+    Image.new("RGB", (5, 5), (0, 0, 0)).save(after)
+
+    result = make_dispatcher().dispatch(
+        ParsedCommand(Command.IMGDIFF, f"{before} {after}")
+    )
+
+    assert result.kind != "error"
+    assert "differs" in result.text and "no inline preview" in result.text
+
+
+def test_imgdiff_reports_missing_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    result = make_dispatcher().dispatch(
+        ParsedCommand(Command.IMGDIFF, f"{tmp_path / 'nope.png'} {tmp_path / 'nope2.png'}")
+    )
+    assert result.kind == "error"
 
 
 def test_unknown_falls_back_to_plugin_then_error():

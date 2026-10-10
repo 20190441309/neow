@@ -1,8 +1,11 @@
 """Output formatting utilities for Neow CLI."""
 
-import sys
+import base64
 import io
+import os
 import re
+import sys
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from rich.console import Console
@@ -872,6 +875,51 @@ def print_code(code: str, language: str = "python") -> None:
     """Print code with syntax highlighting."""
     syntax = Syntax(code, language, theme=SYNTAX_THEME, line_numbers=True)
     console.print(syntax)
+
+
+def _terminal_image_protocol() -> Optional[str]:
+    """``"iterm2"`` | ``"kitty"`` | ``None``, from env vars, best-effort."""
+    if not sys.stdout.isatty():
+        return None
+    term_program = os.environ.get("TERM_PROGRAM", "")
+    if os.environ.get("KITTY_WINDOW_ID") or os.environ.get("TERM") == "xterm-kitty":
+        return "kitty"
+    if term_program == "iTerm.app":
+        return "iterm2"
+    if term_program == "WezTerm":  # supports the kitty graphics protocol too
+        return "kitty"
+    return None
+
+
+def print_inline_image(path: str) -> bool:
+    """Render an image inline via the iTerm2 or kitty graphics protocol.
+
+    Writes raw escape sequences straight to stdout (bypassing Rich, which
+    would mangle them). Returns True if it drew something; False if the
+    terminal isn't recognized as supporting either protocol, so the caller
+    can fall back to a plain text notice.
+    """
+    protocol = _terminal_image_protocol()
+    if protocol is None:
+        return False
+    try:
+        data = Path(path).read_bytes()
+    except OSError:
+        return False
+    encoded = base64.b64encode(data).decode("ascii")
+
+    if protocol == "iterm2":
+        sys.stdout.write(f"\033]1337;File=inline=1;size={len(data)}:{encoded}\a\n")
+    else:  # kitty: base64 in <=4096-byte chunks, m=1 on all but the last
+        chunk_size = 4096
+        chunks = [encoded[i : i + chunk_size] for i in range(0, len(encoded), chunk_size)] or [""]
+        for i, chunk in enumerate(chunks):
+            more = 0 if i == len(chunks) - 1 else 1
+            control = f"a=T,f=100,m={more}" if i == 0 else f"m={more}"
+            sys.stdout.write(f"\033_G{control};{chunk}\033\\")
+        sys.stdout.write("\n")
+    sys.stdout.flush()
+    return True
 
 
 def print_error(message: str) -> None:

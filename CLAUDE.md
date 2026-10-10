@@ -243,9 +243,9 @@ usage 数据已解析但未展示。
 ### 20. 多模态能力
 目前仅支持文本，无法处理截图/图片类输入，限制了 UI 调试、报错截图分析等场景。
 
-- [ ] `/add <image>` 或粘贴截图加入上下文（复用 Claude vision）
-- [ ] 终端内图片预览（支持的终端：iTerm2/kitty 协议）
-- [ ] 截图 diff（UI 改动前后对比，辅助视觉回归判断）
+- [x] `/add <image>` 或粘贴截图加入上下文（复用 Claude vision）— `/image <path>` 这条路径其实早就有了（`queue_image`/`_build_vision_content`/adapters 都已实现，只是没出现在路线图里）；这次补的是：`/add <image>` 原来会因为 `read_text` 读二进制文件直接崩溃，现在会按 mimetype 自动转给 `queue_image`；新增 `BaseModelClient.supports_vision`（Anthropic/OpenAI=True，DeepSeek=False），队列图片时如果当前模型不支持会给出警告；补了 `tests/test_core.py::TestQueueImage` 等直接单测
+- [x] 终端内图片预览（支持的终端：iTerm2/kitty 协议）— `neow/utils/formatter.py` 的 `print_inline_image`（iTerm2 OSC 1337 / kitty 图形协议，非 tty 或不认识的终端直接返回 False 走文字兜底），`/image` 命令队列成功后调用
+- [x] 截图 diff（UI 改动前后对比，辅助视觉回归判断）— 新增 Pillow 依赖，`neow/tools/imgdiff.py` 的 `diff_images`（不同尺寸自动左上对齐 padding，不报错；差异像素红色高亮）+ `/imgdiff <before> <after>` 命令：生成 diff 图、终端内预览、并 `queue_image` 进对话让模型也能看到。顺带把 `/image`/`/imgdiff` 补进了 TUI 的 `CommandDispatcher`（之前只有 REPL 有，TUI 侧会落到"not available yet"）；TUI 没有内联图片预览（Textual 接管了屏幕，直接写转义序列会破坏渲染），只排队给模型看
 
 ### 21. 编辑器 / IDE 集成
 当前只能在终端 REPL 里用，离"结对编程"的无缝体验还有距离。

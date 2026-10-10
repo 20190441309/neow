@@ -76,6 +76,12 @@ class TestCommands:
         result = parse_command("/ls")
         assert result.command == Command.LS
 
+    def test_parse_imgdiff_command(self):
+        """Test parsing imgdiff command."""
+        result = parse_command("/imgdiff before.png after.png")
+        assert result.command == Command.IMGDIFF
+        assert result.args == "before.png after.png"
+
 
 class TestModelSwitching:
     def test_model_switch_preserves_history(self):

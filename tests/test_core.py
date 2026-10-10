@@ -211,6 +211,21 @@ class TestContextFiles:
         with pytest.raises(FileNotFoundError):
             manager.add_context_file("/nonexistent/file.txt")
 
+    def test_add_context_file_image_routes_to_queue_image(self, tmp_path):
+        """/add on an image file queues it for vision instead of reading as text."""
+        image = tmp_path / "shot.png"
+        image.write_bytes(b"\x89PNG\r\n\x1a\nnot a real png but has the mimetype")
+        mock_client = MagicMock()
+        mock_client.supports_vision = True
+        manager = ConversationManager(mock_client)
+
+        result = manager.add_context_file(str(image))
+
+        assert "Image queued" in result
+        assert str(image.resolve()) not in manager.context_files
+        assert len(manager._pending_images) == 1
+        assert manager._pending_images[0]["source"]["media_type"] == "image/png"
+
     def test_drop_context_file(self, tmp_path):
         """Test dropping a file from context."""
         test_file = tmp_path / "test.py"
@@ -262,6 +277,73 @@ class TestContextFiles:
         manager = ConversationManager(mock_client)
 
         assert manager.list_context_files() == []
+
+
+class TestQueueImage:
+    """Tests for Conversation.queue_image and _build_vision_content."""
+
+    def test_queue_image(self, tmp_path):
+        image = tmp_path / "shot.jpg"
+        image.write_bytes(b"fake jpeg bytes")
+        mock_client = MagicMock()
+        mock_client.supports_vision = True
+        manager = ConversationManager(mock_client)
+
+        result = manager.queue_image(str(image))
+
+        assert "Image queued" in result and "warning" not in result
+        assert len(manager._pending_images) == 1
+        block = manager._pending_images[0]
+        assert block["type"] == "image"
+        assert block["source"]["media_type"] == "image/jpeg"
+
+    def test_queue_image_warns_when_model_lacks_vision(self, tmp_path):
+        image = tmp_path / "shot.png"
+        image.write_bytes(b"fake png bytes")
+        mock_client = MagicMock()
+        mock_client.supports_vision = False
+        mock_client.model = "deepseek-v4-flash"
+        manager = ConversationManager(mock_client)
+
+        result = manager.queue_image(str(image))
+
+        assert "warning" in result and "deepseek-v4-flash" in result
+
+    def test_queue_image_not_found(self):
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        with pytest.raises(FileNotFoundError):
+            manager.queue_image("/nonexistent/shot.png")
+
+    def test_queue_image_rejects_non_image(self, tmp_path):
+        text_file = tmp_path / "notes.txt"
+        text_file.write_text("hello")
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        with pytest.raises(ValueError):
+            manager.queue_image(str(text_file))
+
+    def test_build_vision_content_merges_text_and_pending_images(self, tmp_path):
+        image = tmp_path / "shot.png"
+        image.write_bytes(b"fake png bytes")
+        mock_client = MagicMock()
+        mock_client.supports_vision = True
+        manager = ConversationManager(mock_client)
+
+        manager.queue_image(str(image))
+        content = manager._build_vision_content("what's wrong with this?")
+
+        assert content[0] == {"type": "text", "text": "what's wrong with this?"}
+        assert content[1]["type"] == "image"
+        assert manager._pending_images == []  # cleared after building
+
+    def test_build_vision_content_plain_text_without_images(self):
+        mock_client = MagicMock()
+        manager = ConversationManager(mock_client)
+
+        assert manager._build_vision_content("hello") == "hello"
 
     def test_context_files_in_system_prompt(self, tmp_path):
         """Test context files appear in effective system prompt."""

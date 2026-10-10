@@ -3,6 +3,7 @@
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -30,6 +31,7 @@ from neow.utils.formatter import (
     print_tool_result,
     print_turn_separator,
     format_reasoning_dropdown,
+    print_inline_image,
 )
 from neow.utils.logger import logger
 from neow.core.config import Config
@@ -68,6 +70,7 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/compact":   "Summarize conversation to free context window",
     "/export":    "Export conversation as Markdown file",
     "/image":     "Queue an image for the next message (vision)",
+    "/imgdiff":   "Diff two screenshots and queue the highlighted result",
     "/approval":  "Show or set approval mode (always-ask/write/yolo)",
     "/tree":      "Visualize session tree and navigate to history nodes",
     "/branch":    "Branch from a specific message in history",
@@ -865,9 +868,28 @@ class REPL:
                 print_error("Usage: /image <file_path>")
             else:
                 try:
-                    result = self.conversation.queue_image(parsed.args.strip())
+                    image_path = parsed.args.strip()
+                    result = self.conversation.queue_image(image_path)
                     print_info(result)
+                    print_inline_image(image_path)
                 except (FileNotFoundError, ValueError) as e:
+                    print_error(str(e))
+        elif parsed.command == Command.IMGDIFF:
+            parts = parsed.args.split() if parsed.args else []
+            if len(parts) != 2:
+                print_error("Usage: /imgdiff <before> <after>")
+            else:
+                from neow.tools.imgdiff import ImageDiffError, diff_images
+
+                before_path, after_path = parts
+                out_path = str(Path.home() / ".neow" / "imgdiff" / f"{int(time.time())}.png")
+                try:
+                    result = diff_images(before_path, after_path, out_path)
+                    status = "differs" if result.changed else "no visual difference"
+                    print_info(f"Diff ({status}, {result.size[0]}x{result.size[1]}): {result.out_path}")
+                    print_inline_image(result.out_path)
+                    self.conversation.queue_image(result.out_path)
+                except ImageDiffError as e:
                     print_error(str(e))
         elif parsed.command == Command.APPROVAL:
             if not self.approval_policy:

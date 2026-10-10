@@ -262,3 +262,70 @@ def test_print_info_keeps_square_brackets(monkeypatch):
     formatter.print_info("/rewind <编号> [files|chat|both] · node [abc12345]")
     assert "[files|chat|both]" in buf.getvalue()
     assert "[abc12345]" in buf.getvalue()
+
+
+class TestInlineImage:
+    """print_inline_image / _terminal_image_protocol (task 20)."""
+
+    def test_no_protocol_when_not_a_tty(self, monkeypatch):
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: False)
+        assert formatter._terminal_image_protocol() is None
+
+    def test_detects_kitty(self, monkeypatch):
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: True)
+        monkeypatch.setenv("KITTY_WINDOW_ID", "1")
+        monkeypatch.delenv("TERM_PROGRAM", raising=False)
+        assert formatter._terminal_image_protocol() == "kitty"
+
+    def test_detects_iterm2(self, monkeypatch):
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: True)
+        monkeypatch.delenv("KITTY_WINDOW_ID", raising=False)
+        monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
+        assert formatter._terminal_image_protocol() == "iterm2"
+
+    def test_no_known_protocol_falls_back(self, monkeypatch):
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: True)
+        monkeypatch.delenv("KITTY_WINDOW_ID", raising=False)
+        monkeypatch.setenv("TERM_PROGRAM", "Apple_Terminal")
+        assert formatter._terminal_image_protocol() is None
+
+    def test_print_inline_image_returns_false_without_protocol(self, monkeypatch, tmp_path):
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: False)
+        image = tmp_path / "shot.png"
+        image.write_bytes(b"fake png bytes")
+        assert formatter.print_inline_image(str(image)) is False
+
+    def test_print_inline_image_writes_iterm2_escape(self, monkeypatch, tmp_path):
+        import io
+
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: True)
+        monkeypatch.delenv("KITTY_WINDOW_ID", raising=False)
+        monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
+        buf = io.StringIO()
+        monkeypatch.setattr(formatter.sys, "stdout", buf)
+        # isatty was monkeypatched on the old stdout object; redo it on buf.
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: True)
+
+        image = tmp_path / "shot.png"
+        image.write_bytes(b"fake png bytes")
+        assert formatter.print_inline_image(str(image)) is True
+        assert "\033]1337;File=inline=1" in buf.getvalue()
+
+    def test_print_inline_image_missing_file(self, monkeypatch):
+        from neow.utils import formatter
+
+        monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: True)
+        monkeypatch.setenv("KITTY_WINDOW_ID", "1")
+        assert formatter.print_inline_image("/nonexistent/shot.png") is False

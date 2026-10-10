@@ -38,6 +38,8 @@ def default_max_output_tokens(model: str) -> int:
 class AnthropicClient(BaseModelClient):
     """Anthropic Claude model client."""
 
+    supports_vision = True
+
     def __init__(
         self,
         api_key: str,

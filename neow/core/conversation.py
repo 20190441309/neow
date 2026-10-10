@@ -174,7 +174,14 @@ class ConversationManager:
             },
         })
         logger.info(f"Queued image: {image_path} ({mime_type})")
-        return f"Image queued: {path.name} ({mime_type})"
+        message = f"Image queued: {path.name} ({mime_type})"
+        if not getattr(self.model_client, "supports_vision", False):
+            model_name = getattr(self.model_client, "model", "this model")
+            message += (
+                f" — warning: {model_name} doesn't support images; "
+                "switch model with /model before sending, or it will be ignored/rejected."
+            )
+        return message
 
     def _build_vision_content(self, text: str) -> Any:
         """Build message content with optional pending images.
@@ -527,6 +534,10 @@ class ConversationManager:
 
     def add_context_file(self, file_path: str) -> str:
         """Add a file to the conversation context.
+
+        Image files are queued for vision instead (see queue_image) — they
+        aren't readable as text context.
+
         Args:
             file_path: Path to the file.
 
@@ -536,9 +547,14 @@ class ConversationManager:
         Raises:
             FileNotFoundError: If file doesn't exist.
         """
+        import mimetypes
+
         path = Path(file_path)
         if not path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
+        mime_type = mimetypes.guess_type(str(path))[0] or ""
+        if mime_type.startswith("image/"):
+            return self.queue_image(file_path)
         content = path.read_text(encoding="utf-8")
         abs_path = str(path.resolve())
         self.context_files[abs_path] = content

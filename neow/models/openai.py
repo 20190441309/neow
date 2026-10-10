@@ -20,6 +20,8 @@ from neow.utils.logger import logger
 class OpenAIClient(BaseModelClient):
     """OpenAI model client."""
 
+    supports_vision = True
+
     def __init__(
         self,
         api_key: str,

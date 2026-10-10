@@ -36,6 +36,7 @@ dependencies = [
     "lxml>=4.9.0",
     "textual>=8.0,<9",
     "mcp>=2.3,<3",
+    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
