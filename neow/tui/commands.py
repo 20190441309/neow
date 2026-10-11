@@ -124,6 +124,30 @@ class CommandDispatcher:
         return CommandResult("Goodbye!", should_exit=True)
 
     def _cmd_model(self, args: str) -> CommandResult:
+        if args == "magpie":
+            if "model_sync" in self.hooks:
+                return self._hook("model_sync")
+            from neow.models.management import sync_magpie
+
+            try:
+                count = sync_magpie(self.config)
+                return CommandResult(f"Imported {count} Magpie models")
+            except Exception as exc:
+                return CommandResult(str(exc), kind="error")
+        if args == "add":
+            return self._hook("model_add")
+        if args:
+            from neow.cli.main import create_model_client
+
+            try:
+                name = self.config.resolve_model_alias(args)
+                client = create_model_client(self.config, name)
+                if not client.validate_connection():
+                    return CommandResult(f"Failed to connect to {name}", kind="error")
+                self.conversation.model_client = client
+                return CommandResult(f"Switched to model: {name}")
+            except Exception as exc:
+                return CommandResult(str(exc), kind="error")
         return self._hook("model")
 
     def _cmd_diff(self, args: str) -> CommandResult:

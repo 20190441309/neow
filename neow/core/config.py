@@ -2,6 +2,7 @@
 
 import json
 import os
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -127,9 +128,9 @@ class Config:
             else:
                 return
 
+        self.source_path = config_path
         if not config_path.exists():
             return
-        self.source_path = config_path
 
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -295,6 +296,8 @@ class Config:
 
     def resolve_model_alias(self, alias: str) -> str:
         """Resolve model alias to canonical name. Returns input if no alias found."""
+        if alias in self.models:
+            return alias
         return self.MODEL_ALIASES.get(alias.lower(), alias)
 
     def get_model_config(self, model_name: str) -> Dict[str, str]:
@@ -320,3 +323,55 @@ class Config:
                 return self._config["models"][key]
 
         raise ConfigError(f"Model '{model_name}' not found in configuration")
+
+    def persist_updates(self, updates: Dict[str, Any]) -> Path:
+        """Atomically save explicit changes without copying resolved env secrets."""
+        path = self.source_path or Path.home() / ".neow" / "config.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        is_yaml = path.suffix in (".yml", ".yaml")
+        try:
+            raw = path.read_text(encoding="utf-8") if path.exists() else "{}"
+            data = (yaml.safe_load(raw) if is_yaml else json.loads(raw)) or {}
+            if not isinstance(data, dict):
+                raise ConfigError("Configuration must be an object")
+            self._merge_config(data, deepcopy(updates))
+            text = (
+                yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
+                if is_yaml else json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+            )
+            temporary = None
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", encoding="utf-8", dir=path.parent, delete=False
+                ) as stream:
+                    temporary = stream.name
+                    os.chmod(temporary, 0o600)
+                    stream.write(text)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temporary, path)
+            finally:
+                if temporary and os.path.exists(temporary):
+                    os.unlink(temporary)
+        except (OSError, ValueError, yaml.YAMLError) as exc:
+            raise ConfigError("Could not save model configuration") from exc
+        self._merge_config(self._config, deepcopy(updates))
+        self.source_path = path
+        return path
+
+    def save_model(self, name: str, entry: Dict[str, Any]) -> Path:
+        """Save one model entry, retaining all unrelated on-disk settings."""
+        # Empty auth fields deliberately clear a previous credential reference.
+        return self.persist_updates({"models": {name: entry}})
+
+    def stored_model_entry(self, name: str) -> Dict[str, Any]:
+        """Read editable fields without environment-resolved credentials."""
+        entry = deepcopy(self.DEFAULT_CONFIG["models"].get(name, {}))
+        if self.source_path and self.source_path.exists():
+            raw = self.source_path.read_text(encoding="utf-8")
+            data = (
+                yaml.safe_load(raw) if self.source_path.suffix in (".yml", ".yaml")
+                else json.loads(raw)
+            ) or {}
+            self._merge_config(entry, data.get("models", {}).get(name, {}))
+        return entry

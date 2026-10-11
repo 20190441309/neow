@@ -612,6 +612,39 @@ class REPL:
         except EOFError:
             raise
 
+    def _add_byok_model(self) -> None:
+        import click
+        from neow.models.factory import PROVIDERS
+        from neow.models.management import validate_model_entry
+
+        try:
+            name = click.prompt("Configuration name").strip()
+            if name in self.config.models:
+                print_error("Configuration name already exists")
+                return
+            provider = click.prompt(
+                "API protocol", type=click.Choice(PROVIDERS),
+                default="openai-compatible",
+            )
+            endpoint = click.prompt("API base URL", default="", show_default=False)
+            model = click.prompt("Model ID")
+            env_name = click.prompt(
+                "API key environment variable", default="", show_default=False
+            )
+            key = "" if env_name else click.prompt("API key", hide_input=True)
+            entry = {
+                "provider": provider, "base_url": endpoint.strip(),
+                "model": model.strip(), "api_key_env": env_name.strip(),
+                "api_key": key.strip(),
+            }
+            validate_model_entry(name, entry)
+            self.config.save_model(name, entry)
+            print_info(f"Saved model: {name}")
+        except (click.Abort, EOFError, KeyboardInterrupt):
+            print_info("Cancelled")
+        except Exception as exc:
+            print_error(str(exc))
+
     def _handle_command(self, parsed) -> bool:
         """Handle parsed command.
 
@@ -640,7 +673,16 @@ class REPL:
             print_info("Goodbye!")
             return True
         elif parsed.command == Command.MODEL:
-            if parsed.args:
+            if parsed.args and parsed.args.strip() == "magpie":
+                from neow.models.management import sync_magpie
+
+                try:
+                    print_info(f"Imported {sync_magpie(self.config)} Magpie models")
+                except Exception as exc:
+                    print_error(str(exc))
+            elif parsed.args and parsed.args.strip() == "add":
+                self._add_byok_model()
+            elif parsed.args:
                 model_name = self.config.resolve_model_alias(parsed.args.strip())
                 try:
                     from neow.cli.main import create_model_client

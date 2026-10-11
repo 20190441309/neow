@@ -178,6 +178,11 @@ class OpenAIClient(BaseModelClient):
                 if delta.content:
                     yield StreamChunk(content_delta=delta.content)
 
+                extra = getattr(delta, "model_extra", None) or {}
+                reasoning = extra.get("reasoning_content") if isinstance(extra, dict) else None
+                if reasoning:
+                    yield StreamChunk(reasoning_delta=reasoning)
+
                 if delta.tool_calls:
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index

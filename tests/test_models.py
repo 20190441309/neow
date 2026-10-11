@@ -566,3 +566,22 @@ class TestOpenAIStreamingUsage:
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
         assert call_kwargs.get("stream_options") == {"include_usage": True}
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_compatible_reasoning_delta(self, mock_openai):
+        from types import SimpleNamespace
+
+        chunk = SimpleNamespace(
+            usage=None,
+            choices=[SimpleNamespace(
+                delta=SimpleNamespace(
+                    content=None, tool_calls=None,
+                    model_extra={"reasoning_content": "Thinking"},
+                ),
+                finish_reason=None,
+            )],
+        )
+        mock_openai.return_value.chat.completions.create.return_value = iter([chunk])
+        client = OpenAIClient(api_key="k", base_url="http://localhost/v1")
+        chunks = list(client.chat_stream([{"role": "user", "content": "Hi"}]))
+        assert chunks[0].reasoning_delta == "Thinking"

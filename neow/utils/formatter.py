@@ -986,7 +986,7 @@ def print_welcome(
             ("/load <name>",   "Load a saved session"),
             ("/history",       "List saved sessions"),
             ("/web <url>",     "Fetch web page into context"),
-            ("/model <name>",  "Switch AI model (deepseek/anthropic/openai)"),
+            ("/model <name>",  "Switch model; add BYOK; magpie sync"),
             ("/architect",     "Enter architect mode (plan first)"),
             ("/code",          "Return to normal coding mode"),
             ("/think",         "View last AI reasoning content"),

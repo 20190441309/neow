@@ -53,7 +53,7 @@ def resolve_api_key(
     *,
     env: Optional[Mapping[str, str]] = None,
 ) -> str:
-    """Resolve an API key: config -> api_key_env -> NEOW_<NAME>_API_KEY -> legacy."""
+    """Resolve a key only from this entry or its named environment variables."""
 
     environment = os.environ if env is None else env
     api_key_env = entry.get("api_key_env")
@@ -61,9 +61,6 @@ def resolve_api_key(
         entry.get("api_key"),
         environment.get(api_key_env) if api_key_env else None,
         environment.get(f"NEOW_{normalize_env_name(model_name)}_API_KEY"),
-        environment.get("NEOW_DEEPSEEK_API_KEY"),
-        environment.get("NEOW_ANTHROPIC_API_KEY"),
-        environment.get("NEOW_OPENAI_API_KEY"),
     ]
     for candidate in candidates:
         if candidate and str(candidate).strip():
@@ -82,6 +79,7 @@ __all__ = [
     "resolve_api_key",
     "client_for",
     "create_model_client",
+    "build_model_client",
     "describe_models",
 ]
 
@@ -102,6 +100,13 @@ def create_model_client(config: "Config", model_name: str):
     """Create the model client for a configured entry (spec §5)."""
 
     entry = config.get_model_config(model_name)
+    client = build_model_client(entry, model_name)
+    client.config_name = model_name
+    return client
+
+
+def build_model_client(entry: Mapping[str, Any], model_name: str):
+    """Construct a client from an entry, also used before saving BYOK forms."""
     provider = resolve_provider(entry, model_name)
     model = entry.get("model")
     if not model:

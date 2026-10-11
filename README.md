@@ -176,9 +176,49 @@ Shell commands run by the agent time out after 120 s by default (the model may a
 { "tools": { "command": { "sandbox": "auto", "sandbox_writable": ["~/.cache"] } } }
 ```
 
-**Key resolution order:** `api_key` → `api_key_env` → `NEOW_<MODEL_NAME>_API_KEY` → `NEOW_DEEPSEEK_API_KEY` / `NEOW_ANTHROPIC_API_KEY` / `NEOW_OPENAI_API_KEY`. Keys are never logged or echoed.
+**Key resolution order:** `api_key` → `api_key_env` → `NEOW_<MODEL_NAME>_API_KEY`.
+The built-in entries also load their corresponding `NEOW_DEEPSEEK_API_KEY`,
+`NEOW_ANTHROPIC_API_KEY`, or `NEOW_OPENAI_API_KEY` at startup. The editor never
+echoes stored keys.
 
 `/model` lists every configured model with its provider and endpoint. Token prices for custom models can be added under `token.prices` keyed by the model name (unset models count as $0).
+
+In the TUI, `/model` opens a searchable picker with **+ BYOK**, **Edit**, and
+**Magpie Sync** actions. BYOK entries accept a configuration name, API protocol,
+base URL, model ID, and either a masked API key or an environment variable name.
+**Save** persists the entry without switching the active model; **Test Connection**
+checks endpoint access (not model availability or tool support). `/model add`
+opens the same editor, or a masked prompt in `--plain` mode. `/model <name>`
+switches directly in either mode.
+
+### Magpie Gateway
+
+Run `/model magpie` or select **Magpie Sync** to import the gateway's `/models`
+catalog. The default gateway is `http://127.0.0.1:3425/v1`; imported entries are
+named `magpie/<provider>/<model>` and include display names and context windows.
+Pick one from `/model`, or use a routed name directly, for example:
+
+```text
+/model magpie/gpt-load/gpt-6-luna
+```
+
+Neow uses Magpie's OpenAI-compatible gateway, including its upstream protocol
+translation and routing. Provider keys stay in Magpie. Sync again after changing
+Magpie's catalog. A remote or authenticated gateway can be configured as:
+
+```json
+{
+  "magpie": {
+    "base_url": "https://gateway.example.com/v1",
+    "api_key_env": "MAGPIE_GATEWAY_KEY"
+  }
+}
+```
+
+Model changes are written atomically to the loaded config file (or
+`~/.neow/config.json` when none was loaded), with owner-only permissions.
+Environment-resolved secrets are not copied into it. Custom models do not fall
+back to another provider's API key.
 
 **Search tools.** The agent explores with `grep` (contents; uses [ripgrep](https://github.com/BurntSushi/ripgrep) when installed, otherwise a built-in fallback), `glob` (file names, newest first) and `list_dir` (directory tree). All three skip files ignored by git; outside a repository they skip `node_modules`, virtualenvs, build output and caches. `search_code` still works but is deprecated.
 

@@ -1,9 +1,12 @@
 """Feature screen and sidebar tests (plan task 14)."""
 
 import re
+from html import unescape
 
 from textual.containers import VerticalScroll
-from textual.widgets import Tree
+from textual.widgets import Input, Tree
+from neow.core.config import Config
+from neow.tui.screens.model_editor import ModelEditorScreen
 from neow.tui.screens.chat import ChatScreen
 from neow.tui.screens.cost import CostScreen
 from neow.tui.screens.diff_view import DiffScreen
@@ -16,7 +19,7 @@ from tests.tui.conftest import FakeConversation, _chat_app, _screen_app
 
 def _app_text(app) -> str:
     svg = app.export_screenshot()
-    return re.sub(r"<[^>]+>", "", svg)
+    return unescape(re.sub(r"<[^>]+>", "", svg)).replace("\u00a0", " ")
 
 
 async def test_help_screen_lists_all_commands():
@@ -55,6 +58,107 @@ async def test_model_picker_labels_shown_and_selection_returns_name():
         await pilot.press("enter")
         await pilot.pause()
         assert switched == ["openrouter"]
+
+
+async def test_model_picker_search_maps_selection_to_filtered_name():
+    switched = []
+    app = _screen_app(
+        ModelPickerScreen(
+            models=["a", "b"], labels={"b": "Magpie GPT"}, on_select=switched.append
+        )
+    )
+    async with app.run_test() as pilot:
+        app.screen.query_one(Input).value = "GPT"
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert switched == ["b"]
+
+
+async def test_byok_editor_saves_and_masks_key(tmp_path):
+    config = Config(tmp_path / "config.json")
+    saved = []
+    app = _screen_app(
+        ModelEditorScreen(config=config, on_saved=lambda: saved.append(True))
+    )
+    async with app.run_test(size=(100, 48)) as pilot:
+        screen = app.screen
+        screen.query_one("#model-name", Input).value = "router"
+        screen.query_one("#model-url", Input).value = "https://example.com/v1"
+        screen.query_one("#model-id", Input).value = "vendor/m"
+        screen.query_one("#model-key", Input).value = "hidden-secret"
+        assert screen.query_one("#model-key", Input).password
+        assert "hidden-secret" not in _app_text(app)
+        await pilot.click("#model-save")
+        await pilot.pause()
+        assert saved == [True]
+        assert config.models["router"]["model"] == "vendor/m"
+
+
+async def test_byok_edit_keeps_stored_key_hidden(tmp_path):
+    config = Config(tmp_path / "config.json")
+    config.save_model(
+        "router",
+        {
+            "provider": "openai-compatible",
+            "model": "m",
+            "base_url": "https://example.com/v1",
+            "api_key": "stored-secret",
+        },
+    )
+    app = _screen_app(
+        ModelEditorScreen(config=config, name="router", on_saved=lambda: None)
+    )
+    async with app.run_test(size=(100, 48)) as pilot:
+        assert app.screen.query_one("#model-key", Input).value == ""
+        assert "stored-secret" not in _app_text(app)
+        await pilot.click("#model-save")
+        assert config.models["router"]["api_key"] == "stored-secret"
+
+
+async def test_model_editor_scrolls_in_small_terminal(tmp_path):
+    config = Config(tmp_path / "config.json")
+    app = _chat_app(FakeConversation(), config=config)
+    async with app.run_test(size=(60, 20)) as pilot:
+        app.screen._open_model_editor()
+        await pilot.pause()
+        screen = app.screen
+        for selector, value in [
+            ("#model-name", "small"),
+            ("#model-url", "http://localhost:1234/v1"),
+            ("#model-id", "m"),
+            ("#model-key", "local"),
+        ]:
+            screen.query_one(selector, Input).value = value
+        await pilot.press("tab", "tab", "tab", "tab", "tab", "tab")
+        await pilot.pause()
+        assert app.focused.id == "model-save"
+        assert app.focused.region.bottom <= 20
+        await pilot.press("enter")
+        await pilot.pause()
+        assert "small" in config.models
+
+
+async def test_magpie_sync_refreshes_open_picker(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+
+    config = Config(tmp_path / "config.json")
+    response = MagicMock()
+    response.json.return_value = {
+        "data": [{"id": "vendor/m", "display_name": "Gateway model"}]
+    }
+    monkeypatch.setattr(
+        "neow.models.management.requests.get", lambda *args, **kwargs: response
+    )
+    app = _chat_app(FakeConversation(), config=config)
+    async with app.run_test(size=(100, 40)) as pilot:
+        app.screen._open_model_picker()
+        await pilot.pause()
+        await pilot.click("#model-sync")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert "magpie/vendor/m" in app.screen.models
+        assert "Gateway model" in _app_text(app)
 
 
 async def test_session_picker_lists_sessions():

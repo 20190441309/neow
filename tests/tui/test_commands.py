@@ -152,3 +152,34 @@ def test_ui_commands_delegate_to_hooks():
     dispatcher = make_dispatcher(hooks={"help": lambda: calls.append("help")})
     dispatcher.dispatch(ParsedCommand(Command.HELP))
     assert calls == ["help"]
+
+
+def test_model_name_switches_instead_of_opening_picker(monkeypatch):
+    from types import SimpleNamespace
+
+    client = SimpleNamespace(validate_connection=lambda: True)
+    monkeypatch.setattr(
+        "neow.cli.main.create_model_client", lambda config, name: client
+    )
+    config = SimpleNamespace(resolve_model_alias=lambda name: name)
+    calls = []
+    dispatcher = make_dispatcher(
+        config=config, hooks={"model": lambda: calls.append("picker")}
+    )
+    result = dispatcher.dispatch(ParsedCommand(Command.MODEL, "router"))
+    assert result.kind == "info"
+    assert dispatcher.conversation.model_client is client
+    assert calls == []
+
+
+def test_model_add_and_magpie_use_hooks():
+    calls = []
+    dispatcher = make_dispatcher(
+        hooks={
+            "model_add": lambda: calls.append("add"),
+            "model_sync": lambda: calls.append("sync"),
+        }
+    )
+    dispatcher.dispatch(ParsedCommand(Command.MODEL, "add"))
+    dispatcher.dispatch(ParsedCommand(Command.MODEL, "magpie"))
+    assert calls == ["add", "sync"]

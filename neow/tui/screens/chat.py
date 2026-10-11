@@ -139,6 +139,8 @@ class ChatScreen(Screen):
             {
                 "help": self._open_help,
                 "model": self._open_model_picker,
+                "model_add": self._open_model_editor,
+                "model_sync": self._sync_magpie_models,
                 "history": self._open_session_picker,
                 "load": self._open_session_picker,
                 "tree": self._open_tree,
@@ -591,9 +593,7 @@ class ChatScreen(Screen):
             try:
                 for name, entry in config.models.items():
                     models.append(name)
-                    provider = entry.get("provider")
-                    if provider:
-                        labels[name] = f"{name} ({provider})"
+                    labels[name] = self._model_entry_label(name, entry)
             except Exception:
                 models = []
                 labels = {}
@@ -602,10 +602,59 @@ class ChatScreen(Screen):
                 models=models,
                 labels=labels,
                 on_select=self._switch_model,
-                current=self._model_label(),
+                current=getattr(self.app.conversation.model_client, "config_name", None),
+                on_add=self._open_model_editor,
+                on_edit=self._open_model_editor,
+                on_sync=self._sync_magpie_models,
             )
         )
         return None
+
+    @staticmethod
+    def _model_entry_label(name, entry):
+        display = entry.get("display_name") or entry.get("model") or name
+        provider = entry.get("provider") or "auto"
+        endpoint = entry.get("base_url") or "official"
+        return f"{display} ({provider} @ {endpoint})"
+
+    def _refresh_model_picker(self):
+        for screen in self.app.screen_stack:
+            if isinstance(screen, ModelPickerScreen):
+                entries = self.app.config.models
+                screen.update_models(
+                    list(entries),
+                    {
+                        name: self._model_entry_label(name, entry)
+                        for name, entry in entries.items()
+                    },
+                )
+
+    def _open_model_editor(self, name=""):
+        from neow.tui.screens.model_editor import ModelEditorScreen
+
+        self.app.push_screen(
+            ModelEditorScreen(
+                config=self.app.config, name=name,
+                on_saved=self._refresh_model_picker,
+            )
+        )
+
+    def _sync_magpie_models(self):
+        self.notify("正在同步 Magpie 模型")
+        self.run_worker(
+            self._load_magpie_catalog, thread=True, exclusive=True, group="model-sync"
+        )
+
+    def _load_magpie_catalog(self):
+        from neow.models.management import sync_magpie
+
+        try:
+            count = sync_magpie(self.app.config)
+        except Exception as exc:
+            self.app.call_from_thread(self.notify, str(exc), severity="error")
+            return
+        self.app.call_from_thread(self._refresh_model_picker)
+        self.app.call_from_thread(self.notify, f"已同步 {count} 个 Magpie 模型")
 
     def _switch_model(self, name: str) -> None:
         try:
