@@ -3,8 +3,6 @@
 import subprocess
 from pathlib import Path
 
-from neow.utils.logger import logger
-
 
 class GitError(Exception):
     """Git operation error."""
@@ -57,10 +55,10 @@ def git_status() -> str:
     if not output:
         return "Working tree clean"
     lines = output.splitlines()
-    modified = sum(1 for l in lines if l.startswith(" M") or l.startswith("M"))
-    added = sum(1 for l in lines if l.startswith("A"))
-    deleted = sum(1 for l in lines if l.startswith(" D") or l.startswith("D"))
-    untracked = sum(1 for l in lines if l.startswith("??"))
+    modified = sum(1 for line in lines if line.startswith(" M") or line.startswith("M"))
+    added = sum(1 for line in lines if line.startswith("A"))
+    deleted = sum(1 for line in lines if line.startswith(" D") or line.startswith("D"))
+    untracked = sum(1 for line in lines if line.startswith("??"))
     parts = []
     if modified:
         parts.append(f"{modified} modified")

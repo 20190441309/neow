@@ -40,7 +40,14 @@ def _file_key(file_path: str) -> str:
 
 
 def _file_hash(file_path: str) -> Optional[str]:
-    """Hash of the file's text as read_file sees it; None if unreadable."""
+    """Hash of the file's decoded text; None if unreadable.
+
+    Note this normalises line endings (``Path.read_text`` uses universal
+    newlines), unlike the ``¶PATH#HASH`` anchor ``read_file`` shows the model,
+    which hashes the raw bytes.  The two are never compared against each other
+    — this one is only ever compared with another ``_file_hash`` — so the
+    read-before-edit guard stays consistent on CRLF files as well.
+    """
     from neow.tools.hashline_edit import compute_hash
 
     try:

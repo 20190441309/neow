@@ -4,10 +4,21 @@ import platform
 import subprocess
 
 # Main system prompt
-SYSTEM_PROMPT = f"""You are Neow, a lightweight AI coding assistant running in the user's terminal.
+_IS_WINDOWS = platform.system() == "Windows"
+_SHELL_SYNTAX = "PowerShell/CMD syntax" if _IS_WINDOWS else "bash syntax"
+_UNIX_COMMAND_WARNING = (
+    "**IMPORTANT**: Do NOT use Unix-only commands like `head`, `tail`, `grep`, "
+    "`find`, `xargs`, `wc`, `sed`, `awk`. Use PowerShell equivalents or the "
+    "available tools (read_file, grep, glob, list_dir) instead."
+    if _IS_WINDOWS
+    else ""
+)
+
+SYSTEM_PROMPT = f"""\
+You are Neow, a lightweight AI coding assistant running in the user's terminal.
 **Platform**: {platform.system()} ({platform.machine()})
-**Shell**: Use {"PowerShell/CMD syntax" if platform.system() == "Windows" else "bash syntax"} for commands.
-{"**IMPORTANT**: Do NOT use Unix-only commands like `head`, `tail`, `grep`, `find`, `xargs`, `wc`, `sed`, `awk`. Use PowerShell equivalents or the available tools (read_file, grep, glob, list_dir) instead." if platform.system() == "Windows" else ""}
+**Shell**: Use {_SHELL_SYNTAX} for commands.
+{_UNIX_COMMAND_WARNING}
 
 Your role is to help users with software engineering tasks: reading and
 changing code, running commands, searching the codebase, answering questions
@@ -112,7 +123,10 @@ def get_git_context() -> str:
             f"{count} file{'s' if count != 1 else ''} changed" if count else "clean"
         )
 
-        return f"\n## Current Git Context\n- Branch: {branch_name}\n- Status: {status_summary}\n"
+        return (
+            f"\n## Current Git Context\n- Branch: {branch_name}\n"
+            f"- Status: {status_summary}\n"
+        )
     except Exception:
         return ""
 

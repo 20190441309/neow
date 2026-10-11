@@ -1,4 +1,7 @@
-"""Security guard for Neow CLI -- command whitelist, dangerous patterns, protected files."""
+"""Security guard for Neow CLI.
+
+Command whitelist, dangerous patterns and protected files.
+"""
 
 import fnmatch
 import re

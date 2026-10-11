@@ -183,7 +183,8 @@ class ConversationManager:
             model_name = getattr(self.model_client, "model", "this model")
             message += (
                 f" — warning: {model_name} doesn't support images; "
-                "switch model with /model before sending, or it will be ignored/rejected."
+                "switch model with /model before sending, or it will be "
+                "ignored/rejected."
             )
         return message
 
@@ -356,7 +357,10 @@ class ConversationManager:
 
         response = self.model_client.chat(
             messages=[{"role": "user", "content": _sanitize_text(summary_prompt)}],
-            system_prompt="You are a conversation summarizer. Output only the summary, no preamble.",
+            system_prompt=(
+                "You are a conversation summarizer. "
+                "Output only the summary, no preamble."
+            ),
         )
 
         # Safety: summarizer should not return tool_calls, but guard against it
@@ -473,7 +477,10 @@ class ConversationManager:
 
         response = self.model_client.chat(
             messages=[{"role": "user", "content": _sanitize_text(summary_prompt)}],
-            system_prompt="You are a conversation summarizer. Output only the summary, no preamble.",
+            system_prompt=(
+                "You are a conversation summarizer. "
+                "Output only the summary, no preamble."
+            ),
         )
 
         if response.has_tool_calls:
@@ -503,9 +510,13 @@ class ConversationManager:
             )
 
         logger.info(
-            f"Incremental compact: {old_count} old → summary, {len(recent_messages)} recent preserved"
+            f"Incremental compact: {old_count} old → summary, "
+            f"{len(recent_messages)} recent preserved"
         )
-        return f"Compacted {old_count} old messages → {len(summary)} char summary, {len(recent_messages)} recent messages preserved"
+        return (
+            f"Compacted {old_count} old messages → {len(summary)} char summary, "
+            f"{len(recent_messages)} recent messages preserved"
+        )
 
     def compact_with_handoff(self) -> str:
         """Compact the entire conversation into a handoff summary for a new session.
@@ -534,7 +545,8 @@ class ConversationManager:
 
         handoff_prompt = (
             "The following is a summary of a previous conversation session. "
-            "A new session is starting and needs to continue from where this left off.\n\n"
+            "A new session is starting and needs to continue from where this "
+            "left off.\n\n"
             "Summarize the conversation preserving:\n"
             "1. All files that were created, edited, or are in context\n"
             "2. All decisions made and their reasoning\n"
@@ -546,7 +558,10 @@ class ConversationManager:
 
         response = self.model_client.chat(
             messages=[{"role": "user", "content": _sanitize_text(handoff_prompt)}],
-            system_prompt="You are a session handoff summarizer. Output a structured handoff document that allows seamless continuation.",
+            system_prompt=(
+                "You are a session handoff summarizer. Output a structured "
+                "handoff document that allows seamless continuation."
+            ),
         )
 
         if response.has_tool_calls:
@@ -566,7 +581,8 @@ class ConversationManager:
             )
 
         logger.info(
-            f"Handoff compact: {len(text_messages)} messages → {len(handoff)} char handoff"
+            f"Handoff compact: {len(text_messages)} messages → "
+            f"{len(handoff)} char handoff"
         )
         return handoff
 

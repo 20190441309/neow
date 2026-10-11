@@ -107,7 +107,8 @@ class PluginAPI:
         """Register an event handler.
 
         Args:
-            event: Event name (session_start, session_end, pre_prompt, post_response, file_changed).
+            event: Event name (session_start, session_end, pre_prompt,
+                post_response, file_changed).
             handler: Event handler callable.
         """
         self._events.on(event, handler)

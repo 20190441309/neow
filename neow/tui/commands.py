@@ -214,14 +214,6 @@ class CommandDispatcher:
         except KeyError as exc:
             return CommandResult(str(exc), kind="error")
 
-    def _cmd_image(self, args: str) -> CommandResult:
-        if not args:
-            return CommandResult("Usage: /image <file_path>", kind="error")
-        try:
-            return CommandResult(self.conversation.queue_image(args))
-        except (FileNotFoundError, ValueError) as exc:
-            return CommandResult(str(exc), kind="error")
-
     def _cmd_imgdiff(self, args: str) -> CommandResult:
         parts = args.split()
         if len(parts) != 2:

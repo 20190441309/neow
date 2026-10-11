@@ -141,10 +141,9 @@ class DeepSeekClient(BaseModelClient):
                 hasattr(choice.message, "reasoning_content")
                 and choice.message.reasoning_content
             ):
-                self._last_reasoning_content = choice.message.reasoning_content
-                logger.debug(
-                    f"Stored reasoning_content: {len(choice.message.reasoning_content)} chars"
-                )
+                reasoning = choice.message.reasoning_content
+                self._last_reasoning_content = reasoning
+                logger.debug(f"Stored reasoning_content: {len(reasoning)} chars")
             else:
                 self._last_reasoning_content = None
                 logger.debug("No reasoning_content in response")
@@ -214,7 +213,8 @@ class DeepSeekClient(BaseModelClient):
                 if delta.content:
                     yield StreamChunk(content_delta=delta.content)
 
-                # Reasoning content (DeepSeek specific — may be in model_extra or as attr)
+                # Reasoning content (DeepSeek specific — may be in
+                # model_extra or as an attribute)
                 rc = None
                 if hasattr(delta, "reasoning_content") and delta.reasoning_content:
                     rc = delta.reasoning_content

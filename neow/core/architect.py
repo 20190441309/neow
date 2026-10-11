@@ -22,8 +22,14 @@ Output ONLY a JSON array of sub-tasks. Each sub-task has:
 
 Example:
 [
-  {"task": "Read main.py and identify the import error on line 5", "files": ["main.py"]},
-  {"task": "Fix the import by adding the missing import statement", "files": ["main.py"]}
+  {
+    "task": "Read main.py and identify the import error on line 5",
+    "files": ["main.py"]
+  },
+  {
+    "task": "Fix the import by adding the missing import statement",
+    "files": ["main.py"]
+  }
 ]
 
 If the task is simple and doesn't need decomposition, output a single-element array.

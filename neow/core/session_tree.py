@@ -2,7 +2,8 @@
 
 Each session is a single .jsonl file:
   Line 0  → metadata header  {"type":"meta","name":…,"model":…,"leafId":…,"createdAt":…}
-  Line 1+ → message entries   {"id":…,"parentId":…,"role":…,"content":…,"timestamp":…,"metadata":…}
+  Line 1+ → message entries   {"id":…,"parentId":…,"role":…,"content":…,
+                               "timestamp":…,"metadata":…}
 """
 
 import json

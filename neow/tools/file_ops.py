@@ -202,7 +202,8 @@ def edit_file(
         path.write_text(new_content, encoding="utf-8")
         logger.debug(f"Edited file: {file_path}")
         count = 1 if first_only else content.count(old_text)
-        return f"File edited successfully: {file_path} ({count} replacement{'s' if count != 1 else ''})"
+        plural = "s" if count != 1 else ""
+        return f"File edited successfully: {file_path} ({count} replacement{plural})"
     except FileError:
         raise
     except Exception as e:
@@ -309,8 +310,8 @@ def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
             )
             if not recovered:
                 raise FileError(
-                    f"Stale anchor: file has been modified since reading (expected {expected_hash}, "
-                    f"got {snapshot.hash}). {msg}"
+                    "Stale anchor: file has been modified since reading "
+                    f"(expected {expected_hash}, got {snapshot.hash}). {msg}"
                 )
 
     try:

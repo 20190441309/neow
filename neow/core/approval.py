@@ -1,4 +1,7 @@
-"""Approval mode for Neow CLI -- controls which tool executions require user confirmation."""
+"""Approval mode for Neow CLI.
+
+Controls which tool executions require user confirmation.
+"""
 
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -79,7 +82,10 @@ class ApprovalCheck:
         return self.needs_approval
 
     def __repr__(self) -> str:
-        return f"ApprovalCheck(needs_approval={self.needs_approval}, tool={self.tool_name!r})"
+        return (
+            f"ApprovalCheck(needs_approval={self.needs_approval}, "
+            f"tool={self.tool_name!r})"
+        )
 
 
 class ApprovalPolicy:

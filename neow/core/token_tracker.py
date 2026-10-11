@@ -168,8 +168,11 @@ class TokenTracker:
             Warning message if exceeded, empty string otherwise.
         """
         warn_at = self.config.token.get("warn_at_tokens", 0)
-        if warn_at and (self.session_input + self.session_output) > warn_at:
-            return f"Token usage ({self.session_input + self.session_output:,}) exceeds warning threshold ({warn_at:,})"
+        total = self.session_input + self.session_output
+        if warn_at and total > warn_at:
+            return (
+                f"Token usage ({total:,}) exceeds warning " f"threshold ({warn_at:,})"
+            )
         return ""
 
     def check_max_tokens(self) -> bool:

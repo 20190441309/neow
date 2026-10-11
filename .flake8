@@ -8,3 +8,7 @@ exclude =
     build,
     dist,
     docs
+per-file-ignores =
+    # main.py filters the urllib3/chardet mismatch warning *before* importing
+    # anything that pulls in requests, so its imports sit below that call.
+    neow/cli/main.py:E402

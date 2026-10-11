@@ -336,7 +336,8 @@ class REPL:
                         console.print("[sev.error]  ✗ Denied[/sev.error]")
                         return False
             else:
-                import tty, termios
+                import termios
+                import tty
 
                 fd = sys.stdin.fileno()
                 old = termios.tcgetattr(fd)
@@ -771,7 +772,8 @@ class REPL:
                 for line in describe_models(self.config):
                     print_info(f"  {line}")
                 print_info(
-                    "Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai"
+                    "Aliases: sonnet->anthropic, claude->anthropic, "
+                    "deep->deepseek, gpt->openai"
                 )
                 print_info("Use /model add to configure a BYOK model")
         elif parsed.command == Command.EFFORT:
@@ -796,8 +798,9 @@ class REPL:
                     print_info(result)
                 else:
                     self._process_input(
-                        "Please generate a concise commit message for the current changes "
-                        "and use the git_commit tool to commit them."
+                        "Please generate a concise commit message for the "
+                        "current changes and use the git_commit tool to "
+                        "commit them."
                     )
             except GitError as e:
                 print_error(str(e))
@@ -936,7 +939,8 @@ class REPL:
                     print_info("Sessions:")
                     for s in sessions:
                         print_info(
-                            f"  {s['name']} ({s['message_count']} msgs, {s['model']}, {s['created_at'][:16]})"
+                            f"  {s['name']} ({s['message_count']} msgs, "
+                            f"{s['model']}, {s['created_at'][:16]})"
                         )
                 else:
                     print_info("No saved sessions")
@@ -966,7 +970,8 @@ class REPL:
                 console.print(format_reasoning_expanded(self._last_reasoning))
             else:
                 print_info(
-                    "No thinking content available. Reasoning is captured during AI responses that use thinking mode."
+                    "No thinking content available. Reasoning is captured "
+                    "during AI responses that use thinking mode."
                 )
         elif parsed.command == Command.COMPACT:
             if parsed.args and parsed.args.strip().startswith("--keep-tokens"):
@@ -1027,7 +1032,8 @@ class REPL:
                     result = diff_images(before_path, after_path, out_path)
                     status = "differs" if result.changed else "no visual difference"
                     print_info(
-                        f"Diff ({status}, {result.size[0]}x{result.size[1]}): {result.out_path}"
+                        f"Diff ({status}, {result.size[0]}x{result.size[1]}): "
+                        f"{result.out_path}"
                     )
                     print_inline_image(result.out_path)
                     self.conversation.queue_image(result.out_path)
@@ -1170,7 +1176,8 @@ class REPL:
                     print_info("Empty session tree")
                     return
                 print_info(
-                    f"Session: {session_name}  (leaf: {leaf_id[:8] if leaf_id else 'none'})"
+                    f"Session: {session_name}  "
+                    f"(leaf: {leaf_id[:8] if leaf_id else 'none'})"
                 )
                 roots = [nid for nid, n in tree.items() if n["parentId"] is None]
                 for root_id in roots:
@@ -1522,14 +1529,15 @@ class REPL:
                     pass
                 self._stream_status = None
 
-            # If reasoning was captured but no content was produced (e.g. tool-only turn)
+            # If reasoning was captured but no content was produced
+            # (e.g. tool-only turn)
             if all_reasoning:
                 full_reasoning = "".join(all_reasoning)
                 self._last_reasoning = full_reasoning
                 console.print(format_reasoning_dropdown(full_reasoning))
         except StopIteration:
             pass
-        except Exception as e:
+        except Exception:
             sys.stdout.write("\n")
             sys.stdout.flush()
             raise

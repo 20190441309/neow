@@ -149,12 +149,12 @@ class SessionManager:
         model = getattr(conversation.model_client, "model", "unknown")
         lines = [
             f"# Neow Session: {name}",
-            f"",
+            "",
             f"**Model:** {model}",
             f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-            f"",
-            f"---",
-            f"",
+            "",
+            "---",
+            "",
         ]
 
         for msg in conversation.messages:

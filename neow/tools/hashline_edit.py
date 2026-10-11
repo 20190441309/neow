@@ -299,7 +299,8 @@ def apply_edit(
     if insert_before:
         # Insert new_content before start_line
         new_lines_text = _split_lines_preserving(normalized_new)
-        # Ensure inserted content ends with a line ending so it separates from existing line
+        # Ensure inserted content ends with a line ending so it separates
+        # from the existing line
         if new_lines_text and not new_lines_text[-1].endswith(("\n", "\r\n", "\r")):
             new_lines_text[-1] += line_ending
         result_lines = lines[:s] + new_lines_text + lines[s:]
