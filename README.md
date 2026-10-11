@@ -22,6 +22,12 @@
 
 **[Features](#-features) · [TUI](#️-full-screen-tui-default) · [Install](#️-installation) · [Config](#️-configuration) · [Usage](#-usage) · [Dev](#-development)**
 
+<br>
+
+<img src="docs/assets/screenshots/hero-midnight.png" alt="Neow full-screen TUI: an agent turn in progress — reasoning, a code fix, edit_file and execute_command tool cards, and the sidebar showing context/memory" width="860">
+
+<sub>A real turn captured from the app itself — same renderer, same widgets, scripted conversation.</sub>
+
 </div>
 
 ---
@@ -64,6 +70,8 @@ Most AI CLI wrappers stop at "send prompt, print reply." Neow is a full agent lo
   - Three-tier **approval modes** (`always-ask` / `write` / `yolo`), overridable per tool.
   - Allowlisted commands, chained-command protection, sensitive-file guards (`.env`, `id_rsa`, …).
   - Configurable **hooks** around every stage of the agent loop (Claude-Code-compatible format).
+
+  <img src="docs/assets/screenshots/approval.png" alt="Neow approval modal asking to confirm an execute_command call, with allow-once / always-allow / deny options" width="640">
 - **Session & Cost**
   - Tree-structured, JSONL-backed sessions — `/tree`, `/branch`, `/save`, `/load`, `/history`.
   - Incremental, auto-triggered **compaction** so long sessions never blow the context window.
@@ -99,6 +107,8 @@ Animation modes via `.neow.json` (defaults to `full`):
 ```
 
 `effects` accepts `full`, `subtle` or `off`; `TEXTUAL_ANIMATIONS=none` also forces `off`. `theme` accepts `midnight` (default) or `light` for bright terminals. Piped or non-TTY output never starts the TUI.
+
+<img src="docs/assets/screenshots/hero-light.png" alt="The same timeline rendered with the light theme" width="860">
 
 ---
 
