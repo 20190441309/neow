@@ -24,9 +24,9 @@
 
 <br>
 
-<img src="docs/assets/screenshots/hero-midnight.png" alt="Neow full-screen TUI: an agent turn in progress — reasoning, a code fix, edit_file and execute_command tool cards, and the sidebar showing context/memory" width="860">
+<img src="docs/assets/screenshots/hero.gif" alt="Neow full-screen TUI recording: a prompt submitted, reasoning streams in, the model explains a fix, edit_file and execute_command tool cards run, and the final reply settles in" width="860">
 
-<sub>A real turn captured from the app itself — same renderer, same widgets, scripted conversation.</sub>
+<sub>A real turn recorded from the app itself — same renderer, same widgets, scripted conversation.</sub>
 
 </div>
 
