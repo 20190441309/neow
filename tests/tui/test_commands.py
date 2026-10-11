@@ -136,7 +136,9 @@ def test_imgdiff_computes_diff_and_queues_result(tmp_path, monkeypatch):
 def test_imgdiff_reports_missing_file(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     result = make_dispatcher().dispatch(
-        ParsedCommand(Command.IMGDIFF, f"{tmp_path / 'nope.png'} {tmp_path / 'nope2.png'}")
+        ParsedCommand(
+            Command.IMGDIFF, f"{tmp_path / 'nope.png'} {tmp_path / 'nope2.png'}"
+        )
     )
     assert result.kind == "error"
 
@@ -161,7 +163,10 @@ def test_model_name_switches_instead_of_opening_picker(monkeypatch):
     monkeypatch.setattr(
         "neow.cli.main.create_model_client", lambda config, name: client
     )
-    config = SimpleNamespace(resolve_model_alias=lambda name: name)
+    persisted = []
+    config = SimpleNamespace(
+        resolve_model_alias=lambda name: name, set_default_model=persisted.append
+    )
     calls = []
     dispatcher = make_dispatcher(
         config=config, hooks={"model": lambda: calls.append("picker")}
@@ -169,6 +174,7 @@ def test_model_name_switches_instead_of_opening_picker(monkeypatch):
     result = dispatcher.dispatch(ParsedCommand(Command.MODEL, "router"))
     assert result.kind == "info"
     assert dispatcher.conversation.model_client is client
+    assert persisted == ["router"]
     assert calls == []
 
 

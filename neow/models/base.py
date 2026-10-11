@@ -27,6 +27,15 @@ def validate_openai_compatible(client: Any, label: str) -> bool:
 DEFAULT_CONTEXT_WINDOW = 128_000
 
 
+class ModelNotConfiguredError(RuntimeError):
+    """A model-dependent action was attempted before BYOK setup."""
+
+    def __init__(self):
+        super().__init__(
+            "No model configured. Use /model add to configure a model before chatting."
+        )
+
+
 def default_context_window(model: str) -> int:
     """Context window assumed when a model entry sets no ``context_window``."""
 

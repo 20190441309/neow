@@ -29,12 +29,13 @@ class ModelPickerScreen(ModalScreen):
         self,
         *,
         models: List[str],
-        on_select: Callable[[str], None],
+        on_select: Callable[[str], Optional[bool]],
         labels: Optional[Dict[str, str]] = None,
         current: Optional[str] = None,
         on_add: Optional[Callable[[], None]] = None,
         on_edit: Optional[Callable[[str], None]] = None,
         on_sync: Optional[Callable[[], None]] = None,
+        message: str = "",
     ):
         super().__init__()
         self.models = list(models)
@@ -44,6 +45,7 @@ class ModelPickerScreen(ModalScreen):
         self.on_add = on_add
         self.on_edit = on_edit
         self.on_sync = on_sync
+        self.message = message
         self.visible_models = list(models)
 
     def compose(self):
@@ -56,7 +58,7 @@ class ModelPickerScreen(ModalScreen):
                 *[Option(self._label(model)) for model in self.models],
                 id="model-list",
             )
-            yield Static("", id="model-message", markup=False)
+            yield Static(self.message, id="model-message", markup=False)
             with Horizontal(classes="model-actions"):
                 if self.on_add:
                     yield Button("+ BYOK", id="model-add")
@@ -91,8 +93,16 @@ class ModelPickerScreen(ModalScreen):
         event.stop()
         if not self.visible_models:
             return
-        self.on_select(self.visible_models[event.option_index])
-        self.app.pop_screen()
+        if self.on_select(self.visible_models[event.option_index]) is not False:
+            self.app.pop_screen()
+
+    def set_switch_pending(self, pending: bool, message: str = "") -> None:
+        """Keep the picker open while a background connection probe runs."""
+        self.query_one("#model-message", Static).update(message)
+        self.query_one(Input).disabled = pending
+        self.query_one(OptionList).disabled = pending
+        for button in self.query(Button):
+            button.disabled = pending
 
     def on_input_changed(self, event: Input.Changed) -> None:
         query = event.value.strip().lower()

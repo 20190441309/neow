@@ -17,7 +17,12 @@ from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 from neow.core.cancellation import CancelToken, cancellation_scope
 from neow.core.executor import ToolDenied
 from neow.core.tool_context import LoopChannel, loop_channel
-from neow.models.base import ModelResponse, StreamChunk, normalize_finish_reason
+from neow.models.base import (
+    ModelNotConfiguredError,
+    ModelResponse,
+    StreamChunk,
+    normalize_finish_reason,
+)
 from neow.utils import sanitize_text
 from neow.utils.logger import logger
 
@@ -185,6 +190,8 @@ class AgentLoop:
         """Yield model chunks and progress events; final reply in ``result``."""
 
         conv = self.conversation
+        if conv.model_client is None:
+            raise ModelNotConfiguredError()
         cancel = cancel or CancelToken()
         hooks = self._turn_hooks()
         if hooks:

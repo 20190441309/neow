@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
@@ -25,12 +25,22 @@ class ModelEditorScreen(ModalScreen):
     ModelEditorScreen #model-error { height: auto; color: $error; }
     """
 
-    def __init__(self, *, config: Config, on_saved: Callable[[], None], name: str = ""):
+    def __init__(
+        self,
+        *,
+        config: Config,
+        on_saved: Callable[[], None],
+        name: str = "",
+        on_activate: Optional[Callable[[str], None]] = None,
+    ):
         super().__init__()
         self.config = config
         self.on_saved = on_saved
+        self.on_activate = on_activate
         self.entry_name = name
         self.entry = config.stored_model_entry(name) if name else {}
+        self._activation_pending = False
+        self._test_pending = False
 
     def compose(self):
         box = Vertical(classes="dialog")
@@ -119,19 +129,39 @@ class ModelEditorScreen(ModalScreen):
                     error.update("配置名称已存在")
                     return
                 self.config.save_model(name, entry)
+                # Retain this saved entry so a failed first-run probe can be retried.
+                self.entry_name = name
+                self.entry = entry
+                self.query_one("#model-name", Input).disabled = True
                 self.on_saved()
-                self.app.pop_screen()
+                if self.on_activate is not None:
+                    self.set_activation_pending(True, "配置已保存，正在连接…")
+                    self.on_activate(name)
+                else:
+                    self.app.pop_screen()
             elif event.button.id == "model-test":
                 self._test_connection(name, entry)
         except Exception as exc:
             # Validation errors are controlled locally; never show an SDK body.
             from neow.core.config import ConfigError
 
-            error.update(
-                str(exc) if isinstance(exc, ConfigError) else "无法保存模型配置"
+            self.set_activation_pending(
+                False,
+                str(exc) if isinstance(exc, ConfigError) else "无法保存模型配置",
             )
 
+    def set_activation_pending(self, pending: bool, message: str = "") -> None:
+        self._activation_pending = pending
+        self.query_one("#model-save", Button).disabled = pending
+        self.query_one("#model-test", Button).disabled = pending or self._test_pending
+        for control in self.query("Input, Select"):
+            control.disabled = pending or (
+                control.id == "model-name" and bool(self.entry_name)
+            )
+        self.query_one("#model-error", Static).update(message)
+
     def _test_connection(self, name: str, entry: dict[str, Any]) -> None:
+        self._test_pending = True
         self.query_one("#model-test", Button).disabled = True
         self.query_one("#model-error", Static).update("连接中...")
         self.run_worker(lambda: self._probe(name, entry), thread=True, exclusive=True)
@@ -147,9 +177,12 @@ class ModelEditorScreen(ModalScreen):
         self.app.call_from_thread(self._tested, connected)
 
     def _tested(self, connected: bool) -> None:
+        self._test_pending = False
         if not self.is_mounted:
             return
-        self.query_one("#model-test", Button).disabled = False
+        self.query_one("#model-test", Button).disabled = self._activation_pending
+        if self._activation_pending:
+            return
         self.query_one("#model-error", Static).update(
             "连接成功" if connected else "连接失败，请检查地址和 Key"
         )

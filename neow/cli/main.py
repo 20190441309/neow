@@ -13,7 +13,7 @@ from pathlib import Path
 
 import click
 
-from neow.core.config import Config
+from neow.core.config import Config, ConfigError
 from neow.core.conversation import ConversationManager
 from neow.core.executor import ToolExecutor
 from neow.core.security import SecurityGuard
@@ -257,13 +257,26 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
         # Determine model to use
         model_name = model or cfg.default_model
 
-        # Create model client
-        model_client = create_model_client(cfg, model_name)
-
-        # Validate connection
-        if not model_client.validate_connection():
-            print_error(f"Failed to connect to {model_name} API")
-            sys.exit(1)
+        # Interactive users can configure BYOK before making any model request.
+        interactive = (
+            stdin_is_tty and sys.stdout.isatty()
+            and not (headless or prompt or message_file)
+        )
+        model_setup_notice = None
+        try:
+            model_client = create_model_client(cfg, model_name)
+        except ConfigError as exc:
+            if not interactive:
+                raise
+            model_client = None
+            model_setup_notice = str(exc)
+        else:
+            if not model_client.validate_connection():
+                if not interactive:
+                    print_error(f"Failed to connect to {model_name} API")
+                    sys.exit(1)
+                model_client = None
+                model_setup_notice = f"Failed to connect to {model_name} API"
 
         # Setup tool executor
         executor = ToolExecutor()
@@ -302,6 +315,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
         # Setup conversation manager (must be created before on_file_change callback)
         token_tracker = TokenTracker(cfg)
         conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
+        conversation.model_setup_notice = model_setup_notice
         conversation.max_turns = max_turns or cfg.agent["max_turns"]
         conversation.max_tool_output_chars = cfg.agent["max_tool_output_chars"]
         conversation.subagent_max_turns = cfg.agent["subagent_max_turns"]

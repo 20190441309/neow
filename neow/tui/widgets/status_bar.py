@@ -70,10 +70,16 @@ class TopBar(Horizontal):
         palette = widget_palette(self)
         app = self.app
         conversation = getattr(app, "conversation", None)
-        model = getattr(getattr(conversation, "model_client", None), "model", "unknown")
+        client = getattr(conversation, "model_client", None)
+        model = (
+            getattr(client, "model", "unknown")
+            if client is not None
+            else "待配置 · /model"
+        )
         info = Text(no_wrap=True, overflow="ellipsis")
         info.append(SEPARATOR, palette["border_strong"])
-        info.append(str(model), f"bold {palette['accent2']}")
+        color = palette["accent2"] if client is not None else palette["warn"]
+        info.append(str(model), f"bold {color}")
 
         branch = _git_branch()
         if branch:

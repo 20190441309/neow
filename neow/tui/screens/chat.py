@@ -13,6 +13,7 @@ from textual.screen import Screen
 from textual.widgets import Static
 
 from neow.cli.commands import Command, parse_command
+from neow.core.config import ConfigError
 from neow.tui.bridge.controller import ChatController
 from neow.tui.bridge.events import (
     ContentDelta,
@@ -43,6 +44,7 @@ from neow.tui.commands import CommandDispatcher, CommandResult
 from neow.tui.screens.cost import CostScreen
 from neow.tui.screens.diff_view import DiffScreen
 from neow.tui.screens.help import HelpScreen
+from neow.tui.screens.model_editor import ModelEditorScreen
 from neow.tui.screens.model_picker import ModelPickerScreen
 from neow.tui.screens.session_picker import SessionPickerScreen
 from neow.tui.screens.tree import SessionTreeScreen
@@ -55,6 +57,7 @@ from neow.utils.logger import logger
 SIDEBAR_TABS = ("context", "todos", "tree", "git")
 # Tools shown by their own card type instead of a ToolCard.
 QUIET_TOOLS = {"todo_write"}
+MODEL_SETUP_PROMPT = "请先用 /model 添加 BYOK 配置或选择模型，再开始对话。"
 
 
 class TuiEventMessage(Message):
@@ -101,6 +104,7 @@ class ChatScreen(Screen):
         self._todo_card: Optional[TodoCard] = None  # this turn's task list
         self._tool_started: Dict[str, float] = {}
         self._controller: Optional[ChatController] = None
+        self._model_switching = False
         self.commands: Optional[CommandDispatcher] = None
         self.sidebar_tab = "context"
 
@@ -141,6 +145,7 @@ class ChatScreen(Screen):
                 "model": self._open_model_picker,
                 "model_add": self._open_model_editor,
                 "model_sync": self._sync_magpie_models,
+                "model_switch": self._switch_model_command,
                 "history": self._open_session_picker,
                 "load": self._open_session_picker,
                 "tree": self._open_tree,
@@ -158,6 +163,12 @@ class ChatScreen(Screen):
         self._refresh_sidebar()
         if self._sidebar_default():
             self.sidebar.set_class(True, "visible")
+        if getattr(app.conversation, "model_client", None) is None:
+            notice = getattr(app.conversation, "model_setup_notice", "")
+            if notice:
+                self._add_card(SystemCard(str(notice), level="warn"))
+            self._add_card(SystemCard(MODEL_SETUP_PROMPT, level="warn"))
+            self.call_after_refresh(self._open_model_picker)
 
     def _sidebar_default(self) -> bool:
         config = getattr(self.app, "config", None)
@@ -231,6 +242,8 @@ class ChatScreen(Screen):
         text = (text or "").strip()
         if not text:
             return
+        if not self._can_start_turn():
+            return
         if self._busy:
             self.input_dock.enqueue(text)
             self._update_queue_strip()
@@ -243,7 +256,18 @@ class ChatScreen(Screen):
 
     # -- turn lifecycle ------------------------------------------------
 
+    def _can_start_turn(self) -> bool:
+        if self._model_switching:
+            self._add_card(SystemCard("正在连接模型，请稍候。", level="warn"))
+            return False
+        if getattr(self.app.conversation, "model_client", None) is None:
+            self._add_card(SystemCard(MODEL_SETUP_PROMPT, level="warn"))
+            return False
+        return True
+
     def _start_turn(self, text: str) -> None:
+        if not self._can_start_turn():
+            return
         self._busy = True
         conversation = self.app.conversation
         store = getattr(conversation, "checkpoints", None)
@@ -488,7 +512,9 @@ class ChatScreen(Screen):
         if message.error:
             self._add_card(ErrorCard("自动压缩失败", message.error))
         else:
-            self._add_card(CompactionCard(f"上下文接近上限，已自动压缩\n{message.result}"))
+            self._add_card(
+                CompactionCard(f"上下文接近上限，已自动压缩\n{message.result}")
+            )
         self._busy = False
         self.status_bar.set_activity("idle")
         self.input_dock.set_busy(False)
@@ -542,7 +568,7 @@ class ChatScreen(Screen):
         if self.commands is None:
             return CommandResult("Command dispatcher not ready", kind="error")
         parsed = parse_command(raw)
-        if self._busy and parsed.command in (
+        if (self._busy or self._model_switching) and parsed.command in (
             Command.CLEAR,
             Command.LOAD,
             Command.HISTORY,
@@ -551,7 +577,12 @@ class ChatScreen(Screen):
             Command.TREE,
             Command.COMPACT,
         ):
-            self.notify("请先按 Esc 中断当前生成，再修改会话或模型", severity="warning")
+            message = (
+                "正在连接模型，请稍候。"
+                if self._model_switching
+                else "请先按 Esc 中断当前生成，再修改会话或模型"
+            )
+            self.notify(message, severity="warning")
             return CommandResult("Turn in progress", kind="error")
         result = self.commands.dispatch(parsed)
         if parsed.command == Command.CLEAR and result.kind != "error":
@@ -574,7 +605,12 @@ class ChatScreen(Screen):
 
     def _maybe_lint_followup(self) -> None:
         feedback = getattr(self.app.conversation, "pending_lint_feedback", None)
-        if feedback and not self._busy:
+        if (
+            feedback
+            and not self._busy
+            and not self._model_switching
+            and getattr(self.app.conversation, "model_client", None) is not None
+        ):
             self.app.conversation.pending_lint_feedback = None
             self._add_card(SystemCard("自动修复 lint/test 错误", level="warn"))
             self._start_turn(feedback)
@@ -602,10 +638,17 @@ class ChatScreen(Screen):
                 models=models,
                 labels=labels,
                 on_select=self._switch_model,
-                current=getattr(self.app.conversation.model_client, "config_name", None),
+                current=getattr(
+                    self.app.conversation.model_client, "config_name", None
+                ),
                 on_add=self._open_model_editor,
                 on_edit=self._open_model_editor,
                 on_sync=self._sync_magpie_models,
+                message=(
+                    MODEL_SETUP_PROMPT
+                    if getattr(self.app.conversation, "model_client", None) is None
+                    else ""
+                ),
             )
         )
         return None
@@ -630,12 +673,19 @@ class ChatScreen(Screen):
                 )
 
     def _open_model_editor(self, name=""):
-        from neow.tui.screens.model_editor import ModelEditorScreen
-
+        if self._model_switching:
+            self.notify("正在连接模型，请稍候。", severity="warning")
+            return
         self.app.push_screen(
             ModelEditorScreen(
-                config=self.app.config, name=name,
+                config=self.app.config,
+                name=name,
                 on_saved=self._refresh_model_picker,
+                on_activate=(
+                    self._switch_model
+                    if getattr(self.app.conversation, "model_client", None) is None
+                    else None
+                ),
             )
         )
 
@@ -656,19 +706,98 @@ class ChatScreen(Screen):
         self.app.call_from_thread(self._refresh_model_picker)
         self.app.call_from_thread(self.notify, f"已同步 {count} 个 Magpie 模型")
 
-    def _switch_model(self, name: str) -> None:
+    def _switch_model_command(self, name: str) -> CommandResult:
+        self._switch_model(name)
+        return CommandResult()
+
+    def _switch_model(self, name: str) -> bool:
+        if self._model_switching or self._busy:
+            self.notify("请等待当前操作结束，再切换模型。", severity="warning")
+            return False
+        origin = self.app.screen
+        if not isinstance(origin, (ModelEditorScreen, ModelPickerScreen)):
+            origin = None
+        self._model_switching = True
+        self._set_switch_status(origin, True, "正在连接模型…")
+        self.run_worker(
+            lambda: self._probe_model_switch(name, origin),
+            thread=True,
+            exclusive=True,
+            group="model-switch",
+        )
+        # Picker callbacks retain their modal until validation succeeds.
+        return False
+
+    @staticmethod
+    def _set_switch_status(origin, pending: bool, message: str = "") -> None:
+        if isinstance(origin, ModelEditorScreen):
+            origin.set_activation_pending(pending, message)
+        elif isinstance(origin, ModelPickerScreen):
+            origin.set_switch_pending(pending, message)
+
+    def _probe_model_switch(self, name: str, origin) -> None:
+        client = None
+        error = ""
         try:
             from neow.cli.main import create_model_client
 
             client = create_model_client(self.app.config, name)
-            if client.validate_connection():
-                self.app.conversation.model_client = client
-                self._add_card(SystemCard(f"Switched to model: {name}"))
-                self.query_one(TopBar).refresh_info()
-            else:
-                self._add_card(ErrorCard("模型切换失败", f"无法连接 {name}"))
-        except Exception as exc:  # noqa: BLE001
-            self._add_card(ErrorCard("模型切换失败", str(exc)))
+            sdk = getattr(client, "client", None)
+            if sdk is not None:
+                client.client = sdk.with_options(timeout=5, max_retries=0)
+            try:
+                connected = client.validate_connection()
+            finally:
+                if sdk is not None:
+                    client.client = sdk
+            if not connected:
+                error = "连接失败，请检查 API 地址、模型配置和 Key。"
+        except ConfigError as exc:
+            error = str(exc)
+        except Exception:  # SDK errors may echo credentials; keep them off screen.
+            error = "连接失败，请检查 API 地址、模型配置和 Key。"
+        try:
+            self.app.call_from_thread(
+                self._finish_model_switch, name, client, error, origin
+            )
+        except RuntimeError:
+            self._close_unused_model(client)
+
+    @staticmethod
+    def _close_unused_model(client) -> None:
+        close = getattr(getattr(client, "client", None), "close", None)
+        if callable(close):
+            try:
+                close()
+            except Exception:
+                pass
+
+    def _finish_model_switch(self, name: str, client, error: str, origin) -> None:
+        self._model_switching = False
+        if origin is not None and origin not in self.app.screen_stack:
+            self._close_unused_model(client)
+            return
+        if not error:
+            try:
+                self.app.config.set_default_model(name)
+            except ConfigError as exc:
+                error = str(exc)
+            except Exception:
+                error = "无法保存默认模型配置。"
+        if error:
+            self._close_unused_model(client)
+            self._set_switch_status(origin, False, error)
+            if origin is None:
+                self._add_card(ErrorCard("模型切换失败", error))
+            return
+        self.app.conversation.model_client = client
+        self.app.conversation.model_setup_notice = ""
+        self._add_card(SystemCard(f"Switched to model: {name}"))
+        self.query_one(TopBar).refresh_info()
+        self.refresh_status()
+        if origin is not None and self.app.screen is origin:
+            while isinstance(self.app.screen, (ModelEditorScreen, ModelPickerScreen)):
+                self.app.pop_screen()
 
     def _open_session_picker(self):
         sessions = []

@@ -50,7 +50,7 @@ class CommandDispatcher:
         web_fetcher: Any = None,
         event_bus: Any = None,
         plugin_api: Any = None,
-        hooks: Optional[Dict[str, Callable[[], Any]]] = None,
+        hooks: Optional[Dict[str, Callable[..., Any]]] = None,
     ):
         self.conversation = conversation
         self.config = config
@@ -60,7 +60,7 @@ class CommandDispatcher:
         self.web_fetcher = web_fetcher
         self.event_bus = event_bus
         self.plugin_api = plugin_api
-        self.hooks: Dict[str, Callable[[], Any]] = hooks or {}
+        self.hooks: Dict[str, Callable[..., Any]] = hooks or {}
         self.verbose = False
         self.architect_mode = False
 
@@ -141,9 +141,12 @@ class CommandDispatcher:
 
             try:
                 name = self.config.resolve_model_alias(args)
+                if "model_switch" in self.hooks:
+                    return self.hooks["model_switch"](name)
                 client = create_model_client(self.config, name)
                 if not client.validate_connection():
                     return CommandResult(f"Failed to connect to {name}", kind="error")
+                self.config.set_default_model(name)
                 self.conversation.model_client = client
                 return CommandResult(f"Switched to model: {name}")
             except Exception as exc:

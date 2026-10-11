@@ -462,7 +462,7 @@ class REPL:
 
     def _bottom_toolbar(self) -> str:
         """Return status bar text for prompt_toolkit bottom toolbar."""
-        model_name = getattr(self.conversation.model_client, "model", "unknown")
+        model_name = getattr(self.conversation.model_client, "model", "not configured")
         ctx_tokens, _, ctx_pct = self.conversation.context_usage()
         cost = self.token_tracker.get_session_cost() if self.token_tracker else 0.0
         branch = ""
@@ -482,7 +482,7 @@ class REPL:
 
     def _show_status_bar(self) -> None:
         """Display status bar with model, token, and cost info."""
-        model_name = getattr(self.conversation.model_client, "model", "unknown")
+        model_name = getattr(self.conversation.model_client, "model", "not configured")
         tokens_used, tokens_max, _ = self.conversation.context_usage()
         cost = self.token_tracker.get_session_cost() if self.token_tracker else 0.0
         branch = ""
@@ -521,11 +521,19 @@ class REPL:
 
     def start(self) -> None:
         """Start the REPL loop."""
-        model_name = getattr(self.conversation.model_client, "model", "")
+        model_name = getattr(self.conversation.model_client, "model", "not configured")
         print_welcome(
             model=model_name,
             recent_sessions=self._get_recent_sessions(),
         )
+        if self.conversation.model_client is None:
+            notice = getattr(self.conversation, "model_setup_notice", None)
+            if notice:
+                print_warning(f"Model unavailable: {notice}")
+            print_info(
+                "No model configured. Use /model add to set up your BYOK provider, "
+                "API URL, model ID, and API key (hidden during input)."
+            )
         if self.event_bus:
             self.event_bus.emit("session_start", conversation=self.conversation)
 
@@ -546,7 +554,7 @@ class REPL:
                 parsed = parse_command(user_input)
                 is_command = bool(parsed.command or parsed.raw_command)
                 user_num = None
-                if not is_command:
+                if not is_command and self.conversation.model_client is not None:
                     self._msg_counter = user_num = self._next_turn_number()
                     self._turns_started += 1
                 print_user_message(
@@ -630,7 +638,7 @@ class REPL:
             model = click.prompt("Model ID")
             env_name = click.prompt(
                 "API key environment variable", default="", show_default=False
-            )
+            ).strip()
             key = "" if env_name else click.prompt("API key", hide_input=True)
             entry = {
                 "provider": provider, "base_url": endpoint.strip(),
@@ -640,10 +648,34 @@ class REPL:
             validate_model_entry(name, entry)
             self.config.save_model(name, entry)
             print_info(f"Saved model: {name}")
+            if self.conversation.model_client is None:
+                self._activate_model(name)
+            else:
+                print_info(f"Use /model {name} to switch to this configuration")
         except (click.Abort, EOFError, KeyboardInterrupt):
             print_info("Cancelled")
         except Exception as exc:
             print_error(str(exc))
+
+    def _activate_model(self, model_name: str) -> None:
+        """Validate and persist a selection before replacing the active client."""
+        try:
+            from neow.cli.main import create_model_client
+
+            new_client = create_model_client(self.config, model_name)
+            if not new_client.validate_connection():
+                print_error(
+                    f"Failed to connect to {model_name}. Its configuration remains "
+                    f"saved; check the API URL, key, and model ID, then use "
+                    f"/model {model_name} to retry."
+                )
+                return
+            self.config.set_default_model(model_name)
+            self.conversation.model_client = new_client
+            self.conversation.model_setup_notice = None
+            print_info(f"Switched to model: {model_name}")
+        except Exception as exc:
+            print_error(f"Failed to switch model: {exc}")
 
     def _handle_command(self, parsed) -> bool:
         """Handle parsed command.
@@ -673,6 +705,9 @@ class REPL:
             print_info("Goodbye!")
             return True
         elif parsed.command == Command.MODEL:
+            if self.config is None:
+                print_error("Model configuration not available")
+                return False
             if parsed.args and parsed.args.strip() == "magpie":
                 from neow.models.management import sync_magpie
 
@@ -684,23 +719,17 @@ class REPL:
                 self._add_byok_model()
             elif parsed.args:
                 model_name = self.config.resolve_model_alias(parsed.args.strip())
-                try:
-                    from neow.cli.main import create_model_client
-                    new_client = create_model_client(self.config, model_name)
-                    if new_client.validate_connection():
-                        self.conversation.model_client = new_client
-                        print_info(f"Switched to model: {model_name}")
-                    else:
-                        print_error(f"Failed to connect to {model_name}")
-                except Exception as e:
-                    print_error(f"Failed to switch model: {e}")
+                self._activate_model(model_name)
             else:
-                current = self.conversation.model_client.model
+                current = getattr(
+                    self.conversation.model_client, "model", "not configured"
+                )
                 print_info(f"Current model: {current}")
                 print_info("Available models:")
                 for line in describe_models(self.config):
                     print_info(f"  {line}")
                 print_info("Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai")
+                print_info("Use /model add to configure a BYOK model")
         elif parsed.command == Command.DIFF:
             try:
                 args_lower = parsed.args.lower() if parsed.args else ""
@@ -1184,6 +1213,12 @@ class REPL:
         Args:
             user_input: User input string.
         """
+        if self.conversation.model_client is None:
+            print_error(
+                "No model configured. Use /model add to set up your BYOK model, "
+                "or /model <name> to select a saved configuration before chatting."
+            )
+            return
         import time
         self._last_activity_time = time.monotonic()
         self._idle_compact_done = False

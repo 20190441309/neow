@@ -13,6 +13,7 @@ from neow.core.agent_loop import (
 from neow.models.base import (
     DEFAULT_CONTEXT_WINDOW,
     BaseModelClient,
+    ModelNotConfiguredError,
     ModelResponse,
     StreamChunk,
 )
@@ -39,7 +40,7 @@ class ConversationManager:
 
     def __init__(
         self,
-        model_client: BaseModelClient,
+        model_client: Optional[BaseModelClient],
         tool_executor: Optional[Any] = None,
         context_manager: Optional[Any] = None,
         token_tracker: Optional[Any] = None,
@@ -47,7 +48,7 @@ class ConversationManager:
         """Initialize conversation manager.
 
         Args:
-            model_client: AI model client instance.
+            model_client: AI model client, or None until interactive BYOK setup.
             tool_executor: Optional tool executor for handling tool calls.
                 If not provided, a default ToolExecutor will be created.
             context_manager: Optional ContextManager for project context injection.
@@ -333,6 +334,9 @@ class ConversationManager:
         if not text_messages:
             return "Nothing to compact."
 
+        if self.model_client is None:
+            raise ModelNotConfiguredError()
+
         conversation_text = "\n".join(text_messages)
         msg_count = len(self.messages)
 
@@ -438,6 +442,9 @@ class ConversationManager:
         if not text_messages:
             return "No text messages to summarize."
 
+        if self.model_client is None:
+            raise ModelNotConfiguredError()
+
         conversation_text = "\n".join(text_messages)
         old_count = len(old_messages)
 
@@ -495,6 +502,9 @@ class ConversationManager:
 
         if not text_messages:
             return ""
+
+        if self.model_client is None:
+            raise ModelNotConfiguredError()
 
         conversation_text = "\n".join(text_messages)
 

@@ -312,16 +312,19 @@ class Config:
         Raises:
             ConfigError: If model not found.
         """
-        # Try exact match first
-        if model_name in self._config["models"]:
-            return self._config["models"][model_name]
+        return self.models[self.resolve_model_name(model_name)]
 
-        # Try prefix match (e.g., "deepseek-v4-flash" matches "deepseek")
-        model_lower = model_name.lower()
-        for key in self._config["models"]:
+    def resolve_model_name(self, model_name: str) -> str:
+        """Resolve a model selector to its stored entry, keeping exact names first."""
+        name = self.resolve_model_alias(model_name)
+        if name in self.models:
+            return name
+
+        # Preserve legacy selectors such as "DeepSeek" or "deepseek-v4-flash".
+        model_lower = name.lower()
+        for key in self.models:
             if model_lower.startswith(key.lower()) or key.lower() in model_lower:
-                return self._config["models"][key]
-
+                return key
         raise ConfigError(f"Model '{model_name}' not found in configuration")
 
     def persist_updates(self, updates: Dict[str, Any]) -> Path:
@@ -363,6 +366,10 @@ class Config:
         """Save one model entry, retaining all unrelated on-disk settings."""
         # Empty auth fields deliberately clear a previous credential reference.
         return self.persist_updates({"models": {name: entry}})
+
+    def set_default_model(self, name: str) -> Path:
+        """Remember an explicitly selected model for the next launch."""
+        return self.persist_updates({"default_model": self.resolve_model_name(name)})
 
     def stored_model_entry(self, name: str) -> Dict[str, Any]:
         """Read editable fields without environment-resolved credentials."""

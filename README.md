@@ -123,16 +123,48 @@ cd neow
 
 # Install in editable mode
 pip install -e .
+```
 
-# Or install dependencies if running from source
-pip install -r requirements.txt
+### First run: configure your own model
+
+Start Neow without setting an API key first:
+
+```bash
+neow
+```
+
+If no model is ready, the TUI opens the model picker. Choose **+ BYOK**, enter
+a configuration name, API protocol, base URL, model ID and API key, then
+**Save**. The first saved model is connected and selected automatically; a
+successful selection becomes the default for the next `neow` launch. If the
+connection fails, you can edit the saved entry or select another model without
+restarting. Chat requests are blocked until a model is selected.
+
+With `neow --plain`, use `/model add` for the same first-time setup through
+masked terminal prompts. One-shot and headless runs still require a configured
+model and fail rather than opening setup.
+
+On Windows PowerShell, you can use the virtual environment directly, or
+activate it to run the short `neow` command:
+
+```powershell
+# Run in the cloned repository directory
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\neow.exe
+
+# Optional: activate the environment, then use the short command
+.\.venv\Scripts\Activate.ps1
+neow
 ```
 
 ---
 
 ## ⚙️ Configuration
 
-Neow is highly configurable. Create a `.neow.json` file in your project root or `~/.neow/config.json`.
+Neow is highly configurable. Use `/model` to manage models in the app, or
+create a `.neow.json` file in your project root or `~/.neow/config.json`.
+Environment variables are optional when an API key is saved through BYOK.
 
 **Example `.neow.json`:**
 ```json
@@ -230,10 +262,12 @@ echoes stored keys.
 In the TUI, `/model` opens a searchable picker with **+ BYOK**, **Edit**, and
 **Magpie Sync** actions. BYOK entries accept a configuration name, API protocol,
 base URL, model ID, and either a masked API key or an environment variable name.
-**Save** persists the entry without switching the active model; **Test Connection**
+**Save** persists the entry without switching an already active model. During
+first-time setup, it also connects and selects the saved model. **Test Connection**
 checks endpoint access (not model availability or tool support). `/model add`
 opens the same editor, or a masked prompt in `--plain` mode. `/model <name>`
-switches directly in either mode.
+switches directly in either mode. Successful model selections are remembered
+as the default for the next launch.
 
 ### Magpie Gateway
 

@@ -18,6 +18,7 @@ from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Callable, Dict, Optional
 
 from neow.core.agent_loop import CancelToken
+from neow.models.base import ModelNotConfiguredError
 from neow.tui.bridge.events import (
     ContentDelta,
     Notice,
@@ -99,6 +100,8 @@ class ChatController:
         self._turn_start = self._time_fn()
         self._last_flush = self._turn_start
         try:
+            if getattr(self._conversation, "model_client", None) is None:
+                raise ModelNotConfiguredError()
             self._prelude(user_input)
             if self._token_tracker and self._token_tracker.check_max_tokens():
                 self._emit(
