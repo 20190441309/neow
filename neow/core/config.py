@@ -72,8 +72,8 @@ class Config:
         },
         "token": {
             "show_usage": True,
-            "warn_at_tokens": 100000,
-            "max_tokens": 500000,
+            "warn_at_tokens": 1000000,
+            "max_tokens": 5000000,
             "prices": {
                 "deepseek-v4-flash": {"input": 0.14, "output": 0.28},
                 "claude-sonnet-4-6": {"input": 3.0, "output": 15.0},
