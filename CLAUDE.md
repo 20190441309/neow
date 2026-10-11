@@ -1,7 +1,7 @@
 # Neow CLI 开发路线图
 
 > 目标：对标 Aider，逐步构建专业的 AI 结对编程工具
-> 当前覆盖率：~95% | P0–P5 已完成（v0.9）
+> 当前覆盖率：以 CI（ubuntu + windows）上 `pytest` 的实际结果为准 | P0–P5 已完成（v0.9）
 
 ---
 
@@ -154,6 +154,17 @@ usage 数据已解析但未展示。
 - [x] `compact()` 未防止 summarizer 返回 tool_calls（已修复：添加 guard + warning）
 - [x] `search_code` 未排除 `.git`/`__pycache__`/`node_modules`（已修复：SKIP_DIRS 过滤）
 - [x] `_sanitize_text` 在 4 个文件中重复定义（已修复：提取到 `neow.utils.sanitize_text`）
+- [x] **Windows：headless 模式（`neow -p` / `--output-format`）关闭真实 `sys.stdout`**（已修复：`neow/utils/formatter.py` 不再把 `sys.stdout.buffer` 包进额外的 `TextIOWrapper`，改用 `sys.stdout.reconfigure(encoding="utf-8")`。旧写法下 `console.file = sys.stderr` 会丢掉 wrapper 的最后一个引用，`TextIOWrapper.__del__` 随即关掉真实 stdout——`sys.stdout.isatty()` 当场抛 `ValueError`，headless 直接崩；测试侧表现为 `tests/test_evals.py` 后 1173 个 error 级联。回归测试：`tests/test_headless.py::test_headless_keeps_stdout_open`）
+- [x] **Windows：`read_piped_stdin` 在"管道开着但没人写"时永久挂死**（已修复：`neow/cli/main.py` 不再假定"select 失败 = 就绪"，改用 `PeekNamedPipe` 轮询管道、`stat.S_ISREG` 识别重定向文件，超时返回空串。旧代码在 Windows 上 `select()` 必抛 `OSError`，随后 `stream.read()` 死等——正是该函数声称要防的场景。回归测试：`tests/test_headless.py::test_piped_stdin_never_hangs`（此前是挂死而非失败，导致 Windows 上 `pytest` 永远跑不完））
+- [x] **Windows：`tools.command.sandbox` 被完全跳过**（已修复：`neow/tools/command.py` 之前 `sys.platform == "win32"` 时直接不调 `sandbox.plan()`，于是 `strict` 模式照跑命令、`auto` 模式不给提示。现在所有平台都问 `plan()`，Windows 上只丢弃它返回的 POSIX argv）
+- [x] **PowerShell 翻译器吃掉带连字符的文件名**（已修复：`neow/tools/command.py` 的 `_strip_flags`/`_extract_flags` 原来用 `\s*-[a-zA-Z]+\b`，把 `made-by-shell.txt` 拆成 `-by`/`-shell` 当 flag 删掉，`touch made-by-shell.txt` 变成 `New-Item -ItemType File made.txt`。现在 flag 必须是独立 token。回归测试：`tests/test_tools.py::TestPowerShellTranslation`）
+- [x] **hooks 超时在 Windows 上不生效**（已修复：`neow/core/hooks.py` 原来用 `subprocess.run(timeout=)`，它只杀直接子进程，而 shell 的孙进程持有 stdout/stderr 管道，清理阶段照样阻塞到孙进程结束（0.5s 超时实测等了 10.7s）。改为 `Popen` + `communicate(timeout=)`，超时后 `taskkill /T /F`（POSIX 用 `killpg`）杀掉整棵树）
+- [x] `neow/tui/commands.py` 重复定义 `_cmd_image`（已修复：删掉被覆盖的死代码）
+- [x] MCP 启动失败的错误信息不含目标（已修复：`_describe_error` 现在带上 `config.describe()`；顺带让 `tests/test_mcp.py` 不再断言本地化的 OS 文案）
+- [x] 一批只在 Windows 上失败的测试（已修复：`USERPROFILE`/`HOME` 双设、hook 命令按平台加引号、`os.sep` 断言、CRLF 文件用 `newline=""` 写入、chmod 断言限定 POSIX）
+- [x] **eval harness 泄漏 `console._file`，污染后续所有测试**（已修复：`evals/runner.py::_sandbox` 直接 `CliRunner().invoke()`，而 headless 模式会把模块级 console 指向 stderr 且不会指回来；`test_evals.py` 之后的用例里 `capsys` 再也抓不到 console 输出，`test_hooks.py::test_repository_config_cannot_define_hooks` 因此随机失败。现在 `_sandbox` 一并 patch/恢复 `formatter.console._file`）
+- [x] **两个时序测试在 Windows 上随机失败**（已修复：`tests/test_parallel_tools.py` 用 `elapsed >= DELAY * 2/3` 判断"串行执行"，但 Windows 计时器粒度会让 0.6s 实测成 0.594s；改成断言真实性质——调用区间不重叠 / 顺序固定。`tests/tui/test_cards.py::test_tool_finished_before_mount_still_renders_body` 随机失败是因为 `ToolCard.on_mount` 用 `call_after_refresh(_render_body)` 补渲染，而 `_render_body` 又被 `is_mounted` 挡住（`Static.update()` 需要 `widget.app.console`，`on_mount` 里 `is_mounted` 仍为 False）——于是卡片要等下一次 refresh 才有内容。现在 `_render_body(force=True)` 在 `on_mount` 同步渲染）
+- [x] **代码风格与 lint 清零**（已修复：此前 `flake8` 有 164 项、`black --check` 有 52 个文件不合规。先跑一次 `black .`（55 个文件重排，纯机械），再手工折行 `black` 拆不开的 36 条长行——其中 114→36 是 `black` 的功劳，剩下 36 条是长字符串/长注释。现在 `flake8 neow` 为 0 项、`black --check .` 全绿，两个 gate 都进了 CI。**注意**：`neow/core/architect.py` 的 `PLANNER_SYSTEM_PROMPT` 里那段 JSON 示例被改成多行缩进格式（原来两行各 89 字符），指令和示例取值都没变；`SYSTEM_PROMPT` 已用脚本比对确认逐字节相同（1694 字符））
 
 ---
 
@@ -251,7 +262,7 @@ usage 数据已解析但未展示。
 当前只能在终端 REPL 里用，离"结对编程"的无缝体验还有距离。
 
 - [x] 评估 LSP server 模式 vs VSCode 插件桥接，二选一先落地最小可用版本 — **结论：桥接 CLI，不做 LSP server**。LSP 是给补全/诊断设计的协议，"聊天 + diff + 批准/拒绝"不是它的原生语义，硬塞进去（自定义 notification/code action）得到的工具支持跟直接做扩展差不多，却要多维护一个协议层；而 Neow 已经有 `--output-format stream-json` 的事件流，桥接成本低很多。代价：Neovim/Emacs 用户目前只能在终端里用 REPL/TUI，没有编辑器内插件——可接受，等真有人要求再加。
-- [x] 编辑器内发起对话、接收 diff、一键应用/拒绝 — 协议层：新增 `--approval-interactive`（需配合 `--output-format stream-json`），把"拒绝所有需审批的调用"换成"吐一行 `approval_request` JSON，阻塞等 stdin 回一行决定"（`neow/cli/headless.py:make_interactive_approval`）；同时跳过了 headless 原本会贪婪读 stdin 合并进 prompt 的逻辑（否则会把审批回复当成 piped 输入吃掉）。应用层：`editors/vscode/` 下的最小 VSCode 扩展，起子进程桥接这个协议，用 Output Channel 显示对话，`showInformationMessage` 做 Allow/Deny，文件改动用 VSCode 原生 diff 编辑器展示（不依赖 checkpoints，直接从磁盘读当前内容 + 工具参数算 before/after）
+- [ ] 编辑器内发起对话、接收 diff、一键应用/拒绝 — **协议层已完成，应用层缺失**。协议层：新增 `--approval-interactive`（需配合 `--output-format stream-json`），把"拒绝所有需审批的调用"换成"吐一行 `approval_request` JSON，阻塞等 stdin 回一行决定"（`neow/cli/headless.py:make_interactive_approval`）；同时跳过了 headless 原本会贪婪读 stdin 合并进 prompt 的逻辑（否则会把审批回复当成 piped 输入吃掉）。**应用层：原计划放在 `editors/vscode/` 的最小 VSCode 扩展从未提交过——仓库里没有这个目录，`git log --all -- editors` 也是空的。README 和本文件此前把它当成已完成，属于文档与实现不符，已改为如实描述。**
 - [x] 复用现有 approval mode / hashline edit 作为底层能力，不重复造轮子 — 没有新造一套审批/编辑逻辑：`--approval-interactive` 只是给已有的 `ApprovalPolicy`/`executor.approval_callback` 接了个新的 I/O 通道，扩展侧的 diff/apply 走的还是模型原本会调的 `edit_file`/`hashline_edit`/`write_file` 等工具，扩展只是把批准动作从"终端打字"换成"点按钮"
 
 ### 22. 性能与成本自动优化

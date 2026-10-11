@@ -368,7 +368,7 @@ git diff | neow -p "Review this diff" --allowed-tools "read_file,grep,glob"
 ```
 
 - `json` prints `{"type": "result", "result", "is_error", "session_id", "num_turns", "usage", "cost", "duration_ms", "model"}`; `stream-json` prints one JSON event per line (`init`, `content_delta`, `tool_start`, `tool_end`, …) and the same `result` object last. Only the result goes to stdout; notices go to stderr.
-- `--approval-interactive` (with `--output-format stream-json`) turns tool approvals into a request/response protocol over stdio instead of auto-denying — this is what the VS Code bridge (`editors/vscode/`) drives.
+- `--approval-interactive` (with `--output-format stream-json`) turns tool approvals into a request/response protocol over stdio instead of auto-denying: Neow emits an `approval_request` line and blocks for a decision on stdin. Editor and IDE integrations can drive it; no such integration ships with Neow yet (see [Editor integration](#-editor-integration)).
 - Tools that would ask for approval are refused (the model is told why) unless you pass `--approval yolo`. Narrow the toolset with `--allowed-tools` / `--disallowed-tools` (comma or space separated, `*` wildcards such as `mcp__github__*`), and cap requests with `--max-turns N`.
 - Exit codes: `0` success, `1` the model request or startup failed, `2` invalid arguments, `130` interrupted.
 
@@ -420,7 +420,7 @@ Neow uses a sophisticated **Hashline** system to ensure file edits are precise a
 
 ## 🧩 Editor integration
 
-A minimal VS Code bridge lives in `editors/vscode/` — it drives Neow headlessly over `--approval-interactive --output-format stream-json`, shows the conversation in an Output Channel, routes tool approvals through `showInformationMessage`, and renders file edits with VS Code's native diff view. No separate approval or editing logic: it's the same `ApprovalPolicy` and tools (`edit_file`, `hashline_edit`, `write_file`, …) the CLI already uses.
+No editor extension ships with Neow yet. What exists is the protocol one would be built on: `neow -p "…" --output-format stream-json --approval-interactive` turns every tool approval into an `approval_request` line on stdout and a decision read back from stdin, and every file edit arrives as a `tool_start` event carrying the same `edit_file` / `hashline_edit` / `write_file` arguments the CLI uses. An editor bridge can therefore render the conversation, show a diff and offer allow/deny without reimplementing any approval or editing logic — the work left is the extension itself.
 
 ---
 
