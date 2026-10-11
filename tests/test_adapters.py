@@ -112,6 +112,27 @@ def test_empty_assistant_text_and_empty_results_are_normalised():
     assert messages[2]["content"][0]["content"] == "(no output)"
 
 
+def test_thinking_blocks_replayed_ahead_of_tool_use():
+    call = _assistant_with_calls("a")
+    call["thinking_blocks"] = [
+        {"type": "thinking", "thinking": "working it out", "signature": "sig"}
+    ]
+    messages, _ = to_anthropic([{"role": "user", "content": "x"}, call])
+    blocks = messages[1]["content"]
+    assert blocks[0] == {
+        "type": "thinking",
+        "thinking": "working it out",
+        "signature": "sig",
+    }
+    assert blocks[-1]["type"] == "tool_use"
+
+
+def test_no_thinking_blocks_key_is_unaffected():
+    call = _assistant_with_calls("a")
+    messages, _ = to_anthropic([{"role": "user", "content": "x"}, call])
+    assert messages[1]["content"][0]["type"] == "tool_use"
+
+
 def test_malformed_arguments_become_empty_input():
     call = _assistant_with_calls("a")
     call["tool_calls"][0]["function"]["arguments"] = '{"file_path": '

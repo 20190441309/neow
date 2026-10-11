@@ -12,6 +12,7 @@ class Command(Enum):
     CLEAR = "clear"
     EXIT = "exit"
     MODEL = "model"
+    EFFORT = "effort"
     DIFF = "diff"
     COMMIT = "commit"
     UNDO = "undo"
@@ -74,6 +75,7 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/clear": Command.CLEAR,
         "/exit": Command.EXIT,
         "/model": Command.MODEL,
+        "/effort": Command.EFFORT,
         "/diff": Command.DIFF,
         "/commit": Command.COMMIT,
         "/undo": Command.UNDO,

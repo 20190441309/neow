@@ -48,6 +48,7 @@ class AnthropicClient(BaseModelClient):
         validate: bool = True,
         max_output_tokens: Optional[int] = None,
         max_retries: Optional[int] = None,
+        effort: Optional[str] = None,
     ):
         """Initialize Anthropic client.
 
@@ -59,17 +60,26 @@ class AnthropicClient(BaseModelClient):
             max_output_tokens: Required by the API; defaults by model family.
             max_retries: SDK retries for 408/409/429/5xx and connection
                 errors (None keeps the SDK default of 2).
+            effort: /effort level ("low"|"medium"|"high"); sent as
+                ``output_config.effort``. Works with or without thinking and
+                is supported by every current Claude model, so it is used
+                in place of manual ``thinking: {budget_tokens}``.
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
         self.max_output_tokens = max_output_tokens or default_max_output_tokens(model)
+        self.effort = effort
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
         if max_retries is not None:
             kwargs["max_retries"] = max_retries
         self.client = anthropic.Anthropic(**kwargs)
+        # Raw thinking/redacted_thinking blocks from the last reply, in
+        # order; replayed verbatim on the next request (signature-checked
+        # by the API; dropping them breaks a subsequent tool-use turn).
+        self._last_thinking_blocks: Optional[List[Dict[str, Any]]] = None
 
     def _request_kwargs(
         self,
@@ -84,6 +94,8 @@ class AnthropicClient(BaseModelClient):
             "max_tokens": self.max_output_tokens,
             "messages": api_messages,
         }
+        if self.effort:
+            kwargs["output_config"] = {"effort": self.effort}
         # Prompt-cache breakpoints: tools, system, and the newest message,
         # so each request reuses the prefix the previous one wrote.
         if system_prompt:
@@ -135,6 +147,7 @@ class AnthropicClient(BaseModelClient):
             # Parse content
             content = ""
             tool_calls = []
+            thinking_blocks = []
 
             for block in response.content:
                 if block.type == "text":
@@ -149,6 +162,19 @@ class AnthropicClient(BaseModelClient):
                             },
                         }
                     )
+                elif block.type == "thinking":
+                    thinking_blocks.append(
+                        {
+                            "type": "thinking",
+                            "thinking": block.thinking,
+                            "signature": block.signature,
+                        }
+                    )
+                elif block.type == "redacted_thinking":
+                    thinking_blocks.append(
+                        {"type": "redacted_thinking", "data": block.data}
+                    )
+            self._last_thinking_blocks = thinking_blocks or None
 
             # Parse usage
             usage = anthropic_usage(response.usage) if response.usage else {}
@@ -190,6 +216,9 @@ class AnthropicClient(BaseModelClient):
             # Content block index -> tool_use being assembled.  Argument
             # deltas name their block by index, so parallel calls stay apart.
             tool_inputs: Dict[int, Dict[str, str]] = {}
+            # Content block index -> thinking/redacted_thinking block being
+            # assembled; replayed verbatim on the next request.
+            thinking_blocks: Dict[int, Dict[str, Any]] = {}
 
             with self.client.messages.stream(**kwargs) as stream:
                 for event in stream:
@@ -200,6 +229,17 @@ class AnthropicClient(BaseModelClient):
                                 "name": event.content_block.name,
                                 "input_buffer": "",
                             }
+                        elif event.content_block.type == "thinking":
+                            thinking_blocks[event.index] = {
+                                "type": "thinking",
+                                "thinking": "",
+                                "signature": "",
+                            }
+                        elif event.content_block.type == "redacted_thinking":
+                            thinking_blocks[event.index] = {
+                                "type": "redacted_thinking",
+                                "data": event.content_block.data,
+                            }
                     elif event.type == "content_block_delta":
                         if event.delta.type == "text_delta":
                             yield StreamChunk(content_delta=event.delta.text)
@@ -208,6 +248,16 @@ class AnthropicClient(BaseModelClient):
                                 tool_inputs[event.index]["input_buffer"] += (
                                     event.delta.partial_json
                                 )
+                        elif event.delta.type == "thinking_delta":
+                            block = thinking_blocks.get(event.index)
+                            if block is not None:
+                                block["thinking"] += event.delta.thinking
+                            if event.delta.thinking:
+                                yield StreamChunk(reasoning_delta=event.delta.thinking)
+                        elif event.delta.type == "signature_delta":
+                            block = thinking_blocks.get(event.index)
+                            if block is not None:
+                                block["signature"] = event.delta.signature
                     elif event.type == "message_stop":
                         final_tool_calls = []
                         for index in sorted(tool_inputs):
@@ -224,6 +274,9 @@ class AnthropicClient(BaseModelClient):
                             yield StreamChunk(
                                 tool_call_delta={"tool_calls": final_tool_calls}
                             )
+                        self._last_thinking_blocks = [
+                            thinking_blocks[index] for index in sorted(thinking_blocks)
+                        ] or None
 
                 # The real stop reason (e.g. max_tokens) is only on the
                 # final message.

@@ -51,6 +51,7 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/clear":     "Clear conversation history",
     "/exit":      "Exit Neow",
     "/model":     "Switch or show AI model",
+    "/effort":    "Show or set thinking strength (off/low/medium/high)",
     "/diff":      "Show uncommitted git changes",
     "/commit":    "Commit changes with AI-generated message",
     "/undo":      "Undo last AI commit",
@@ -677,6 +678,33 @@ class REPL:
         except Exception as exc:
             print_error(f"Failed to switch model: {exc}")
 
+    def _handle_effort(self, args: Optional[str]) -> None:
+        """Show or set the active model's /effort (thinking strength) level."""
+        from neow.models.base import EFFORT_LEVELS
+
+        client = self.conversation.model_client
+        if client is None:
+            print_error("No model configured")
+            return
+        name = getattr(client, "config_name", None)
+        if not args:
+            level = getattr(client, "effort", None) or "off"
+            print_info(f"Effort: {level}")
+            print_info(f"Available: off, {', '.join(EFFORT_LEVELS)}")
+            return
+        level = args.strip().lower()
+        if level not in ("off",) + EFFORT_LEVELS:
+            print_error(f"Unknown effort: {level}. Use: off, {', '.join(EFFORT_LEVELS)}")
+            return
+        client.effort = None if level == "off" else level
+        if name and self.config is not None:
+            try:
+                self.config.save_model(name, {"effort": level})
+            except Exception as exc:
+                print_error(f"Set for this session, but failed to persist: {exc}")
+                return
+        print_info(f"Effort set to: {level}")
+
     def _handle_command(self, parsed) -> bool:
         """Handle parsed command.
 
@@ -730,6 +758,8 @@ class REPL:
                     print_info(f"  {line}")
                 print_info("Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai")
                 print_info("Use /model add to configure a BYOK model")
+        elif parsed.command == Command.EFFORT:
+            self._handle_effort(parsed.args)
         elif parsed.command == Command.DIFF:
             try:
                 args_lower = parsed.args.lower() if parsed.args else ""

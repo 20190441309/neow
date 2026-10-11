@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 from neow.core.config import ConfigError
 from neow.models.anthropic import AnthropicClient
+from neow.models.base import EFFORT_LEVELS
 from neow.models.deepseek import DeepSeekClient
 from neow.models.openai import OpenAIClient
 
@@ -127,6 +128,12 @@ def build_model_client(entry: Mapping[str, Any], model_name: str):
             f"Invalid max_output_tokens {max_output_tokens!r} for model "
             f"{model_name!r}. Use a positive integer"
         )
+    effort = entry.get("effort")
+    if effort is not None and effort not in ("off",) + EFFORT_LEVELS:
+        raise ConfigError(
+            f"Invalid effort {effort!r} for model {model_name!r}. Use one of: "
+            "off, low, medium, high"
+        )
     max_retries = entry.get("max_retries")
     if max_retries is not None and (
         not isinstance(max_retries, int)
@@ -152,6 +159,8 @@ def build_model_client(entry: Mapping[str, Any], model_name: str):
         extra["max_output_tokens"] = max_output_tokens
     if max_retries is not None:
         extra["max_retries"] = max_retries
+    if effort and effort != "off":
+        extra["effort"] = effort
     client = client_for(provider)(
         api_key=resolve_api_key(entry, model_name),
         model=model,

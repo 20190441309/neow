@@ -33,6 +33,7 @@ class DeepSeekClient(BaseModelClient):
         validate: bool = True,
         max_output_tokens: Optional[int] = None,
         max_retries: Optional[int] = None,
+        effort: Optional[str] = None,
     ):
         """Initialize DeepSeek client.
 
@@ -44,11 +45,15 @@ class DeepSeekClient(BaseModelClient):
             max_output_tokens: Output cap (default 8192; the API default is 4096).
             max_retries: SDK retries for 408/409/429/5xx and connection
                 errors (None keeps the SDK default of 2).
+            effort: /effort level ("low"|"medium"|"high"); turns thinking
+                mode on and sets ``reasoning_effort`` (DeepSeek maps "low"/
+                "medium" onto "high" server-side on some model variants).
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
         self.max_output_tokens = max_output_tokens or DEFAULT_MAX_OUTPUT_TOKENS
+        self.effort = effort
         retries = {} if max_retries is None else {"max_retries": max_retries}
         self.client = openai.OpenAI(
             api_key=api_key, base_url=base_url or "https://api.deepseek.com", **retries
@@ -57,6 +62,14 @@ class DeepSeekClient(BaseModelClient):
 
     def _limit_kwargs(self) -> Dict[str, Any]:
         return {"max_tokens": self.max_output_tokens}
+
+    def _thinking_kwargs(self) -> Dict[str, Any]:
+        if not self.effort:
+            return {}
+        return {
+            "reasoning_effort": self.effort,
+            "extra_body": {"thinking": {"type": "enabled"}},
+        }
 
     def chat(
         self,
@@ -91,6 +104,7 @@ class DeepSeekClient(BaseModelClient):
         if tools:
             kwargs["tools"] = tools
         kwargs.update(self._limit_kwargs())
+        kwargs.update(self._thinking_kwargs())
 
         try:
             logger.debug(f"Sending request to DeepSeek API with {len(full_messages)} messages")
@@ -160,6 +174,7 @@ class DeepSeekClient(BaseModelClient):
         if tools:
             kwargs["tools"] = tools
         kwargs.update(self._limit_kwargs())
+        kwargs.update(self._thinking_kwargs())
         # Request usage stats in the final stream chunk so token tracking works.
         kwargs["stream_options"] = {"include_usage": True}
 

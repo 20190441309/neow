@@ -153,6 +153,35 @@ class CommandDispatcher:
                 return CommandResult(str(exc), kind="error")
         return self._hook("model")
 
+    def _cmd_effort(self, args: str) -> CommandResult:
+        from neow.models.base import EFFORT_LEVELS
+
+        client = self.conversation.model_client
+        if client is None:
+            return CommandResult("No model configured", kind="error")
+        name = getattr(client, "config_name", None)
+        if not args:
+            level = getattr(client, "effort", None) or "off"
+            return CommandResult(
+                f"Effort: {level}\nAvailable: off, {', '.join(EFFORT_LEVELS)}"
+            )
+        level = args.strip().lower()
+        if level not in ("off",) + EFFORT_LEVELS:
+            return CommandResult(
+                f"Unknown effort: {level}. Use: off, {', '.join(EFFORT_LEVELS)}",
+                kind="error",
+            )
+        client.effort = None if level == "off" else level
+        if name and self.config is not None:
+            try:
+                self.config.save_model(name, {"effort": level})
+            except Exception as exc:
+                return CommandResult(
+                    f"Set for this session, but failed to persist: {exc}",
+                    kind="error",
+                )
+        return CommandResult(f"Effort set to: {level}")
+
     def _cmd_diff(self, args: str) -> CommandResult:
         return self._hook("diff")
 

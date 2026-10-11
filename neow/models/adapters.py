@@ -125,7 +125,10 @@ def _content_blocks(content: Any) -> List[Dict[str, Any]]:
 
 
 def _assistant_blocks(message: Dict[str, Any]) -> List[Dict[str, Any]]:
-    blocks = _content_blocks(message.get("content"))
+    # Thinking/redacted_thinking blocks must lead the turn, replayed
+    # verbatim (signature-checked); see AnthropicClient._last_thinking_blocks.
+    blocks = list(message.get("thinking_blocks") or [])
+    blocks += _content_blocks(message.get("content"))
     for call in message.get("tool_calls") or []:
         function = call.get("function", {})
         blocks.append(

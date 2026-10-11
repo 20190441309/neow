@@ -148,6 +148,51 @@ class TestDeepSeekClient:
         assert client.model == "deepseek-chat"
 
     @patch("neow.models.deepseek.openai.OpenAI")
+    def test_effort_enables_thinking(self, mock_openai):
+        """/effort turns thinking mode on and sets reasoning_effort."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.choices[0].message.reasoning_content = None
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_response.usage.total_tokens = 2
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        client = DeepSeekClient(api_key="sk-test", model="deepseek-v4-flash", effort="high")
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert kwargs["reasoning_effort"] == "high"
+        assert kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+
+    @patch("neow.models.deepseek.openai.OpenAI")
+    def test_no_effort_omits_thinking_params(self, mock_openai):
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.choices[0].message.reasoning_content = None
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_response.usage.total_tokens = 2
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        client = DeepSeekClient(api_key="sk-test", model="deepseek-v4-flash")
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "reasoning_effort" not in kwargs
+        assert "extra_body" not in kwargs
+
+    @patch("neow.models.deepseek.openai.OpenAI")
     def test_chat_without_tools(self, mock_openai):
         """Test chat without tools."""
         # Mock OpenAI response
@@ -310,6 +355,76 @@ class TestAnthropicClient:
         assert response.tool_calls[0]["function"]["name"] == "read_file"
 
     @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_effort_sets_output_config(self, mock_anthropic):
+        """/effort is sent as output_config.effort."""
+        mock_response = MagicMock()
+        mock_response.content = []
+        mock_response.stop_reason = "end_turn"
+        mock_response.usage.input_tokens = 1
+        mock_response.usage.output_tokens = 1
+
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(
+            api_key="sk-ant-test", model="claude-sonnet-4-6", effort="high"
+        )
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        kwargs = mock_client.messages.create.call_args.kwargs
+        assert kwargs["output_config"] == {"effort": "high"}
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_no_effort_omits_output_config(self, mock_anthropic):
+        """Without /effort, no output_config is sent (pre-feature behaviour)."""
+        mock_response = MagicMock()
+        mock_response.content = []
+        mock_response.stop_reason = "end_turn"
+        mock_response.usage.input_tokens = 1
+        mock_response.usage.output_tokens = 1
+
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(api_key="sk-ant-test", model="claude-sonnet-4-6")
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        kwargs = mock_client.messages.create.call_args.kwargs
+        assert "output_config" not in kwargs
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
+    def test_chat_captures_thinking_blocks(self, mock_anthropic):
+        """thinking/redacted_thinking blocks are captured for replay."""
+        thinking_block = MagicMock()
+        thinking_block.type = "thinking"
+        thinking_block.thinking = "Let me work through this."
+        thinking_block.signature = "sig-123"
+        text_block = MagicMock()
+        text_block.type = "text"
+        text_block.text = "The answer is 42."
+
+        mock_response = MagicMock()
+        mock_response.content = [thinking_block, text_block]
+        mock_response.stop_reason = "end_turn"
+        mock_response.usage.input_tokens = 1
+        mock_response.usage.output_tokens = 1
+
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = mock_response
+        mock_anthropic.return_value = mock_client
+
+        client = AnthropicClient(
+            api_key="sk-ant-test", model="claude-sonnet-4-6", effort="high"
+        )
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        assert client._last_thinking_blocks == [
+            {"type": "thinking", "thinking": "Let me work through this.", "signature": "sig-123"}
+        ]
+
+    @patch("neow.models.anthropic.anthropic.Anthropic")
     def test_validate_connection_success(self, mock_anthropic):
         """Test successful connection validation."""
         mock_client = MagicMock()
@@ -332,6 +447,47 @@ class TestAnthropicClient:
 
 class TestOpenAIClient:
     """Tests for OpenAIClient."""
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_effort_sets_reasoning_effort(self, mock_openai):
+        """/effort is sent as reasoning_effort."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_response.usage.total_tokens = 2
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="o3", effort="low")
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert kwargs["reasoning_effort"] == "low"
+
+    @patch("neow.models.openai.openai.OpenAI")
+    def test_no_effort_omits_reasoning_effort(self, mock_openai):
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Hello!"
+        mock_response.choices[0].message.tool_calls = None
+        mock_response.usage.prompt_tokens = 1
+        mock_response.usage.completion_tokens = 1
+        mock_response.usage.total_tokens = 2
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
+
+        client = OpenAIClient(api_key="sk-test", model="gpt-4o")
+        client.chat([{"role": "user", "content": "Hi"}])
+
+        kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "reasoning_effort" not in kwargs
 
     def test_init(self):
         """Test client initialization."""

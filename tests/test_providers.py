@@ -279,6 +279,39 @@ def test_invalid_validate_value_raises(monkeypatch, tmp_path):
     assert "validate" in str(exc.value)
 
 
+def test_invalid_effort_value_raises(monkeypatch, tmp_path):
+    _fake_clients(monkeypatch, {})
+    config = _config(
+        tmp_path,
+        {"x": {"provider": "openai", "api_key": "k", "model": "m", "effort": "max"}},
+    )
+    with pytest.raises(ConfigError) as exc:
+        create_model_client(config, "x")
+    assert "effort" in str(exc.value)
+
+
+def test_effort_off_is_not_passed_to_client(monkeypatch, tmp_path):
+    used = {}
+    _fake_clients(monkeypatch, used)
+    config = _config(
+        tmp_path,
+        {"x": {"provider": "openai", "api_key": "k", "model": "m", "effort": "off"}},
+    )
+    create_model_client(config, "x")
+    assert "effort" not in used["openai"]
+
+
+def test_effort_level_passed_to_client(monkeypatch, tmp_path):
+    used = {}
+    _fake_clients(monkeypatch, used)
+    config = _config(
+        tmp_path,
+        {"x": {"provider": "openai", "api_key": "k", "model": "m", "effort": "medium"}},
+    )
+    create_model_client(config, "x")
+    assert used["openai"]["effort"] == "medium"
+
+
 def test_main_reexports_create_model_client():
     from neow.cli.main import create_model_client as from_main
     from neow.models.factory import create_model_client as from_factory

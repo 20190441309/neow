@@ -26,6 +26,10 @@ def validate_openai_compatible(client: Any, label: str) -> bool:
 
 DEFAULT_CONTEXT_WINDOW = 128_000
 
+# /effort levels, uniform across providers; each client maps these onto its
+# own request parameters. None (unset) reproduces pre-/effort behaviour.
+EFFORT_LEVELS = ("low", "medium", "high")
+
 
 class ModelNotConfiguredError(RuntimeError):
     """A model-dependent action was attempted before BYOK setup."""
@@ -177,6 +181,9 @@ class BaseModelClient(ABC):
         self.validate_enabled: bool = True
         # Output token cap sent with each request (None = provider default).
         self.max_output_tokens: Optional[int] = None
+        # Thinking/reasoning strength ("low"|"medium"|"high"), or None for
+        # provider default behaviour (unset == pre-/effort behaviour).
+        self.effort: Optional[str] = None
         # Total tokens the model accepts; drives the ctx % and auto-compact.
         self.context_window: int = default_context_window(model)
 

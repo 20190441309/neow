@@ -533,6 +533,13 @@ class AgentLoop:
         )
         if isinstance(reasoning, str) and reasoning:
             message["reasoning_content"] = reasoning
+        # Anthropic thinking mode: thinking/redacted_thinking blocks must be
+        # replayed verbatim ahead of this turn's content (see adapters.py).
+        thinking_blocks = getattr(
+            self.conversation.model_client, "_last_thinking_blocks", None
+        )
+        if thinking_blocks:
+            message["thinking_blocks"] = thinking_blocks
         self.conversation.messages.append(message)
         self._unsaved_content = ""
 

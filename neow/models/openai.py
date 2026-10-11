@@ -30,6 +30,7 @@ class OpenAIClient(BaseModelClient):
         validate: bool = True,
         max_output_tokens: Optional[int] = None,
         max_retries: Optional[int] = None,
+        effort: Optional[str] = None,
     ):
         """Initialize OpenAI client.
 
@@ -41,11 +42,15 @@ class OpenAIClient(BaseModelClient):
             max_output_tokens: Optional output cap (default: the model maximum).
             max_retries: SDK retries for 408/409/429/5xx and connection
                 errors (None keeps the SDK default of 2).
+            effort: /effort level ("low"|"medium"|"high"); sent as
+                ``reasoning_effort``. Only reasoning-capable models (o-series,
+                gpt-5.x) accept this; other models reject it with a 400.
         """
         super().__init__(api_key, model)
         self.base_url = base_url
         self.validate_enabled = validate
         self.max_output_tokens = max_output_tokens
+        self.effort = effort
         kwargs: Dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
@@ -97,6 +102,8 @@ class OpenAIClient(BaseModelClient):
         if tools:
             kwargs["tools"] = tools
         kwargs.update(self._limit_kwargs())
+        if self.effort:
+            kwargs["reasoning_effort"] = self.effort
 
         try:
             response = self.client.chat.completions.create(**kwargs)  # type: ignore
@@ -156,6 +163,8 @@ class OpenAIClient(BaseModelClient):
         if tools:
             kwargs["tools"] = tools
         kwargs.update(self._limit_kwargs())
+        if self.effort:
+            kwargs["reasoning_effort"] = self.effort
         # Request usage stats in the final stream chunk so token tracking works.
         kwargs["stream_options"] = {"include_usage": True}
 

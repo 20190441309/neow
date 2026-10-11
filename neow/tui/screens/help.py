@@ -17,6 +17,7 @@ HELP_SECTIONS = (
         (
             ("/help", "显示帮助"),
             ("/model", "切换模型"),
+            ("/effort", "思考强度 off/low/medium/high"),
             ("/save", "保存会话"),
             ("/load", "载入会话"),
             ("/history", "历史会话"),
