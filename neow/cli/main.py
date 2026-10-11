@@ -1,15 +1,21 @@
 """Main entry point for Neow CLI."""
 
+import io
 import logging
+import os
+import stat
+import sys
 import warnings
+from pathlib import Path
+from typing import Optional
 
-# Suppress requests/urllib3 version mismatch warning before any imports trigger it
+# Suppress requests/urllib3 version mismatch warning before any imports trigger
+# it.  Only stdlib imports may sit above this line; everything else is
+# deliberately below it (see the E402 per-file ignore in .flake8).
 warnings.filterwarnings(
     "ignore",
     message="urllib3 .* or chardet .* doesn't match a supported version",
 )
-import sys
-from pathlib import Path
 
 import click
 
@@ -81,6 +87,67 @@ def _run_non_interactive(conversation, prompt):
 
 STDIN_WAIT = 2.0  # seconds to wait for piped input when a prompt was given
 
+# How often the Windows readability probe re-checks a pipe while waiting.
+_STDIN_POLL_INTERVAL = 0.02
+
+
+def _read_available(stream) -> str:
+    """``stream.read()`` as text, or ``""`` when the stream cannot be read."""
+    try:
+        return stream.read().strip()
+    except (OSError, ValueError):
+        return ""
+
+
+def _peek_pipe_bytes(fd: int) -> Optional[int]:
+    """Bytes buffered on the Windows pipe behind *fd*; None when it is no pipe.
+
+    ``PeekNamedPipe`` is the only way to ask a Windows pipe whether a read
+    would block — ``select()`` refuses anything that is not a socket.
+    """
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    try:
+        handle = msvcrt.get_osfhandle(fd)
+    except (OSError, ValueError):
+        return None
+    if handle in (0, -1, -2):  # stdin/stdout/stderr with no real handle
+        return None
+    available = wintypes.DWORD(0)
+    ok = ctypes.windll.kernel32.PeekNamedPipe(
+        wintypes.HANDLE(handle), None, 0, None, ctypes.byref(available), None
+    )
+    return int(available.value) if ok else None
+
+
+def _win32_readable_within(stream, wait: float) -> bool:
+    """Whether reading *stream* would not block, decided within *wait* seconds.
+
+    True for a regular file (never blocks) or a pipe with bytes waiting.
+    Everything else — a console handle, an unknown handle — reports False, so
+    the caller gives up instead of blocking forever.
+    """
+    try:
+        fd = stream.fileno()
+    except (OSError, ValueError, io.UnsupportedOperation):
+        return False
+    try:
+        if stat.S_ISREG(os.fstat(fd).st_mode):
+            return True
+    except OSError:
+        return False
+
+    deadline = time.monotonic() + wait
+    while True:
+        pending = _peek_pipe_bytes(fd)
+        if pending:
+            return True
+        if pending is None or time.monotonic() >= deadline:
+            return False
+        time.sleep(min(_STDIN_POLL_INTERVAL, max(0.0, deadline - time.monotonic())))
+
 
 def read_piped_stdin(stream=None, wait=None) -> str:
     """Text piped into Neow, or ``""``.
@@ -91,19 +158,33 @@ def read_piped_stdin(stream=None, wait=None) -> str:
     reading it would hang forever.
     """
     stream = stream or sys.stdin
-    if wait is not None:
-        try:
-            import select
-
-            ready, _, _ = select.select([stream], [], [], wait)
-        except (OSError, ValueError, TypeError):  # e.g. Windows pipes
-            ready = [stream]
-        if not ready:
-            return ""
-    try:
-        return stream.read().strip()
-    except (OSError, ValueError):
+    if wait is None:
+        return _read_available(stream)
+    if not _stdin_ready_within(stream, wait):
         return ""
+    return _read_available(stream)
+
+
+def _stdin_ready_within(stream, wait: float) -> bool:
+    """Whether *stream* has data (or EOF) within *wait* seconds.
+
+    Never blocks longer than *wait*: on Windows, where ``select()`` only
+    accepts sockets, pipes are polled through ``PeekNamedPipe``.  Assuming
+    readiness instead is what used to make this hang forever on a pipe that
+    was open but never written to.
+    """
+    try:
+        import select
+
+        ready, _, _ = select.select([stream], [], [], wait)
+        return bool(ready)
+    except (OSError, ValueError, TypeError):
+        pass
+    if sys.platform == "win32":
+        return _win32_readable_within(stream, wait)
+    # A stream select() cannot watch and we cannot poll: give up rather than
+    # risk blocking on it.
+    return False
 
 
 def setup_mcp(cfg: Config, executor: ToolExecutor, interactive: bool, wait: bool):
@@ -401,7 +482,10 @@ def main(
 
                     lint_result = run_lint(Path.cwd())
                     if not lint_result.success:
-                        conversation.pending_lint_feedback = f"Lint errors after editing {file_path}:\n{lint_result.output}"
+                        conversation.pending_lint_feedback = (
+                            f"Lint errors after editing {file_path}:\n"
+                            f"{lint_result.output}"
+                        )
 
                 # Auto-test
                 if cfg.lint_test.get("auto_test"):
@@ -411,7 +495,8 @@ def main(
                     if not test_result.success:
                         existing = conversation.pending_lint_feedback or ""
                         conversation.pending_lint_feedback = (
-                            f"{existing}\nTest failures after editing {file_path}:\n{test_result.output}"
+                            f"{existing}\nTest failures after editing "
+                            f"{file_path}:\n{test_result.output}"
                         ).strip()
 
             executor.on_file_change = _on_file_change

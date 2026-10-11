@@ -89,17 +89,32 @@ def get_syntax_theme() -> str:
     return SYNTAX_THEME
 
 
+def _enable_utf8_stdout() -> None:
+    """Switch ``sys.stdout`` to UTF-8 so box drawing and CJK survive on Windows.
+
+    Reconfiguring the real stdout beats wrapping ``sys.stdout.buffer`` in a
+    second ``TextIOWrapper``, which is what this used to do.  A wrapper is an
+    invisible *extra* stdout: everything written through it escapes
+    ``redirect_stdout`` and pytest's ``capsys``, and because ``Console.file``'s
+    setter only rebinds ``_file`` without closing the old stream, dropping the
+    wrapper's last reference finalised it — and ``TextIOWrapper.__del__`` then
+    closed the real ``sys.stdout.buffer`` for the rest of the process.  Headless
+    mode did exactly that (it points the console at stderr), so ``neow -p …``
+    died on Windows.
+    """
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError, ValueError, io.UnsupportedOperation):
+        pass  # not a reconfigurable stream; keep whatever encoding it has
+
+
 def _make_console() -> Console:
     """Build the module-level Console with UTF-8 + Neow theme applied."""
     if sys.platform == "win32":
-        utf8_stdout = io.TextIOWrapper(
-            sys.stdout.buffer, encoding="utf-8", errors="replace"
-        )
-        return Console(file=utf8_stdout, force_terminal=True, theme=NEOW_THEME)
+        _enable_utf8_stdout()
     return Console(theme=NEOW_THEME)
 
 
-# Force UTF-8 output on Windows to avoid encoding issues
 console = _make_console()
 
 
@@ -646,12 +661,14 @@ def format_approval_panel(
             lines.append(f"  [dim]Content:[/dim] {escape(preview)}")
         elif "old_text" in parameters:
             replace_limit = _adaptive_limit(default=60, narrow=30)
-            lines.append(
-                f"  [dim]Replace:[/dim] {escape(_truncate(str(parameters.get('old_text', '')), replace_limit))}"
+            old_text = escape(
+                _truncate(str(parameters.get("old_text", "")), replace_limit)
             )
+            lines.append(f"  [dim]Replace:[/dim] {old_text}")
     lines.append("")
     lines.append(
-        "[dim]用 [bold]↑/↓/←/→[/bold] 选择 · [bold]Enter[/bold] 确认 · 或按 [bold]Y/N[/bold] 快捷键[/dim]"
+        "[dim]用 [bold]↑/↓/←/→[/bold] 选择 · [bold]Enter[/bold] 确认 · "
+        "或按 [bold]Y/N[/bold] 快捷键[/dim]"
     )
     return Panel(
         "\n".join(lines),

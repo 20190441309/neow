@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import time
 
 import pytest
@@ -36,9 +37,14 @@ def run(tmp_path, monkeypatch):
     home.mkdir()
     work.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    # ``Path.home()`` reads USERPROFILE (not HOME) on Windows; without this the
+    # run writes sessions into the developer's real profile and the assertions
+    # below look in the wrong place.
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.chdir(work)
     monkeypatch.setattr("neow.core.checkpoints.ROOT", home / "checkpoints")
-    # main() points the console at stderr; restore the unset (dynamic) value.
+    # Headless mode points the console at stderr; keep that from leaking into
+    # the rest of the session (the console normally resolves sys.stdout).
     monkeypatch.setattr(formatter.console, "_file", formatter.console._file)
 
     def invoke(args, replies=(), client_cls=FakeClient, input=None):
@@ -278,3 +284,30 @@ def test_piped_stdin_never_hangs():
     os.close(write_fd)
     with os.fdopen(read_fd) as stream:
         assert cli.read_piped_stdin(stream, wait=0.2) == "log line"
+
+
+def test_piped_stdin_reads_a_redirected_file(tmp_path):
+    """``neow "x" < input.txt``: a regular file never blocks, so read it.
+
+    On Windows ``select()`` cannot watch a file either, so this exercises the
+    same fallback path as the pipe case above.
+    """
+    path = tmp_path / "input.txt"
+    path.write_text("from a file\n", encoding="utf-8")
+    with path.open(encoding="utf-8") as stream:
+        assert cli.read_piped_stdin(stream, wait=0.2) == "from a file"
+
+
+def test_headless_keeps_stdout_open(run):
+    """Headless mode sends notices to stderr by rebinding ``console.file``.
+
+    That rebind must not close the stream the console used to hold.  On Windows
+    the module-level console wraps ``sys.stdout.buffer``; dropping the last
+    reference to that wrapper finalised it, and ``TextIOWrapper.__del__`` then
+    closed the real stdout for the rest of the process.
+    """
+    invoke, _ = run
+    result, _ = invoke(["-p", "x", "--output-format", "json"])
+    assert result.exit_code == 0
+    assert not sys.stdout.closed
+    assert not sys.stderr.closed

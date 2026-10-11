@@ -54,12 +54,19 @@ class _FakeClient(ScriptedClient):
 def _sandbox(home: Path, work: Path, client: _FakeClient) -> Iterator[None]:
     """Isolate one run: scratch HOME/cwd, a scripted model, no real network."""
     from neow.core import checkpoints
+    from neow.utils import formatter
 
     cwd = os.getcwd()
+    # USERPROFILE as well as HOME: ``Path.home()`` reads the former on Windows,
+    # so without it a run would write sessions/checkpoints into the real profile.
+    # console._file too: headless mode points the module-level console at stderr
+    # and never points it back, which otherwise leaks into every later test
+    # (pytest's capsys no longer sees anything the console prints).
     with (
-        mock.patch.dict(os.environ, {"HOME": str(home)}),
+        mock.patch.dict(os.environ, {"HOME": str(home), "USERPROFILE": str(home)}),
         mock.patch.object(checkpoints, "ROOT", home / "checkpoints"),
         mock.patch.object(cli, "create_model_client", lambda cfg, name: client),
+        mock.patch.object(formatter.console, "_file", None),
     ):
         try:
             os.chdir(work)
