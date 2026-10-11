@@ -56,9 +56,11 @@ def _sandbox(home: Path, work: Path, client: _FakeClient) -> Iterator[None]:
     from neow.core import checkpoints
 
     cwd = os.getcwd()
-    with mock.patch.dict(os.environ, {"HOME": str(home)}), \
-            mock.patch.object(checkpoints, "ROOT", home / "checkpoints"), \
-            mock.patch.object(cli, "create_model_client", lambda cfg, name: client):
+    with (
+        mock.patch.dict(os.environ, {"HOME": str(home)}),
+        mock.patch.object(checkpoints, "ROOT", home / "checkpoints"),
+        mock.patch.object(cli, "create_model_client", lambda cfg, name: client),
+    ):
         try:
             os.chdir(work)
             yield
@@ -77,7 +79,9 @@ def run_task(task: EvalTask, base_dir: Path) -> EvalResult:
 
     # A real repo so the git auto-commit path runs (not a warning-and-skip).
     subprocess.run(["git", "init", "-q"], cwd=work, check=True)
-    subprocess.run(["git", "config", "user.email", "eval@neow.local"], cwd=work, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "eval@neow.local"], cwd=work, check=True
+    )
     subprocess.run(["git", "config", "user.name", "neow-eval"], cwd=work, check=True)
     if task.setup:
         subprocess.run(["git", "add", "-A"], cwd=work, check=True)
@@ -95,11 +99,21 @@ def run_task(task: EvalTask, base_dir: Path) -> EvalResult:
 
     if result.exit_code != 0:
         tail = (result.output or "")[-500:]
-        return EvalResult(task.id, task.category, False, f"CLI exited {result.exit_code}: {tail}", duration_ms)
+        return EvalResult(
+            task.id,
+            task.category,
+            False,
+            f"CLI exited {result.exit_code}: {tail}",
+            duration_ms,
+        )
     try:
         ok, message = task.check(work)
-    except Exception as exc:  # noqa: BLE001 - a broken check is still a failure to report
-        return EvalResult(task.id, task.category, False, f"check raised: {exc}", duration_ms)
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - a broken check is still a failure to report
+        return EvalResult(
+            task.id, task.category, False, f"check raised: {exc}", duration_ms
+        )
     return EvalResult(task.id, task.category, ok, message, duration_ms)
 
 
@@ -113,7 +127,9 @@ def run_all(tasks: List[EvalTask] = TASKS) -> List[EvalResult]:
 
 def main(argv: List[str] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--json", action="store_true", help="print a JSON report instead of a table")
+    parser.add_argument(
+        "--json", action="store_true", help="print a JSON report instead of a table"
+    )
     args = parser.parse_args(argv)
 
     results = run_all()
@@ -124,7 +140,9 @@ def main(argv: List[str] = None) -> int:
         width = max(len(r.id) for r in results)
         for r in results:
             mark = "PASS" if r.passed else "FAIL"
-            print(f"[{mark}] {r.id.ljust(width)}  ({r.category})  {r.duration_ms:>5}ms  {r.message}")
+            print(
+                f"[{mark}] {r.id.ljust(width)}  ({r.category})  {r.duration_ms:>5}ms  {r.message}"
+            )
         passed = sum(r.passed for r in results)
         print(f"\n{passed}/{len(results)} passed")
 

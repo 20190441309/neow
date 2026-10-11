@@ -8,6 +8,7 @@ from typing import Optional
 from neow.utils.logger import logger
 from neow.tools.hashline_edit import compute_hash, format_hashline
 
+
 class FileError(Exception):
     """File operation error."""
 
@@ -67,10 +68,7 @@ def read_file(file_path: str, offset: int = 1, limit: int = DEFAULT_READ_LIMIT) 
         for number in range(start, end + 1):
             line = lines[number - 1]
             if len(line) > MAX_LINE_CHARS:
-                line = (
-                    line[:MAX_LINE_CHARS]
-                    + f"… [line truncated, {len(line)} chars]"
-                )
+                line = line[:MAX_LINE_CHARS] + f"… [line truncated, {len(line)} chars]"
             out.append(f"{number:>6}\t{line}")
         if end < total:
             out.append(
@@ -166,7 +164,9 @@ def edit_file(
             e = end_line if end_line else total_lines
 
             if start_line and (s < 0 or s >= total_lines):
-                raise FileError(f"start_line {start_line} out of range (1-{total_lines})")
+                raise FileError(
+                    f"start_line {start_line} out of range (1-{total_lines})"
+                )
             if end_line and (e < 1 or e > total_lines):
                 raise FileError(f"end_line {end_line} out of range (1-{total_lines})")
             if s >= e:
@@ -186,7 +186,9 @@ def edit_file(
 
             path.write_text(new_content, encoding="utf-8")
             logger.debug(f"Edited file (lines {start_line}-{end_line}): {file_path}")
-            return f"File edited successfully: {file_path} (lines {start_line}-{end_line})"
+            return (
+                f"File edited successfully: {file_path} (lines {start_line}-{end_line})"
+            )
 
         # Standard text replacement mode
         if old_text not in content:
@@ -224,7 +226,9 @@ def create_file(file_path: str, content: str = "") -> str:
     try:
         path = Path(file_path)
         if path.exists():
-            raise FileError(f"File already exists: {file_path}. Use write_file to overwrite.")
+            raise FileError(
+                f"File already exists: {file_path}. Use write_file to overwrite."
+            )
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         logger.debug(f"Created file: {file_path}")
@@ -263,6 +267,7 @@ def delete_file(file_path: str) -> str:
         logger.error(f"Failed to delete file {file_path}: {e}")
         raise FileError(f"Failed to delete file: {e}")
 
+
 def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
     """Perform hashline-anchored file edits.
 
@@ -278,7 +283,10 @@ def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
     """
     import json
     from neow.tools.hashline_edit import (
-        SnapshotStore, apply_batch_edits, HashlineEditError, stale_anchor_recovery
+        SnapshotStore,
+        apply_batch_edits,
+        HashlineEditError,
+        stale_anchor_recovery,
     )
 
     try:
@@ -293,9 +301,11 @@ def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
         # Attempt stale recovery for each edit
         for edit in edit_list:
             recovered, msg = stale_anchor_recovery(
-                file_path, expected_hash,
-                edit.get("start_line", 1), edit.get("end_line", edit.get("start_line", 1)),
-                edit.get("old_content_hint", "")
+                file_path,
+                expected_hash,
+                edit.get("start_line", 1),
+                edit.get("end_line", edit.get("start_line", 1)),
+                edit.get("old_content_hint", ""),
             )
             if not recovered:
                 raise FileError(

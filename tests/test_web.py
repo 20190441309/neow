@@ -62,7 +62,9 @@ class TestWebFetcher:
 
     def test_parse_github_url_pr(self):
         fetcher = WebFetcher({})
-        result = fetcher._parse_github_url("https://github.com/octocat/hello-world/pull/5")
+        result = fetcher._parse_github_url(
+            "https://github.com/octocat/hello-world/pull/5"
+        )
         assert result == ("octocat", "hello-world", "pull", "5")
 
     def test_parse_github_url_invalid(self):
@@ -150,8 +152,10 @@ class TestWebFetcher:
         with patch.object(fetcher, "extract_github") as mock_gh:
             mock_gh.return_value = WebContent(
                 url="https://github.com/o/r/issues/1",
-                title="Issue", text="body",
-                code_blocks=[], content_type="github_issue",
+                title="Issue",
+                text="body",
+                code_blocks=[],
+                content_type="github_issue",
             )
             result = fetcher.fetch("https://github.com/o/r/issues/1")
             mock_gh.assert_called_once()

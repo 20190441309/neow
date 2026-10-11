@@ -33,9 +33,7 @@ def test_todo_write_validates_single_in_progress():
     with pytest.raises(TodoError, match="no content"):
         validate_todos([{"content": " ", "status": "pending"}])
     with pytest.raises(TodoError, match="duplicate"):
-        validate_todos(
-            [{"id": "x", "content": "a", "status": "pending"}] * 2
-        )
+        validate_todos([{"id": "x", "content": "a", "status": "pending"}] * 2)
     # ids default to the position; a JSON string is accepted too
     items = validate_todos('[{"content": "a", "status": "pending"}]')
     assert items == [{"id": "1", "content": "a", "status": "pending"}]

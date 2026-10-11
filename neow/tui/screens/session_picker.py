@@ -52,9 +52,7 @@ class SessionPickerScreen(ModalScreen):
                 return
             palette = get_palette(self.app)
             yield OptionList(
-                *[
-                    Option(_label(session, palette)) for session in self.sessions
-                ],
+                *[Option(_label(session, palette)) for session in self.sessions],
                 id="session-list",
             )
 

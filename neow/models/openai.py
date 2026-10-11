@@ -88,9 +88,14 @@ class OpenAIClient(BaseModelClient):
         # Prepare messages
         full_messages = []
         if system_prompt:
-            full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
+            full_messages.append(
+                {"role": "system", "content": _sanitize_text(system_prompt)}
+            )
         for msg in to_openai(messages):
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_msg = {
+                k: _sanitize_text(v) if isinstance(v, str) else v
+                for k, v in msg.items()
+            }
             full_messages.append(sanitized_msg)
 
         # Prepare request kwargs
@@ -154,9 +159,14 @@ class OpenAIClient(BaseModelClient):
         """
         full_messages = []
         if system_prompt:
-            full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
+            full_messages.append(
+                {"role": "system", "content": _sanitize_text(system_prompt)}
+            )
         for msg in to_openai(messages):
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_msg = {
+                k: _sanitize_text(v) if isinstance(v, str) else v
+                for k, v in msg.items()
+            }
             full_messages.append(sanitized_msg)
 
         kwargs = {"model": self.model, "messages": full_messages, "stream": True}
@@ -175,9 +185,7 @@ class OpenAIClient(BaseModelClient):
             for chunk in response:
                 # The final chunk (with usage) may have an empty choices list.
                 if chunk.usage:
-                    yield StreamChunk(
-                        usage=openai_usage(chunk.usage)
-                    )
+                    yield StreamChunk(usage=openai_usage(chunk.usage))
 
                 if not chunk.choices:
                     continue
@@ -188,7 +196,9 @@ class OpenAIClient(BaseModelClient):
                     yield StreamChunk(content_delta=delta.content)
 
                 extra = getattr(delta, "model_extra", None) or {}
-                reasoning = extra.get("reasoning_content") if isinstance(extra, dict) else None
+                reasoning = (
+                    extra.get("reasoning_content") if isinstance(extra, dict) else None
+                )
                 if reasoning:
                     yield StreamChunk(reasoning_delta=reasoning)
 
@@ -196,26 +206,41 @@ class OpenAIClient(BaseModelClient):
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index
                         if idx not in tool_calls_acc:
-                            tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                            tool_calls_acc[idx] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": "",
+                            }
                         if tc_delta.id:
                             tool_calls_acc[idx]["id"] = tc_delta.id
                         if tc_delta.function:
                             if tc_delta.function.name:
                                 tool_calls_acc[idx]["name"] = tc_delta.function.name
                             if tc_delta.function.arguments:
-                                tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
+                                tool_calls_acc[idx][
+                                    "arguments"
+                                ] += tc_delta.function.arguments
 
                 if choice.finish_reason:
                     final_tool_calls = []
                     for idx in sorted(tool_calls_acc.keys()):
                         tc = tool_calls_acc[idx]
-                        final_tool_calls.append({
-                            "id": tc["id"],
-                            "function": {"name": tc["name"], "arguments": tc["arguments"]},
-                        })
+                        final_tool_calls.append(
+                            {
+                                "id": tc["id"],
+                                "function": {
+                                    "name": tc["name"],
+                                    "arguments": tc["arguments"],
+                                },
+                            }
+                        )
                     yield StreamChunk(
                         finish_reason=normalize_finish_reason(choice.finish_reason),
-                        tool_call_delta={"tool_calls": final_tool_calls} if final_tool_calls else None,
+                        tool_call_delta=(
+                            {"tool_calls": final_tool_calls}
+                            if final_tool_calls
+                            else None
+                        ),
                     )
 
         except Exception as e:

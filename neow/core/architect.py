@@ -100,5 +100,7 @@ class ArchitectOrchestrator:
             if isinstance(plan, list) and len(plan) > 0:
                 return plan[:MAX_SUB_TASKS]
         except json.JSONDecodeError:
-            logger.debug("Planner response is not valid JSON, treating as direct answer")
+            logger.debug(
+                "Planner response is not valid JSON, treating as direct answer"
+            )
         return []

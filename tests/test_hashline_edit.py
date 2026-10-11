@@ -327,7 +327,12 @@ class TestApplyBatchEdits:
         store = SnapshotStore()
         snap = store.snapshot(str(test_file))
         edits = [
-            {"start_line": 1, "end_line": 1, "new_content": "x\n", "expected_hash": "wrong"},
+            {
+                "start_line": 1,
+                "end_line": 1,
+                "new_content": "x\n",
+                "expected_hash": "wrong",
+            },
         ]
         with pytest.raises(HashlineEditError, match="Stale"):
             apply_batch_edits(str(test_file), edits)
@@ -387,9 +392,7 @@ class TestStaleAnchorRecovery:
         test_file.write_text("line1\n", encoding="utf-8")
         original_hash = compute_hash(test_file.read_text(encoding="utf-8"))
         test_file.write_text("modified\n", encoding="utf-8")
-        recovered, msg = stale_anchor_recovery(
-            str(test_file), original_hash, 1, 1, ""
-        )
+        recovered, msg = stale_anchor_recovery(str(test_file), original_hash, 1, 1, "")
         assert recovered is False
         assert "no content hint" in msg
 
@@ -432,14 +435,15 @@ class TestHashlineEditIntegration:
 
     def test_hashline_edit_tool_function(self, tmp_path):
         from neow.tools.file_ops import hashline_edit, FileError
+
         test_file = tmp_path / "test.py"
         test_file.write_text("line1\nline2\nline3\n", encoding="utf-8")
         # Get hash
         store = SnapshotStore()
         snap = store.snapshot(str(test_file))
-        edits = json.dumps([
-            {"start_line": 2, "end_line": 2, "new_content": "replaced\n"}
-        ])
+        edits = json.dumps(
+            [{"start_line": 2, "end_line": 2, "new_content": "replaced\n"}]
+        )
         result = hashline_edit(str(test_file), snap.hash, edits)
         # apply_batch_edits returns "Applied N edit(s)..." not "Successfully..."
         assert "edit(s)" in result
@@ -449,16 +453,16 @@ class TestHashlineEditIntegration:
 
     def test_hashline_edit_stale_fails(self, tmp_path):
         from neow.tools.file_ops import hashline_edit, FileError
+
         test_file = tmp_path / "test.py"
         test_file.write_text("line1\n", encoding="utf-8")
-        edits = json.dumps([
-            {"start_line": 1, "end_line": 1, "new_content": "x\n"}
-        ])
+        edits = json.dumps([{"start_line": 1, "end_line": 1, "new_content": "x\n"}])
         with pytest.raises(FileError, match="[Ss]tale"):
             hashline_edit(str(test_file), "wronghash", edits)
 
     def test_hashline_edit_invalid_json(self, tmp_path):
         from neow.tools.file_ops import hashline_edit, FileError
+
         test_file = tmp_path / "test.py"
         test_file.write_text("line1\n", encoding="utf-8")
         with pytest.raises(FileError, match="Invalid edits JSON"):

@@ -101,7 +101,13 @@ def make_interactive_approval(
         this_id = next(request_id)
         out.write(
             json.dumps(
-                {"type": "approval_request", "id": this_id, "tool": name, "args": args, "reason": reason},
+                {
+                    "type": "approval_request",
+                    "id": this_id,
+                    "tool": name,
+                    "args": args,
+                    "reason": reason,
+                },
                 ensure_ascii=False,
                 default=str,
             )

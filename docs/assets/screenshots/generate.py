@@ -22,7 +22,9 @@ OUT = Path(__file__).parent
 
 SCRIPT = [
     Chunk(progress={"type": "reasoning_start"}),
-    Chunk(reasoning_delta="Tracing why grep_code is defined but never reaches the model's tool list..."),
+    Chunk(
+        reasoning_delta="Tracing why grep_code is defined but never reaches the model's tool list..."
+    ),
     Chunk(progress={"type": "reasoning_end"}),
     Chunk(
         content_delta=(
@@ -82,7 +84,9 @@ async def hero(theme: str = "midnight") -> None:
     app = _chat_app(_conversation(SCRIPT), config=_config(theme, True))
     async with app.run_test(size=(132, 40)) as pilot:
         await pilot.pause()
-        app.screen.submit_prompt("Fix grep_code: it's defined but never registered as a tool")
+        app.screen.submit_prompt(
+            "Fix grep_code: it's defined but never registered as a tool"
+        )
         await pilot.pause(0.6)
         app.save_screenshot(str(OUT / f"hero-{theme}.svg"))
 
@@ -92,7 +96,9 @@ async def approval() -> None:
     app = _chat_app(_conversation(SCRIPT[:3]), config=_config("midnight", False))
     async with app.run_test(size=(132, 40)) as pilot:
         await pilot.pause()
-        app.screen.submit_prompt("Fix grep_code: it's defined but never registered as a tool")
+        app.screen.submit_prompt(
+            "Fix grep_code: it's defined but never registered as a tool"
+        )
         await pilot.pause(0.3)
         app.push_screen(
             ApprovalModal(

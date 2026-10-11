@@ -46,7 +46,9 @@ class SessionManager:
         }
 
         file_path = self.sessions_dir / f"{name}.json"
-        file_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        file_path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         logger.info(f"Session saved: {name}")
         return name
 
@@ -90,6 +92,7 @@ class SessionManager:
         for url, wc_data in data.get("web_cache", {}).items():
             if isinstance(wc_data, dict) and "url" in wc_data:
                 from neow.tools.web import WebContent
+
                 conversation.web_cache[url] = WebContent(
                     url=wc_data.get("url", url),
                     title=wc_data.get("title", ""),
@@ -97,7 +100,7 @@ class SessionManager:
                     code_blocks=[tuple(b) for b in wc_data.get("code_blocks", [])],
                     content_type=wc_data.get("content_type", "webpage"),
                 )
-            elif hasattr(wc_data, 'url'):
+            elif hasattr(wc_data, "url"):
                 # Already a WebContent object (shouldn't happen from JSON but be safe)
                 conversation.web_cache[url] = wc_data
         conversation.todos = list(data.get("todos", []))
@@ -116,12 +119,14 @@ class SessionManager:
         for file_path in self.sessions_dir.glob("*.json"):
             try:
                 data = json.loads(file_path.read_text(encoding="utf-8"))
-                sessions.append({
-                    "name": data.get("name", file_path.stem),
-                    "created_at": data.get("created_at", ""),
-                    "model": data.get("model", "unknown"),
-                    "message_count": len(data.get("messages", [])),
-                })
+                sessions.append(
+                    {
+                        "name": data.get("name", file_path.stem),
+                        "created_at": data.get("created_at", ""),
+                        "model": data.get("model", "unknown"),
+                        "message_count": len(data.get("messages", [])),
+                    }
+                )
             except (json.JSONDecodeError, KeyError):
                 continue
 
@@ -192,6 +197,7 @@ class SessionManager:
         """Lazily initialized SessionTree instance."""
         if self._session_tree is None:
             from neow.core.session_tree import SessionTree
+
             self._session_tree = SessionTree(self.sessions_dir)
         return self._session_tree
 

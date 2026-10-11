@@ -44,9 +44,9 @@ class WebFetcher:
         if self._is_github_url(url):
             return self.extract_github(url)
 
-        resp = requests.get(url, timeout=self.timeout, headers={
-            "User-Agent": "Neow-CLI/1.0"
-        })
+        resp = requests.get(
+            url, timeout=self.timeout, headers={"User-Agent": "Neow-CLI/1.0"}
+        )
         resp.raise_for_status()
 
         html = resp.text
@@ -131,7 +131,7 @@ class WebFetcher:
             classes = code.get("class", [])
             for cls in classes:
                 if cls.startswith("language-"):
-                    lang = cls[len("language-"):]
+                    lang = cls[len("language-") :]
                     break
             blocks.append((lang, code.get_text()))
         return blocks
@@ -143,6 +143,6 @@ class WebFetcher:
         text = text.strip()
 
         if len(text) > self.max_length:
-            text = text[:self.max_length] + "..."
+            text = text[: self.max_length] + "..."
 
         return text

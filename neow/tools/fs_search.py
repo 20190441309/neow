@@ -117,7 +117,7 @@ def _expand_braces(pattern: str) -> List[str]:
     match = re.search(r"\{([^{}]*)\}", pattern)
     if not match:
         return [pattern]
-    head, tail = pattern[: match.start()], pattern[match.end():]
+    head, tail = pattern[: match.start()], pattern[match.end() :]
     expanded = []
     for option in match.group(1).split(","):
         expanded.extend(_expand_braces(head + option + tail))
@@ -145,7 +145,7 @@ def _glob_regex(pattern: str) -> str:
                 out.append(re.escape("["))
                 i += 1
             else:
-                body = pattern[i + 1:end]
+                body = pattern[i + 1 : end]
                 if body.startswith("!"):
                     body = "^" + body[1:]
                 out.append(f"[{body}]")
@@ -296,9 +296,7 @@ def grep(
 ) -> str:
     """Search file contents for a regular expression."""
     if output_mode not in OUTPUT_MODES:
-        raise SearchToolError(
-            f"output_mode must be one of {', '.join(OUTPUT_MODES)}"
-        )
+        raise SearchToolError(f"output_mode must be one of {', '.join(OUTPUT_MODES)}")
     try:
         regex = re.compile(pattern, re.IGNORECASE if case_insensitive else 0)
     except re.error as exc:

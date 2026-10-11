@@ -198,10 +198,15 @@ class Config:
     @property
     def lint_test(self) -> Dict[str, Any]:
         """Get lint/test configuration."""
-        return self._config.get("lint_test", {
-            "auto_lint": False, "auto_test": False,
-            "lint_command": None, "test_command": None,
-        })
+        return self._config.get(
+            "lint_test",
+            {
+                "auto_lint": False,
+                "auto_test": False,
+                "lint_command": None,
+                "test_command": None,
+            },
+        )
 
     @property
     def hooks(self) -> Dict[str, Any]:
@@ -216,37 +221,50 @@ class Config:
     @property
     def architect(self) -> Dict[str, Any]:
         """Get architect mode configuration."""
-        return self._config.get("architect", {
-            "planner": "anthropic", "executor": "deepseek",
-        })
+        return self._config.get(
+            "architect",
+            {
+                "planner": "anthropic",
+                "executor": "deepseek",
+            },
+        )
 
     @property
     def token(self) -> Dict[str, Any]:
         """Get token usage configuration."""
-        return self._config.get("token", {
-            "show_usage": True,
-            "warn_at_tokens": 100000,
-            "max_tokens": 500000,
-            "prices": {},
-        })
+        return self._config.get(
+            "token",
+            {
+                "show_usage": True,
+                "warn_at_tokens": 100000,
+                "max_tokens": 500000,
+                "prices": {},
+            },
+        )
 
     @property
     def web(self) -> Dict[str, Any]:
         """Get web context configuration."""
-        return self._config.get("web", {
-            "enabled": True,
-            "auto_detect": True,
-            "max_content_length": 10000,
-            "timeout": 10,
-        })
+        return self._config.get(
+            "web",
+            {
+                "enabled": True,
+                "auto_detect": True,
+                "max_content_length": 10000,
+                "timeout": 10,
+            },
+        )
 
     @property
     def approval(self) -> Dict[str, Any]:
         """Get approval mode configuration."""
-        return self._config.get("approval", {
-            "mode": "write",
-            "overrides": {},
-        })
+        return self._config.get(
+            "approval",
+            {
+                "mode": "write",
+                "overrides": {},
+            },
+        )
 
     @property
     def tui(self) -> Dict[str, Any]:
@@ -340,7 +358,8 @@ class Config:
             self._merge_config(data, deepcopy(updates))
             text = (
                 yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
-                if is_yaml else json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+                if is_yaml
+                else json.dumps(data, ensure_ascii=False, indent=2) + "\n"
             )
             temporary = None
             try:
@@ -377,7 +396,8 @@ class Config:
         if self.source_path and self.source_path.exists():
             raw = self.source_path.read_text(encoding="utf-8")
             data = (
-                yaml.safe_load(raw) if self.source_path.suffix in (".yml", ".yaml")
+                yaml.safe_load(raw)
+                if self.source_path.suffix in (".yml", ".yaml")
                 else json.loads(raw)
             ) or {}
             self._merge_config(entry, data.get("models", {}).get(name, {}))

@@ -192,11 +192,13 @@ class TestExecutorApprovalGate:
     def test_yolo_mode_executes_directly(self, tmp_path):
         """YOLO mode should execute tools without approval callback."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
         test_file = tmp_path / "test.txt"
 
         # Register real write_file
         from neow.tools.file_ops import write_file
+
         executor.register_tool("write_file", write_file)
 
         policy = ApprovalPolicy(mode=ApprovalMode.YOLO)
@@ -204,13 +206,16 @@ class TestExecutorApprovalGate:
         # No approval_callback set
 
         # Should succeed without callback in YOLO mode
-        result = executor.execute("write_file", {"file_path": str(test_file), "content": "hello"})
+        result = executor.execute(
+            "write_file", {"file_path": str(test_file), "content": "hello"}
+        )
         assert "successfully" in result.lower()
         assert test_file.read_text() == "hello"
 
     def test_write_mode_denies_without_callback(self):
         """Write mode should deny execution if no approval callback is set."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
 
         policy = ApprovalPolicy(mode=ApprovalMode.WRITE)
@@ -218,13 +223,17 @@ class TestExecutorApprovalGate:
         # No approval_callback set
 
         with pytest.raises(ToolError, match="Approval required"):
-            executor.execute("write_file", {"file_path": "/tmp/test.txt", "content": "hello"})
+            executor.execute(
+                "write_file", {"file_path": "/tmp/test.txt", "content": "hello"}
+            )
 
     def test_approval_callback_approved(self, tmp_path):
         """Approved tool should execute when callback returns True."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
         from neow.tools.file_ops import write_file
+
         executor.register_tool("write_file", write_file)
 
         policy = ApprovalPolicy(mode=ApprovalMode.WRITE)
@@ -232,12 +241,15 @@ class TestExecutorApprovalGate:
         executor.approval_callback = lambda name, params, reason: True
 
         test_file = tmp_path / "test.txt"
-        result = executor.execute("write_file", {"file_path": str(test_file), "content": "hello"})
+        result = executor.execute(
+            "write_file", {"file_path": str(test_file), "content": "hello"}
+        )
         assert test_file.read_text() == "hello"
 
     def test_approval_callback_denied(self):
         """Denied tool should raise ToolError when callback returns False."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
 
         policy = ApprovalPolicy(mode=ApprovalMode.WRITE)
@@ -245,13 +257,17 @@ class TestExecutorApprovalGate:
         executor.approval_callback = lambda name, params, reason: False
 
         with pytest.raises(ToolError, match="User denied"):
-            executor.execute("write_file", {"file_path": "/tmp/test.txt", "content": "hello"})
+            executor.execute(
+                "write_file", {"file_path": "/tmp/test.txt", "content": "hello"}
+            )
 
     def test_read_tools_bypass_approval_in_write_mode(self, tmp_path):
         """Read operations should not need approval in write mode."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
         from neow.tools.file_ops import read_file, write_file
+
         executor.register_tool("read_file", read_file)
         executor.register_tool("write_file", write_file)
 
@@ -270,6 +286,7 @@ class TestExecutorApprovalGate:
     def test_dangerous_command_forces_approval(self):
         """Dangerous commands should force approval even in YOLO mode."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
         executor.security_guard = SecurityGuard()
 
@@ -283,9 +300,11 @@ class TestExecutorApprovalGate:
     def test_callback_receives_reason(self):
         """Approval callback should receive the reason string."""
         from neow.core.approval import ApprovalPolicy
+
         executor = ToolExecutor()
 
         captured_reason = []
+
         def capture_callback(name, params, reason):
             captured_reason.append(reason)
             return True
@@ -297,9 +316,14 @@ class TestExecutorApprovalGate:
         # This will fail because write_file stub raises NotImplementedError,
         # but the callback should have been called first
         try:
-            executor.execute("write_file", {"file_path": "/tmp/test.txt", "content": "hello"})
+            executor.execute(
+                "write_file", {"file_path": "/tmp/test.txt", "content": "hello"}
+            )
         except ToolError:
             pass  # Expected -- stub raises
 
         assert len(captured_reason) == 1
-        assert "write" in captured_reason[0].lower() or "approval" in captured_reason[0].lower()
+        assert (
+            "write" in captured_reason[0].lower()
+            or "approval" in captured_reason[0].lower()
+        )

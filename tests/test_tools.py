@@ -2,7 +2,14 @@
 
 import pytest
 
-from neow.tools.file_ops import read_file, write_file, edit_file, create_file, delete_file, FileError
+from neow.tools.file_ops import (
+    read_file,
+    write_file,
+    edit_file,
+    create_file,
+    delete_file,
+    FileError,
+)
 from neow.tools.command import execute_command, CommandError
 from neow.tools.search import search_code, SearchError
 
@@ -224,7 +231,7 @@ class TestLintTestDetection:
 
     def test_detect_ruff_from_pyproject_toml(self, tmp_path):
         pyproject = tmp_path / "pyproject.toml"
-        pyproject.write_text('[tool.ruff]\nline-length = 88\n')
+        pyproject.write_text("[tool.ruff]\nline-length = 88\n")
         from neow.tools.lint_test import detect_lint_command
 
         cmd = detect_lint_command(tmp_path)

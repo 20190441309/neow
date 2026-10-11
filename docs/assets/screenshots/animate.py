@@ -119,7 +119,9 @@ def _config() -> SimpleNamespace:
     )
 
 
-async def record(step: float = 0.12, chunk_delay: float = 0.035, hold_frames: int = 6) -> list[Path]:
+async def record(
+    step: float = 0.12, chunk_delay: float = 0.035, hold_frames: int = 6
+) -> list[Path]:
     FRAMES.mkdir(exist_ok=True)
     for f in FRAMES.glob("*.svg"):
         f.unlink()
@@ -178,7 +180,9 @@ def rasterize(frames: list[Path]) -> list[Path]:
     return pngs
 
 
-def assemble_gif(pngs: list[Path], out_path: Path, frame_ms: int = 120, hold_ms: int = 1800) -> None:
+def assemble_gif(
+    pngs: list[Path], out_path: Path, frame_ms: int = 120, hold_ms: int = 1800
+) -> None:
     from PIL import Image
 
     images = [Image.open(p).convert("RGB") for p in pngs]

@@ -117,7 +117,8 @@ def render_tool_body(
         matches = [
             line
             for line in result.splitlines()
-            if line.strip() and line not in ("--", "No matches found", "No files found")
+            if line.strip()
+            and line not in ("--", "No matches found", "No files found")
             and not line.startswith("… showing")
         ]
         out.append(f"{len(matches)} 处命中\n", style=text_style)
@@ -217,11 +218,15 @@ class ToolCard(CardBase):
             self.add_class("subagent")
             self.rule = "heavy"
             self.set_title(
-                title="子 agent", icon=FORK_ICON, subtitle=_tool_summary(name, self._args)
+                title="子 agent",
+                icon=FORK_ICON,
+                subtitle=_tool_summary(name, self._args),
             )
             self.set_accent(palette["subagent"])
         else:
-            self.set_title(title=name, icon="⟳", subtitle=_tool_summary(name, self._args))
+            self.set_title(
+                title=name, icon="⟳", subtitle=_tool_summary(name, self._args)
+            )
             self.set_accent(palette["tool_running"])
         self._render_body()
         if self.collapsed:
@@ -272,7 +277,11 @@ class ToolCard(CardBase):
         is_subagent = self._name == SUBAGENT_TOOL
         if is_subagent:
             icon = f"{FORK_ICON}{icon}"
-        accent = palette["subagent"] if is_subagent else palette[_STATUS_ACCENT_KEYS[self._status]]
+        accent = (
+            palette["subagent"]
+            if is_subagent
+            else palette[_STATUS_ACCENT_KEYS[self._status]]
+        )
         meta = "denied" if self._status == "denied" else ""
         if duration is not None:
             meta = _format_duration(duration)

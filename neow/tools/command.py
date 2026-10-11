@@ -113,7 +113,7 @@ def _translate_for_powershell(command: str) -> str:
             arg_parts = args.split(None, 1)
             pattern = arg_parts[0] if arg_parts else ""
             path = arg_parts[1] if len(arg_parts) > 1 else "."
-            cmd = f'Get-ChildItem -Recurse -File {path} | Select-String {pattern}'
+            cmd = f"Get-ChildItem -Recurse -File {path} | Select-String {pattern}"
             if "i" in flags:
                 cmd += " -CaseSensitive:$false"
             return cmd

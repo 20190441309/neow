@@ -65,6 +65,7 @@ class TestPluginAPI:
 
     def test_init(self):
         from neow.core.plugin import PluginAPI
+
         executor = MagicMock()
         bus = EventBus()
         api = PluginAPI(executor, bus)
@@ -75,6 +76,7 @@ class TestPluginAPI:
     def test_register_tool(self):
         from neow.core.executor import ToolExecutor
         from neow.core.plugin import PluginAPI
+
         executor = ToolExecutor()
         api = PluginAPI(executor, EventBus())
 
@@ -90,6 +92,7 @@ class TestPluginAPI:
 
     def test_register_command(self):
         from neow.core.plugin import PluginAPI
+
         bus = EventBus()
         api = PluginAPI(MagicMock(), bus)
 
@@ -100,6 +103,7 @@ class TestPluginAPI:
 
     def test_register_multiple_commands(self):
         from neow.core.plugin import PluginAPI
+
         api = PluginAPI(MagicMock(), EventBus())
         api.register_command("/cmd1", MagicMock())
         api.register_command("/cmd2", MagicMock())
@@ -107,6 +111,7 @@ class TestPluginAPI:
 
     def test_on_event(self):
         from neow.core.plugin import PluginAPI
+
         bus = EventBus()
         api = PluginAPI(MagicMock(), bus)
 
@@ -121,12 +126,14 @@ class TestPluginManager:
 
     def test_init(self, tmp_path):
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         api = PluginAPI(MagicMock(), EventBus())
         manager = PluginManager(tmp_path / "plugins", api)
         assert manager.plugins_dir == tmp_path / "plugins"
 
     def test_discover_empty_dir(self, tmp_path):
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
         api = PluginAPI(MagicMock(), EventBus())
@@ -136,6 +143,7 @@ class TestPluginManager:
 
     def test_discover_creates_dir(self, tmp_path):
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         plugins_dir = tmp_path / "nonexistent"
         api = PluginAPI(MagicMock(), EventBus())
         manager = PluginManager(plugins_dir, api)
@@ -143,6 +151,7 @@ class TestPluginManager:
 
     def test_is_valid_plugin(self, tmp_path):
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         api = PluginAPI(MagicMock(), EventBus())
         manager = PluginManager(tmp_path, api)
 
@@ -159,6 +168,7 @@ class TestPluginManager:
 
     def test_load_valid_plugin(self, tmp_path):
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         executor = MagicMock()
         bus = EventBus()
         api = PluginAPI(executor, bus)
@@ -184,6 +194,7 @@ class TestPluginManager:
     def test_load_plugin_without_register(self, tmp_path):
         """Plugin without register() function is skipped."""
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         api = PluginAPI(MagicMock(), EventBus())
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
@@ -199,6 +210,7 @@ class TestPluginManager:
     def test_load_plugin_exception_does_not_crash(self, tmp_path):
         """Plugin that raises during register is skipped."""
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         api = PluginAPI(MagicMock(), EventBus())
         plugins_dir = tmp_path / "plugins"
         plugins_dir.mkdir()
@@ -206,8 +218,7 @@ class TestPluginManager:
         plugin_dir = plugins_dir / "crash_plugin"
         plugin_dir.mkdir()
         (plugin_dir / "__init__.py").write_text(
-            "def register(api):\n"
-            "    raise RuntimeError('plugin crash')\n"
+            "def register(api):\n" "    raise RuntimeError('plugin crash')\n"
         )
 
         manager = PluginManager(plugins_dir, api)
@@ -216,6 +227,7 @@ class TestPluginManager:
 
     def test_load_multiple_plugins(self, tmp_path):
         from neow.core.plugin import PluginManager, PluginAPI, EventBus
+
         executor = MagicMock()
         api = PluginAPI(executor, EventBus())
         plugins_dir = tmp_path / "plugins"
@@ -244,11 +256,18 @@ class TestPluginIntegration:
 
         mock_conv = MagicMock()
         mock_config = MagicMock()
-        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        mock_config.web = {
+            "enabled": False,
+            "auto_detect": False,
+            "timeout": 10,
+            "max_content_length": 10000,
+        }
         mock_plugin_api = MagicMock()
         mock_plugin_api.plugin_commands = {}
 
-        repl = REPL(mock_conv, config=mock_config, streaming=False, plugin_api=mock_plugin_api)
+        repl = REPL(
+            mock_conv, config=mock_config, streaming=False, plugin_api=mock_plugin_api
+        )
         assert repl.plugin_api is mock_plugin_api
 
     def test_repl_handles_plugin_command(self):
@@ -258,12 +277,19 @@ class TestPluginIntegration:
 
         mock_conv = MagicMock()
         mock_config = MagicMock()
-        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        mock_config.web = {
+            "enabled": False,
+            "auto_detect": False,
+            "timeout": 10,
+            "max_content_length": 10000,
+        }
         mock_handler = MagicMock()
         mock_plugin_api = MagicMock()
         mock_plugin_api.plugin_commands = {"/my-tool": mock_handler}
 
-        repl = REPL(mock_conv, config=mock_config, streaming=False, plugin_api=mock_plugin_api)
+        repl = REPL(
+            mock_conv, config=mock_config, streaming=False, plugin_api=mock_plugin_api
+        )
 
         parsed = parse_command("/my-tool some args")
         # raw_command should be set since /my-tool is not in built-in commands
@@ -277,7 +303,12 @@ class TestPluginIntegration:
 
         mock_conv = MagicMock()
         mock_config = MagicMock()
-        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        mock_config.web = {
+            "enabled": False,
+            "auto_detect": False,
+            "timeout": 10,
+            "max_content_length": 10000,
+        }
         bus = EventBus()
         handler = MagicMock()
         bus.on("session_start", handler)
@@ -285,8 +316,13 @@ class TestPluginIntegration:
         mock_plugin_api = MagicMock()
         mock_plugin_api.plugin_commands = {}
 
-        repl = REPL(mock_conv, config=mock_config, streaming=False,
-                    plugin_api=mock_plugin_api, event_bus=bus)
+        repl = REPL(
+            mock_conv,
+            config=mock_config,
+            streaming=False,
+            plugin_api=mock_plugin_api,
+            event_bus=bus,
+        )
 
         with patch.object(repl, "_get_input", side_effect=EOFError):
             repl.start()
@@ -301,7 +337,12 @@ class TestPluginIntegration:
 
         mock_conv = MagicMock()
         mock_config = MagicMock()
-        mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+        mock_config.web = {
+            "enabled": False,
+            "auto_detect": False,
+            "timeout": 10,
+            "max_content_length": 10000,
+        }
         bus = EventBus()
         handler = MagicMock()
         bus.on("session_end", handler)
@@ -309,8 +350,13 @@ class TestPluginIntegration:
         mock_plugin_api = MagicMock()
         mock_plugin_api.plugin_commands = {}
 
-        repl = REPL(mock_conv, config=mock_config, streaming=False,
-                    plugin_api=mock_plugin_api, event_bus=bus)
+        repl = REPL(
+            mock_conv,
+            config=mock_config,
+            streaming=False,
+            plugin_api=mock_plugin_api,
+            event_bus=bus,
+        )
         repl.session_manager = None
 
         parsed = parse_command("/exit")

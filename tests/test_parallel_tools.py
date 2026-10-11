@@ -89,9 +89,12 @@ def test_mixed_calls_run_sequentially():
     assert elapsed >= DELAY * 3
     order = [(kind, key) for kind, key, _ in log]
     assert order == [
-        ("start", "a"), ("end", "a"),
-        ("start", "b"), ("end", "b"),
-        ("start", "c"), ("end", "c"),
+        ("start", "a"),
+        ("end", "a"),
+        ("start", "b"),
+        ("end", "b"),
+        ("start", "c"),
+        ("end", "c"),
     ]
     kinds = [e["type"] for e in events]
     assert kinds == ["tool_start", "tool_end"] * 3

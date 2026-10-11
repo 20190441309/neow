@@ -1,4 +1,5 @@
 """Tests for UI formatter functions."""
+
 from neow.utils.formatter import (
     make_logo,
     format_user_panel,
@@ -36,6 +37,7 @@ class TestLogo:
 class TestUserPanel:
     def test_format_user_panel_returns_panel(self):
         from rich.panel import Panel
+
         result = format_user_panel("hello world")
         assert isinstance(result, Panel)
 
@@ -43,6 +45,7 @@ class TestUserPanel:
         result = format_user_panel("test message")
         from rich.console import Console
         import io
+
         buf = io.StringIO()
         console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
@@ -53,11 +56,13 @@ class TestUserPanel:
 class TestAssistantPanel:
     def test_format_assistant_panel_returns_panel(self):
         from rich.panel import Panel
+
         result = format_assistant_panel("response text")
         assert isinstance(result, Panel)
 
     def test_format_assistant_panel_with_markdown(self):
         from rich.panel import Panel
+
         result = format_assistant_panel("# Heading\n\nSome text")
         assert isinstance(result, Panel)
 
@@ -65,6 +70,7 @@ class TestAssistantPanel:
 class TestToolCallPanel:
     def test_format_tool_call_panel_basic(self):
         from rich.panel import Panel
+
         result = format_tool_call_panel("edit_file", {"file_path": "test.py"})
         assert isinstance(result, Panel)
 
@@ -72,6 +78,7 @@ class TestToolCallPanel:
         result = format_tool_call_panel("read_file", {"file_path": "main.py"})
         from rich.console import Console
         import io
+
         buf = io.StringIO()
         console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
@@ -81,12 +88,14 @@ class TestToolCallPanel:
     def test_format_tool_call_panel_known_tool_icon(self):
         """Known tools should get specific icons."""
         from rich.panel import Panel
+
         result = format_tool_call_panel("execute_command", {"command": "ls"})
         assert isinstance(result, Panel)
 
     def test_format_tool_call_panel_unknown_tool(self):
         """Unknown tools should get generic icon."""
         from rich.panel import Panel
+
         result = format_tool_call_panel("custom_tool", {"arg": "val"})
         assert isinstance(result, Panel)
 
@@ -96,6 +105,7 @@ class TestToolCallPanel:
         result = format_tool_call_panel("read_file", {"content": long_val})
         from rich.console import Console
         import io
+
         buf = io.StringIO()
         console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
@@ -104,6 +114,7 @@ class TestToolCallPanel:
 
     def test_format_tool_call_panel_no_params(self):
         from rich.panel import Panel
+
         result = format_tool_call_panel("git_status", {})
         assert isinstance(result, Panel)
 
@@ -111,11 +122,13 @@ class TestToolCallPanel:
 class TestToolResultPanel:
     def test_format_tool_result_panel_success(self):
         from rich.panel import Panel
+
         result = format_tool_result_panel("file content here", is_error=False)
         assert isinstance(result, Panel)
 
     def test_format_tool_result_panel_error(self):
         from rich.panel import Panel
+
         result = format_tool_result_panel("Error: not found", is_error=True)
         assert isinstance(result, Panel)
 
@@ -124,6 +137,7 @@ class TestToolResultPanel:
         result = format_tool_result_panel(long_result)
         from rich.console import Console
         import io
+
         buf = io.StringIO()
         console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
@@ -135,15 +149,22 @@ class TestToolResultPanel:
 class TestApprovalPanel:
     def test_format_approval_panel_basic(self):
         from rich.panel import Panel
-        result = format_approval_panel("write_file", {"file_path": "test.py"}, "Write operation")
+
+        result = format_approval_panel(
+            "write_file", {"file_path": "test.py"}, "Write operation"
+        )
         assert isinstance(result, Panel)
 
     def test_format_approval_panel_execute_command(self):
         from rich.panel import Panel
-        result = format_approval_panel("execute_command", {"command": "rm -rf /"}, "Dangerous command")
+
+        result = format_approval_panel(
+            "execute_command", {"command": "rm -rf /"}, "Dangerous command"
+        )
         assert isinstance(result, Panel)
         from rich.console import Console
         import io
+
         buf = io.StringIO()
         console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
@@ -152,11 +173,17 @@ class TestApprovalPanel:
 
     def test_format_approval_panel_file_with_content(self):
         from rich.panel import Panel
+
         long_content = "x" * 200
-        result = format_approval_panel("write_file", {"file_path": "a.py", "content": long_content}, "Write operation")
+        result = format_approval_panel(
+            "write_file",
+            {"file_path": "a.py", "content": long_content},
+            "Write operation",
+        )
         assert isinstance(result, Panel)
         from rich.console import Console
         import io
+
         buf = io.StringIO()
         console = Console(file=buf, force_terminal=True, width=80, theme=NEOW_THEME)
         console.print(result)
@@ -166,7 +193,12 @@ class TestApprovalPanel:
 
     def test_format_approval_panel_edit_with_old_text(self):
         from rich.panel import Panel
-        result = format_approval_panel("edit_file", {"file_path": "b.py", "old_text": "def foo():"}, "Edit operation")
+
+        result = format_approval_panel(
+            "edit_file",
+            {"file_path": "b.py", "old_text": "def foo():"},
+            "Edit operation",
+        )
         assert isinstance(result, Panel)
 
 
@@ -179,22 +211,26 @@ class TestDiffFormatting:
     def test_format_diff_empty(self):
         result = format_diff("")
         from rich.text import Text
+
         assert isinstance(result, Text)
 
     def test_format_diff_none(self):
         result = format_diff("")
         from rich.text import Text
+
         assert isinstance(result, Text)
 
 
 class TestMarkdownRendering:
     def test_render_markdown_heading(self):
         from rich.markdown import Markdown
+
         result = render_markdown("# Hello")
         assert isinstance(result, Markdown)
 
     def test_render_markdown_code_block(self):
         from rich.markdown import Markdown
+
         result = render_markdown("```python\nprint('hi')\n```")
         assert isinstance(result, Markdown)
 
@@ -297,7 +333,9 @@ class TestInlineImage:
         monkeypatch.setenv("TERM_PROGRAM", "Apple_Terminal")
         assert formatter._terminal_image_protocol() is None
 
-    def test_print_inline_image_returns_false_without_protocol(self, monkeypatch, tmp_path):
+    def test_print_inline_image_returns_false_without_protocol(
+        self, monkeypatch, tmp_path
+    ):
         from neow.utils import formatter
 
         monkeypatch.setattr(formatter.sys.stdout, "isatty", lambda: False)

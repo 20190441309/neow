@@ -8,7 +8,6 @@ from typing import List, Optional
 
 from neow.utils.logger import logger
 
-
 SUBSTITUTION_PATTERN = re.compile(r"\$\(|`")
 
 
@@ -57,6 +56,7 @@ def split_chained_commands(command: str) -> List[str]:
 @dataclass
 class SecurityCheck:
     """Result of a security check."""
+
     allowed: bool
     reason: str
 
@@ -172,7 +172,9 @@ class SecurityGuard:
         """
         file_name = Path(file_path).name
         for pattern in self.PROTECTED_FILES:
-            if fnmatch.fnmatch(file_name, pattern) or fnmatch.fnmatch(file_path, pattern):
+            if fnmatch.fnmatch(file_name, pattern) or fnmatch.fnmatch(
+                file_path, pattern
+            ):
                 logger.warning(f"Protected file access attempt: {file_path}")
                 return True
         return False

@@ -163,7 +163,9 @@ class TestDeepSeekClient:
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.return_value = mock_client
 
-        client = DeepSeekClient(api_key="sk-test", model="deepseek-v4-flash", effort="high")
+        client = DeepSeekClient(
+            api_key="sk-test", model="deepseek-v4-flash", effort="high"
+        )
         client.chat([{"role": "user", "content": "Hi"}])
 
         kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -421,7 +423,11 @@ class TestAnthropicClient:
         client.chat([{"role": "user", "content": "Hi"}])
 
         assert client._last_thinking_blocks == [
-            {"type": "thinking", "thinking": "Let me work through this.", "signature": "sig-123"}
+            {
+                "type": "thinking",
+                "thinking": "Let me work through this.",
+                "signature": "sig-123",
+            }
         ]
 
     @patch("neow.models.anthropic.anthropic.Anthropic")
@@ -608,7 +614,9 @@ class TestStreamChunk:
 
     def test_init_with_tool_calls(self):
         """Test StreamChunk with tool calls."""
-        tc = {"tool_calls": [{"id": "1", "function": {"name": "test", "arguments": "{}"}}]}
+        tc = {
+            "tool_calls": [{"id": "1", "function": {"name": "test", "arguments": "{}"}}]
+        }
         chunk = StreamChunk(tool_call_delta=tc, finish_reason="tool_calls")
         assert chunk.tool_call_delta == tc
         assert chunk.finish_reason == "tool_calls"
@@ -625,10 +633,12 @@ class TestBaseModelClientStreaming:
 
     def test_default_chat_stream_fallback(self):
         """Test that default chat_stream wraps chat() as single chunk."""
+
         # Create a concrete subclass that doesn't override chat_stream
         class SimpleClient(BaseModelClient):
             def chat(self, messages, system_prompt=None, tools=None):
                 return ModelResponse(content="Hello", usage={"total_tokens": 10})
+
             def validate_connection(self):
                 return True
 
@@ -678,7 +688,9 @@ class TestDeepSeekStreamingUsage:
 
         # At least one chunk must carry usage data.
         usage_chunks = [c for c in chunks if c.usage]
-        assert len(usage_chunks) == 1, f"expected 1 usage chunk, got {len(usage_chunks)}"
+        assert (
+            len(usage_chunks) == 1
+        ), f"expected 1 usage chunk, got {len(usage_chunks)}"
         assert usage_chunks[0].usage["prompt_tokens"] == 12
         assert usage_chunks[0].usage["completion_tokens"] == 8
         assert usage_chunks[0].usage["total_tokens"] == 20
@@ -717,7 +729,9 @@ class TestOpenAIStreamingUsage:
         chunks = list(client.chat_stream([{"role": "user", "content": "Hi"}]))
 
         usage_chunks = [c for c in chunks if c.usage]
-        assert len(usage_chunks) == 1, f"expected 1 usage chunk, got {len(usage_chunks)}"
+        assert (
+            len(usage_chunks) == 1
+        ), f"expected 1 usage chunk, got {len(usage_chunks)}"
         assert usage_chunks[0].usage["total_tokens"] == 25
 
         call_kwargs = mock_client.chat.completions.create.call_args.kwargs
@@ -729,13 +743,16 @@ class TestOpenAIStreamingUsage:
 
         chunk = SimpleNamespace(
             usage=None,
-            choices=[SimpleNamespace(
-                delta=SimpleNamespace(
-                    content=None, tool_calls=None,
-                    model_extra={"reasoning_content": "Thinking"},
-                ),
-                finish_reason=None,
-            )],
+            choices=[
+                SimpleNamespace(
+                    delta=SimpleNamespace(
+                        content=None,
+                        tool_calls=None,
+                        model_extra={"reasoning_content": "Thinking"},
+                    ),
+                    finish_reason=None,
+                )
+            ],
         )
         mock_openai.return_value.chat.completions.create.return_value = iter([chunk])
         client = OpenAIClient(api_key="k", base_url="http://localhost/v1")

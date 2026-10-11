@@ -107,9 +107,7 @@ def _tool_message(call_id: str, result: str) -> Dict[str, Any]:
     }
 
 
-def truncate_tool_output(
-    text: str, limit: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS
-) -> str:
+def truncate_tool_output(text: str, limit: int = DEFAULT_MAX_TOOL_OUTPUT_CHARS) -> str:
     """Keep the head (60%) and tail (40%) of an over-long tool result."""
 
     if len(text) <= limit:

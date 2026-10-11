@@ -20,7 +20,6 @@ from neow.models.base import (
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
 
-
 AUTO_COMPACT_THRESHOLD = 0.8
 
 
@@ -97,7 +96,9 @@ class ConversationManager:
         # Task list kept by the todo_write tool (neow.core.todos).
         self.todos: List[Dict[str, str]] = []
         self.pending_lint_feedback: Optional[str] = None
-        self._pending_images: List[Dict[str, Any]] = []  # queued images for next message
+        self._pending_images: List[Dict[str, Any]] = (
+            []
+        )  # queued images for next message
         self.max_turns = DEFAULT_MAX_TURNS  # model requests allowed per user turn
         # Provider-reported size of the context after the last reply, and the
         # message it was measured at (see context_usage()).
@@ -166,14 +167,16 @@ class ConversationManager:
         with open(path, "rb") as f:
             image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
-        self._pending_images.append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": mime_type,
-                "data": image_data,
-            },
-        })
+        self._pending_images.append(
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": mime_type,
+                    "data": image_data,
+                },
+            }
+        )
         logger.info(f"Queued image: {image_path} ({mime_type})")
         message = f"Image queued: {path.name} ({mime_type})"
         if not getattr(self.model_client, "supports_vision", False):
@@ -200,6 +203,7 @@ class ConversationManager:
         content.extend(self._pending_images)
         self._pending_images.clear()
         return content
+
     def get_response(
         self, user_input: str, *, cancel: Optional[CancelToken] = None
     ) -> ModelResponse:
@@ -217,7 +221,9 @@ class ConversationManager:
         loop = AgentLoop(self, max_turns=self.max_turns)
         for _ in loop.run(user_input, stream=False, cancel=cancel):
             pass
-        logger.info(f"Response generated ({loop.result.usage.get('total_tokens', 0)} tokens)")
+        logger.info(
+            f"Response generated ({loop.result.usage.get('total_tokens', 0)} tokens)"
+        )
         return loop.result
 
     def get_response_stream(
@@ -361,20 +367,28 @@ class ConversationManager:
 
         # Replace history with summary
         self.messages.clear()
-        self.messages.append({
-            "role": "user",
-            "content": "[Context was compacted to save tokens]",
-        })
-        self.messages.append({
-            "role": "assistant",
-            "content": summary,
-        })
+        self.messages.append(
+            {
+                "role": "user",
+                "content": "[Context was compacted to save tokens]",
+            }
+        )
+        self.messages.append(
+            {
+                "role": "assistant",
+                "content": summary,
+            }
+        )
 
         # Record the summary tokens
         if self.token_tracker and response.usage:
-            self.token_tracker.record(response.usage, getattr(self.model_client, 'model', 'unknown'))
+            self.token_tracker.record(
+                response.usage, getattr(self.model_client, "model", "unknown")
+            )
 
-        logger.info(f"Compacted {msg_count} messages into summary ({len(summary)} chars)")
+        logger.info(
+            f"Compacted {msg_count} messages into summary ({len(summary)} chars)"
+        )
         return f"Compacted {msg_count} messages → {len(summary)} char summary"
 
     def compact_incremental(self, keep_recent_tokens: int = 4000) -> str:
@@ -420,7 +434,9 @@ class ConversationManager:
         while split_idx > 1 and self.messages[split_idx - 1].get("role") == "tool":
             split_idx -= 1
         # Also ensure we don't leave a bare tool_calls assistant without its results
-        if split_idx < len(self.messages) and self.messages[split_idx - 1].get("tool_calls"):
+        if split_idx < len(self.messages) and self.messages[split_idx - 1].get(
+            "tool_calls"
+        ):
             # The assistant message at split_idx-1 has tool_calls but its results
             # would be in the "recent" section — move it all to recent
             split_idx -= 1
@@ -467,20 +483,28 @@ class ConversationManager:
 
         # Replace: summary + recent messages
         self.messages.clear()
-        self.messages.append({
-            "role": "user",
-            "content": "[Earlier context was compacted to save tokens]",
-        })
-        self.messages.append({
-            "role": "assistant",
-            "content": summary,
-        })
+        self.messages.append(
+            {
+                "role": "user",
+                "content": "[Earlier context was compacted to save tokens]",
+            }
+        )
+        self.messages.append(
+            {
+                "role": "assistant",
+                "content": summary,
+            }
+        )
         self.messages.extend(recent_messages)
 
         if self.token_tracker and response.usage:
-            self.token_tracker.record(response.usage, getattr(self.model_client, 'model', 'unknown'))
+            self.token_tracker.record(
+                response.usage, getattr(self.model_client, "model", "unknown")
+            )
 
-        logger.info(f"Incremental compact: {old_count} old → summary, {len(recent_messages)} recent preserved")
+        logger.info(
+            f"Incremental compact: {old_count} old → summary, {len(recent_messages)} recent preserved"
+        )
         return f"Compacted {old_count} old messages → {len(summary)} char summary, {len(recent_messages)} recent messages preserved"
 
     def compact_with_handoff(self) -> str:
@@ -537,9 +561,13 @@ class ConversationManager:
         self._structure_injected = False
 
         if self.token_tracker and response.usage:
-            self.token_tracker.record(response.usage, getattr(self.model_client, 'model', 'unknown'))
+            self.token_tracker.record(
+                response.usage, getattr(self.model_client, "model", "unknown")
+            )
 
-        logger.info(f"Handoff compact: {len(text_messages)} messages → {len(handoff)} char handoff")
+        logger.info(
+            f"Handoff compact: {len(text_messages)} messages → {len(handoff)} char handoff"
+        )
         return handoff
 
     def add_context_file(self, file_path: str) -> str:
@@ -624,7 +652,9 @@ class ConversationManager:
         abs_path = str(Path(file_path).resolve())
         if abs_path in self.context_files:
             try:
-                self.context_files[abs_path] = Path(abs_path).read_text(encoding="utf-8")
+                self.context_files[abs_path] = Path(abs_path).read_text(
+                    encoding="utf-8"
+                )
                 return True
             except (FileNotFoundError, UnicodeDecodeError):
                 return False

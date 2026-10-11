@@ -13,19 +13,21 @@ from typing import Dict, List, Optional, Tuple
 
 class HashlineEditError(Exception):
     """Error in hashline editing."""
+
     pass
 
 
 @dataclass
 class FileSnapshot:
     """Represents a snapshot of a file at a point in time."""
-    path: str          # File path
-    hash: str          # Content hash (8-char hex)
-    content: str       # Full file content
-    lines: List[str]   # Split lines (with line endings preserved)
-    bom: str           # BOM prefix if present ("\ufeff" or "")
-    line_ending: str   # Detected line ending: "\n", "\r\n", or "\r"
-    timestamp: float   # mtime when read
+
+    path: str  # File path
+    hash: str  # Content hash (8-char hex)
+    content: str  # Full file content
+    lines: List[str]  # Split lines (with line endings preserved)
+    bom: str  # BOM prefix if present ("\ufeff" or "")
+    line_ending: str  # Detected line ending: "\n", "\r\n", or "\r"
+    timestamp: float  # mtime when read
 
 
 def compute_hash(content: str) -> str:
@@ -316,7 +318,11 @@ def apply_edit(
         new_lines_text = _split_lines_preserving(normalized_new)
         result_lines = lines[:s] + new_lines_text + lines[e:]
         action = "replaced"
-        affected = f"lines {start_line}-{end_line}" if start_line != end_line else f"line {start_line}"
+        affected = (
+            f"lines {start_line}-{end_line}"
+            if start_line != end_line
+            else f"line {start_line}"
+        )
 
     # Reassemble content
     new_content_full = "".join(result_lines)
@@ -531,7 +537,7 @@ def stale_anchor_recovery(
 
     # Compute line number from character offset
     new_start = search_text[:hint_idx].count("\n") + 1
-    hint_lines_count = old_content_hint[:len(old_content_hint)].count("\n") + 1
+    hint_lines_count = old_content_hint[: len(old_content_hint)].count("\n") + 1
     new_end = new_start + hint_lines_count - 1
 
     return (

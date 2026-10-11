@@ -100,7 +100,9 @@ def test_normal_start_configures_first_model_and_accepts_prompt(repl, config):
     assert repl._turns_started == 1
 
 
-@pytest.mark.parametrize("streaming, architect", [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize(
+    "streaming, architect", [(False, False), (True, False), (True, True)]
+)
 def test_prompt_without_model_has_no_side_effects(repl, streaming, architect):
     repl.streaming = streaming
     repl.architect_mode = architect
@@ -149,7 +151,9 @@ def test_first_byok_save_activates_and_persists_default(repl, config):
     with (
         patch("click.prompt", side_effect=byok_prompts()) as prompt,
         patch("neow.cli.main.create_model_client", return_value=client) as factory,
-        patch.object(config, "set_default_model", wraps=config.set_default_model) as default,
+        patch.object(
+            config, "set_default_model", wraps=config.set_default_model
+        ) as default,
     ):
         repl._handle_command(parse_command("/model add"))
 
@@ -197,7 +201,9 @@ def test_saved_first_model_can_be_retried_after_connection_failure(repl, config)
 def test_first_byok_factory_failure_keeps_saved_entry(repl, config):
     with (
         patch("click.prompt", side_effect=byok_prompts()),
-        patch("neow.cli.main.create_model_client", side_effect=ConfigError("Unavailable")),
+        patch(
+            "neow.cli.main.create_model_client", side_effect=ConfigError("Unavailable")
+        ),
         patch.object(config, "set_default_model") as default,
     ):
         assert repl._handle_command(parse_command("/model add")) is False
@@ -296,7 +302,9 @@ def test_model_switch_persists_selection_before_replacing_client(repl, config):
 
 
 @pytest.mark.parametrize("has_active_client", [False, True])
-def test_model_default_save_failure_keeps_previous_client(repl, config, has_active_client):
+def test_model_default_save_failure_keeps_previous_client(
+    repl, config, has_active_client
+):
     original = new_client() if has_active_client else None
     repl.conversation.model_client = original
     before = config.source_path.read_text()
@@ -304,7 +312,9 @@ def test_model_default_save_failure_keeps_previous_client(repl, config, has_acti
 
     with (
         patch("neow.cli.main.create_model_client", return_value=selected),
-        patch.object(config, "set_default_model", side_effect=ConfigError("Cannot write")),
+        patch.object(
+            config, "set_default_model", side_effect=ConfigError("Cannot write")
+        ),
         patch("neow.cli.repl.print_error") as error,
     ):
         repl._handle_command(parse_command("/model openai"))

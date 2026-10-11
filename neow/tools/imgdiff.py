@@ -26,7 +26,9 @@ def _pad_to(image: Image.Image, width: int, height: int) -> Image.Image:
     return canvas
 
 
-def diff_images(before_path: str, after_path: str, out_path: str, threshold: int = 30) -> ImageDiffResult:
+def diff_images(
+    before_path: str, after_path: str, out_path: str, threshold: int = 30
+) -> ImageDiffResult:
     """Highlight pixels that differ between *before_path* and *after_path* in red.
 
     Images of different sizes are top-left-aligned on a shared white canvas
@@ -65,4 +67,6 @@ def diff_images(before_path: str, after_path: str, out_path: str, threshold: int
 
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     result.save(out_path)
-    return ImageDiffResult(out_path=str(out_path), changed=changed, size=(width, height))
+    return ImageDiffResult(
+        out_path=str(out_path), changed=changed, size=(width, height)
+    )

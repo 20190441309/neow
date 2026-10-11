@@ -20,7 +20,9 @@ class TestSessionTreeCreate:
     def test_create_writes_meta_header(self, tmp_path):
         tree = SessionTree(tmp_path)
         tree.create("test-session", "deepseek-chat")
-        lines = (tmp_path / "test-session.jsonl").read_text(encoding="utf-8").splitlines()
+        lines = (
+            (tmp_path / "test-session.jsonl").read_text(encoding="utf-8").splitlines()
+        )
         assert len(lines) == 1
         meta = json.loads(lines[0])
         assert meta["type"] == "meta"
@@ -164,7 +166,9 @@ class TestSessionTreeStructure:
         nodes = tree.get_tree("s")
         assert eid1 in nodes
         assert eid2 in nodes
-        assert eid1 in nodes[eid2]["children"] or eid2 in nodes[eid1].get("children", [])
+        assert eid1 in nodes[eid2]["children"] or eid2 in nodes[eid1].get(
+            "children", []
+        )
 
     def test_get_tree_content_preview(self, tmp_path):
         tree = SessionTree(tmp_path)

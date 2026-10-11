@@ -122,7 +122,9 @@ class AssistantCard(CardBase):
         if self.effects == "full" and not self._finished and self.is_mounted:
             self._render_scramble()
         elif self.is_mounted:
-            self._cursor.styles.color = palette["accent2" if self._blink_on else "muted"]
+            self._cursor.styles.color = palette[
+                "accent2" if self._blink_on else "muted"
+            ]
 
     def _render_scramble(self) -> None:
         self._cursor.update(

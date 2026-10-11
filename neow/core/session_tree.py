@@ -255,12 +255,14 @@ class SessionTree:
         for f in self.sessions_dir.glob("*.jsonl"):
             meta = self._read_meta(f.stem)
             if meta:
-                sessions.append({
-                    "name": meta.get("name", f.stem),
-                    "model": meta.get("model", "unknown"),
-                    "created_at": meta.get("createdAt", ""),
-                    "leaf_id": meta.get("leafId"),
-                })
+                sessions.append(
+                    {
+                        "name": meta.get("name", f.stem),
+                        "model": meta.get("model", "unknown"),
+                        "created_at": meta.get("createdAt", ""),
+                        "leaf_id": meta.get("leafId"),
+                    }
+                )
         sessions.sort(key=lambda s: s["created_at"], reverse=True)
         return sessions
 

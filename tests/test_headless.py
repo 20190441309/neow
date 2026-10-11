@@ -207,7 +207,8 @@ def test_approval_interactive_denied_without_a_reply(run):
     ]
     # No input at all: stdin is immediately EOF, which must deny (fail safe).
     result, _ = invoke(
-        ["-p", "write", "--output-format", "stream-json", "--approval-interactive"], script
+        ["-p", "write", "--output-format", "stream-json", "--approval-interactive"],
+        script,
     )
     assert result.exit_code == 0
     end = next(e for e in _lines(result.stdout) if e["type"] == "tool_end")

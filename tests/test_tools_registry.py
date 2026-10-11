@@ -113,8 +113,9 @@ def test_search_code_directory_is_optional(tmp_path, monkeypatch):
 def test_registry_subset_and_copy_are_independent():
     registry = ToolRegistry(
         [
-            ToolSpec("a", "A", infer_parameters(lambda: None), lambda: "a",
-                     read_only=True),
+            ToolSpec(
+                "a", "A", infer_parameters(lambda: None), lambda: "a", read_only=True
+            ),
             ToolSpec("b", "B", infer_parameters(lambda: None), lambda: "b"),
         ]
     )

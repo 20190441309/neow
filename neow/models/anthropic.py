@@ -17,7 +17,6 @@ from neow.models.base import (
 from neow.utils import sanitize_text as _sanitize_text
 from neow.utils.logger import logger
 
-
 CACHE_CONTROL = {"type": "ephemeral"}
 
 
@@ -134,7 +133,10 @@ class AnthropicClient(BaseModelClient):
         # Sanitize messages to remove surrogate characters
         sanitized_messages = []
         for msg in messages:
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_msg = {
+                k: _sanitize_text(v) if isinstance(v, str) else v
+                for k, v in msg.items()
+            }
             sanitized_messages.append(sanitized_msg)
 
         kwargs = self._request_kwargs(sanitized_messages, system_prompt, tools)
@@ -207,7 +209,10 @@ class AnthropicClient(BaseModelClient):
         """
         sanitized_messages = []
         for msg in messages:
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_msg = {
+                k: _sanitize_text(v) if isinstance(v, str) else v
+                for k, v in msg.items()
+            }
             sanitized_messages.append(sanitized_msg)
 
         kwargs = self._request_kwargs(sanitized_messages, system_prompt, tools)
@@ -245,9 +250,9 @@ class AnthropicClient(BaseModelClient):
                             yield StreamChunk(content_delta=event.delta.text)
                         elif event.delta.type == "input_json_delta":
                             if event.index in tool_inputs:
-                                tool_inputs[event.index]["input_buffer"] += (
-                                    event.delta.partial_json
-                                )
+                                tool_inputs[event.index][
+                                    "input_buffer"
+                                ] += event.delta.partial_json
                         elif event.delta.type == "thinking_delta":
                             block = thinking_blocks.get(event.index)
                             if block is not None:
@@ -262,14 +267,16 @@ class AnthropicClient(BaseModelClient):
                         final_tool_calls = []
                         for index in sorted(tool_inputs):
                             tinfo = tool_inputs[index]
-                            final_tool_calls.append({
-                                "id": tinfo["id"],
-                                "function": {
-                                    "name": tinfo["name"],
-                                    # Tools without arguments stream no deltas.
-                                    "arguments": tinfo["input_buffer"] or "{}",
-                                },
-                            })
+                            final_tool_calls.append(
+                                {
+                                    "id": tinfo["id"],
+                                    "function": {
+                                        "name": tinfo["name"],
+                                        # Tools without arguments stream no deltas.
+                                        "arguments": tinfo["input_buffer"] or "{}",
+                                    },
+                                }
+                            )
                         if final_tool_calls:
                             yield StreamChunk(
                                 tool_call_delta={"tool_calls": final_tool_calls}

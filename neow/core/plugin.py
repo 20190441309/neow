@@ -90,7 +90,9 @@ class PluginAPI:
         )
         logger.info(f"Plugin registered tool: {name}")
 
-    def register_command(self, name: str, handler: Callable, description: str = "") -> None:
+    def register_command(
+        self, name: str, handler: Callable, description: str = ""
+    ) -> None:
         """Register a /slash command.
 
         Args:
@@ -168,7 +170,9 @@ class PluginManager:
             spec.loader.exec_module(module)
 
             if not hasattr(module, "register"):
-                logger.warning(f"Plugin '{plugin_name}' has no register() function, skipping")
+                logger.warning(
+                    f"Plugin '{plugin_name}' has no register() function, skipping"
+                )
                 return False
 
             self.api.current_plugin = plugin_name

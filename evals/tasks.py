@@ -66,7 +66,9 @@ def _check_multi_file_refactor(work_dir: Path) -> Tuple[bool, str]:
         return False, f"a.py still missing say_hello:\n{a}"
     if "greet" in b or "say_hello" not in b:
         return False, f"b.py was not updated:\n{b}"
-    return _run_py(work_dir, "from a import say_hello; assert say_hello('x') == 'Hello, x'")
+    return _run_py(
+        work_dir, "from a import say_hello; assert say_hello('x') == 'Hello, x'"
+    )
 
 
 TASKS: List[EvalTask] = [
@@ -99,7 +101,10 @@ TASKS: List[EvalTask] = [
             "multiplying. Fix it."
         ),
         replies=[
-            {"content": "Let me look.", "tool_calls": [_call("c1", "read_file", file_path="calc.py")]},
+            {
+                "content": "Let me look.",
+                "tool_calls": [_call("c1", "read_file", file_path="calc.py")],
+            },
             {
                 "content": "Found it.",
                 "tool_calls": [

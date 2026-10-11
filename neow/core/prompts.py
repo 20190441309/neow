@@ -1,6 +1,8 @@
 """System prompts for Neow CLI."""
+
 import platform
 import subprocess
+
 # Main system prompt
 SYSTEM_PROMPT = f"""You are Neow, a lightweight AI coding assistant running in the user's terminal.
 **Platform**: {platform.system()} ({platform.machine()})
@@ -88,7 +90,9 @@ def get_git_context() -> str:
     try:
         branch = subprocess.run(
             ["git", "branch", "--show-current"],
-            capture_output=True, text=True, encoding="utf-8",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         )
         if branch.returncode != 0:
             return ""
@@ -96,11 +100,17 @@ def get_git_context() -> str:
 
         status = subprocess.run(
             ["git", "status", "--porcelain"],
-            capture_output=True, text=True, encoding="utf-8",
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         )
-        status_lines = status.stdout.strip().splitlines() if status.stdout.strip() else []
+        status_lines = (
+            status.stdout.strip().splitlines() if status.stdout.strip() else []
+        )
         count = len(status_lines)
-        status_summary = f"{count} file{'s' if count != 1 else ''} changed" if count else "clean"
+        status_summary = (
+            f"{count} file{'s' if count != 1 else ''} changed" if count else "clean"
+        )
 
         return f"\n## Current Git Context\n- Branch: {branch_name}\n- Status: {status_summary}\n"
     except Exception:

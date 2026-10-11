@@ -90,9 +90,14 @@ class DeepSeekClient(BaseModelClient):
         # Prepare messages
         full_messages = []
         if system_prompt:
-            full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
+            full_messages.append(
+                {"role": "system", "content": _sanitize_text(system_prompt)}
+            )
         for msg in to_openai(messages, extra_keys=DEEPSEEK_EXTRA_KEYS):
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_msg = {
+                k: _sanitize_text(v) if isinstance(v, str) else v
+                for k, v in msg.items()
+            }
             full_messages.append(sanitized_msg)
 
         # Prepare request kwargs
@@ -107,7 +112,9 @@ class DeepSeekClient(BaseModelClient):
         kwargs.update(self._thinking_kwargs())
 
         try:
-            logger.debug(f"Sending request to DeepSeek API with {len(full_messages)} messages")
+            logger.debug(
+                f"Sending request to DeepSeek API with {len(full_messages)} messages"
+            )
             response = self.client.chat.completions.create(**kwargs)  # type: ignore
             choice = response.choices[0]
             logger.debug("Received response from DeepSeek API")
@@ -130,9 +137,14 @@ class DeepSeekClient(BaseModelClient):
             usage = openai_usage(response.usage) if response.usage else {}
 
             # Store reasoning_content for next request if present
-            if hasattr(choice.message, 'reasoning_content') and choice.message.reasoning_content:
+            if (
+                hasattr(choice.message, "reasoning_content")
+                and choice.message.reasoning_content
+            ):
                 self._last_reasoning_content = choice.message.reasoning_content
-                logger.debug(f"Stored reasoning_content: {len(choice.message.reasoning_content)} chars")
+                logger.debug(
+                    f"Stored reasoning_content: {len(choice.message.reasoning_content)} chars"
+                )
             else:
                 self._last_reasoning_content = None
                 logger.debug("No reasoning_content in response")
@@ -165,9 +177,14 @@ class DeepSeekClient(BaseModelClient):
         """
         full_messages = []
         if system_prompt:
-            full_messages.append({"role": "system", "content": _sanitize_text(system_prompt)})
+            full_messages.append(
+                {"role": "system", "content": _sanitize_text(system_prompt)}
+            )
         for msg in to_openai(messages, extra_keys=DEEPSEEK_EXTRA_KEYS):
-            sanitized_msg = {k: _sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
+            sanitized_msg = {
+                k: _sanitize_text(v) if isinstance(v, str) else v
+                for k, v in msg.items()
+            }
             full_messages.append(sanitized_msg)
 
         kwargs = {"model": self.model, "messages": full_messages, "stream": True}
@@ -186,9 +203,7 @@ class DeepSeekClient(BaseModelClient):
             for chunk in response:
                 # The final chunk (with usage) may have an empty choices list.
                 if chunk.usage:
-                    yield StreamChunk(
-                        usage=openai_usage(chunk.usage)
-                    )
+                    yield StreamChunk(usage=openai_usage(chunk.usage))
 
                 if not chunk.choices:
                     continue
@@ -203,7 +218,9 @@ class DeepSeekClient(BaseModelClient):
                 rc = None
                 if hasattr(delta, "reasoning_content") and delta.reasoning_content:
                     rc = delta.reasoning_content
-                elif hasattr(delta, "model_extra") and isinstance(delta.model_extra, dict):
+                elif hasattr(delta, "model_extra") and isinstance(
+                    delta.model_extra, dict
+                ):
                     rc = delta.model_extra.get("reasoning_content")
                 if rc:
                     reasoning_content += rc
@@ -214,31 +231,48 @@ class DeepSeekClient(BaseModelClient):
                     for tc_delta in delta.tool_calls:
                         idx = tc_delta.index
                         if idx not in tool_calls_acc:
-                            tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                            tool_calls_acc[idx] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": "",
+                            }
                         if tc_delta.id:
                             tool_calls_acc[idx]["id"] = tc_delta.id
                         if tc_delta.function:
                             if tc_delta.function.name:
                                 tool_calls_acc[idx]["name"] = tc_delta.function.name
                             if tc_delta.function.arguments:
-                                tool_calls_acc[idx]["arguments"] += tc_delta.function.arguments
+                                tool_calls_acc[idx][
+                                    "arguments"
+                                ] += tc_delta.function.arguments
 
                 # Finish reason
                 if choice.finish_reason:
                     final_tool_calls = []
                     for idx in sorted(tool_calls_acc.keys()):
                         tc = tool_calls_acc[idx]
-                        final_tool_calls.append({
-                            "id": tc["id"],
-                            "function": {"name": tc["name"], "arguments": tc["arguments"]},
-                        })
+                        final_tool_calls.append(
+                            {
+                                "id": tc["id"],
+                                "function": {
+                                    "name": tc["name"],
+                                    "arguments": tc["arguments"],
+                                },
+                            }
+                        )
                     yield StreamChunk(
                         finish_reason=normalize_finish_reason(choice.finish_reason),
-                        tool_call_delta={"tool_calls": final_tool_calls} if final_tool_calls else None,
+                        tool_call_delta=(
+                            {"tool_calls": final_tool_calls}
+                            if final_tool_calls
+                            else None
+                        ),
                     )
 
             # Store reasoning content
-            self._last_reasoning_content = reasoning_content if reasoning_content else None
+            self._last_reasoning_content = (
+                reasoning_content if reasoning_content else None
+            )
 
         except Exception as e:
             logger.error(f"DeepSeek streaming error: {e}")

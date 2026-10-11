@@ -50,7 +50,10 @@ class TestSessionManager:
     def test_load_session(self, tmp_path):
         manager = SessionManager(tmp_path)
         mock_conv = MagicMock()
-        mock_conv.messages = [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "hi"}]
+        mock_conv.messages = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi"},
+        ]
         mock_conv.context_files = {"/tmp/test.py": "print('hi')"}
         mock_conv.system_prompt = "You are Neow."
         mock_conv.model_client = MagicMock()

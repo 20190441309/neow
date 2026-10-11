@@ -240,7 +240,7 @@ class TestArchitectMode:
         mock_config.lint_test = {"auto_lint": False, "auto_test": False}
         repl = REPL(mock_conv, mock_config, streaming=False)
 
-        with patch('neow.cli.repl.print_info'):
+        with patch("neow.cli.repl.print_info"):
             parsed = parse_command("/architect")
             repl._handle_command(parsed)
             assert repl.architect_mode is True
@@ -260,7 +260,7 @@ class TestArchitectMode:
         repl = REPL(mock_conv, mock_config, streaming=False)
         repl.architect_mode = True
 
-        with patch.object(repl, '_process_architect') as mock_arch:
+        with patch.object(repl, "_process_architect") as mock_arch:
             repl._process_input("build a REST API")
             mock_arch.assert_called_once_with("build a REST API")
 
@@ -275,7 +275,7 @@ class TestArchitectMode:
         repl = REPL(mock_conv, mock_config, streaming=True)
         repl.architect_mode = False
 
-        with patch.object(repl, '_process_input_stream') as mock_stream:
+        with patch.object(repl, "_process_input_stream") as mock_stream:
             repl._process_input("hello")
             mock_stream.assert_called_once_with("hello")
 
@@ -285,29 +285,34 @@ class TestSessionCommands:
 
     def test_parse_save_command(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/save my-session")
         assert parsed.command == Command.SAVE
         assert parsed.args == "my-session"
 
     def test_parse_save_no_args(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/save")
         assert parsed.command == Command.SAVE
         assert parsed.args is None
 
     def test_parse_load_command(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/load my-session")
         assert parsed.command == Command.LOAD
         assert parsed.args == "my-session"
 
     def test_parse_history_command(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/history")
         assert parsed.command == Command.HISTORY
 
     def test_parse_cost_command(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/cost")
         assert parsed.command == Command.COST
 
@@ -317,18 +322,21 @@ class TestWebCommandParsing:
 
     def test_parse_web_command(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/web https://example.com")
         assert parsed.command == Command.WEB
         assert parsed.args == "https://example.com"
 
     def test_parse_web_no_args(self):
         from neow.cli.commands import parse_command, Command
+
         parsed = parse_command("/web")
         assert parsed.command == Command.WEB
         assert parsed.args is None
 
     def test_unknown_slash_command_sets_raw_command(self):
         from neow.cli.commands import parse_command
+
         parsed = parse_command("/unknown-cmd some args")
         assert parsed.command is None
         assert parsed.raw_command == "/unknown-cmd"
@@ -336,6 +344,7 @@ class TestWebCommandParsing:
 
     def test_non_slash_input_raw_command_none(self):
         from neow.cli.commands import parse_command
+
         parsed = parse_command("just text")
         assert parsed.command is None
         assert parsed.raw_command is None
@@ -353,12 +362,20 @@ class TestWebCommandInREPL:
         mock_conv = MagicMock()
         mock_conv.web_cache = {}
         mock_config = MagicMock()
-        mock_config.web = {"enabled": True, "auto_detect": True, "timeout": 10, "max_content_length": 10000}
+        mock_config.web = {
+            "enabled": True,
+            "auto_detect": True,
+            "timeout": 10,
+            "max_content_length": 10000,
+        }
         repl = REPL(mock_conv, config=mock_config, streaming=False)
 
         mock_content = WebContent(
-            url="https://example.com", title="Example",
-            text="Hello", code_blocks=[], content_type="webpage",
+            url="https://example.com",
+            title="Example",
+            text="Hello",
+            code_blocks=[],
+            content_type="webpage",
         )
         repl.web_fetcher = MagicMock()
         repl.web_fetcher.fetch.return_value = mock_content
@@ -367,7 +384,9 @@ class TestWebCommandInREPL:
         repl._handle_command(parsed)
 
         repl.web_fetcher.fetch.assert_called_once_with("https://example.com")
-        mock_conv.add_web_content.assert_called_once_with("https://example.com", mock_content)
+        mock_conv.add_web_content.assert_called_once_with(
+            "https://example.com", mock_content
+        )
 
     def test_web_command_no_args_shows_error(self):
         from unittest.mock import MagicMock, patch
@@ -376,7 +395,12 @@ class TestWebCommandInREPL:
 
         mock_conv = MagicMock()
         mock_config = MagicMock()
-        mock_config.web = {"enabled": True, "auto_detect": True, "timeout": 10, "max_content_length": 10000}
+        mock_config.web = {
+            "enabled": True,
+            "auto_detect": True,
+            "timeout": 10,
+            "max_content_length": 10000,
+        }
         repl = REPL(mock_conv, config=mock_config, streaming=False)
 
         parsed = parse_command("/web")
@@ -387,7 +411,8 @@ class TestWebCommandInREPL:
     def test_url_auto_detection_in_input(self):
         """Test that URLs in user input trigger auto-fetch."""
         import re
-        url_pattern = re.compile(r'https?://[^\s]+')
+
+        url_pattern = re.compile(r"https?://[^\s]+")
         text = "Please check https://example.com for details"
         urls = url_pattern.findall(text)
         assert urls == ["https://example.com"]
@@ -395,7 +420,8 @@ class TestWebCommandInREPL:
     def test_url_auto_detection_no_false_positives(self):
         """Test that non-URL text is not matched."""
         import re
-        url_pattern = re.compile(r'https?://[^\s]+')
+
+        url_pattern = re.compile(r"https?://[^\s]+")
         text = "Just a normal message with no URLs"
         urls = url_pattern.findall(text)
         assert urls == []
@@ -408,6 +434,7 @@ class TestCLIEnhancements:
         """Test that Click --help shows new options."""
         from click.testing import CliRunner
         from neow.cli.main import main
+
         runner = CliRunner()
         result = runner.invoke(main, ["--help"])
         assert result.exit_code == 0
@@ -424,7 +451,12 @@ def test_repl_init_with_event_bus():
     bus = EventBus()
     mock_conv = MagicMock()
     mock_config = MagicMock()
-    mock_config.web = {"enabled": False, "auto_detect": False, "timeout": 10, "max_content_length": 10000}
+    mock_config.web = {
+        "enabled": False,
+        "auto_detect": False,
+        "timeout": 10,
+        "max_content_length": 10000,
+    }
 
     repl = REPL(mock_conv, config=mock_config, streaming=False, event_bus=bus)
     assert repl.event_bus is bus

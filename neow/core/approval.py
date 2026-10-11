@@ -13,6 +13,7 @@ class ApprovalMode(str, Enum):
     - WRITE: Only write/exec operations require confirmation.
     - YOLO: All operations proceed automatically (dangerous patterns still prompt).
     """
+
     ALWAYS_ASK = "always-ask"
     WRITE = "write"
     YOLO = "yolo"
@@ -25,6 +26,7 @@ class ApprovalTier(str, Enum):
     - WRITE: File-mutating operations (create, edit, delete).
     - EXEC: Shell command execution.
     """
+
     READ = "read"
     WRITE = "write"
     EXEC = "exec"
@@ -61,8 +63,13 @@ class ApprovalCheck:
 
     __slots__ = ("needs_approval", "reason", "tool_name", "tier")
 
-    def __init__(self, needs_approval: bool, reason: str,
-                 tool_name: str = "", tier: Optional[ApprovalTier] = None):
+    def __init__(
+        self,
+        needs_approval: bool,
+        reason: str,
+        tool_name: str = "",
+        tier: Optional[ApprovalTier] = None,
+    ):
         self.needs_approval = needs_approval
         self.reason = reason
         self.tool_name = tool_name
@@ -136,7 +143,10 @@ class ApprovalPolicy:
         override = self.tool_overrides.get(tool_name)
         if override == "allow":
             return ApprovalCheck(
-                needs_approval=False, reason="", tool_name=tool_name, tier=tier,
+                needs_approval=False,
+                reason="",
+                tool_name=tool_name,
+                tier=tier,
             )
         if override == "deny":
             return ApprovalCheck(
@@ -156,13 +166,19 @@ class ApprovalPolicy:
         # 3. Bookkeeping tools never interrupt the user.
         if tier == ApprovalTier.NONE:
             return ApprovalCheck(
-                needs_approval=False, reason="", tool_name=tool_name, tier=tier,
+                needs_approval=False,
+                reason="",
+                tool_name=tool_name,
+                tier=tier,
             )
 
         # 4. Mode-based decision.
         if self.mode == ApprovalMode.YOLO:
             return ApprovalCheck(
-                needs_approval=False, reason="", tool_name=tool_name, tier=tier,
+                needs_approval=False,
+                reason="",
+                tool_name=tool_name,
+                tier=tier,
             )
 
         if self.mode == ApprovalMode.WRITE:
@@ -175,7 +191,10 @@ class ApprovalPolicy:
                     tier=tier,
                 )
             return ApprovalCheck(
-                needs_approval=False, reason="", tool_name=tool_name, tier=tier,
+                needs_approval=False,
+                reason="",
+                tool_name=tool_name,
+                tier=tier,
             )
 
         # ALWAYS_ASK: everything needs approval.
@@ -199,6 +218,8 @@ class ApprovalPolicy:
             policy: One of "allow", "deny", "prompt".
         """
         if policy not in ("allow", "deny", "prompt"):
-            raise ValueError(f"Invalid override policy: {policy!r}. Use allow/deny/prompt.")
+            raise ValueError(
+                f"Invalid override policy: {policy!r}. Use allow/deny/prompt."
+            )
         self.tool_overrides[tool_name] = policy
         logger.info(f"Tool override: {tool_name}={policy}")

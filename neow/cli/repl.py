@@ -41,46 +41,48 @@ from neow.models.factory import describe_models
 def _now_ts() -> str:
     """Return current local time as ``HH:MM:SS`` for panel subtitles."""
     from datetime import datetime
+
     return datetime.now().strftime("%H:%M:%S")
 
 
 # ── built-in command descriptions for tab completion ──────────────────────
 
 _BUILTIN_COMMANDS: dict[str, str] = {
-    "/help":      "Show help message",
-    "/clear":     "Clear conversation history",
-    "/exit":      "Exit Neow",
-    "/model":     "Switch or show AI model",
-    "/effort":    "Show or set thinking strength (off/low/medium/high)",
-    "/diff":      "Show uncommitted git changes",
-    "/commit":    "Commit changes with AI-generated message",
-    "/undo":      "Undo last AI commit",
-    "/add":       "Add file to context",
-    "/drop":      "Remove file from context",
-    "/ls":        "List context files",
-    "/lint":      "Run linter / toggle auto-lint",
-    "/test":      "Run tests / toggle auto-test",
+    "/help": "Show help message",
+    "/clear": "Clear conversation history",
+    "/exit": "Exit Neow",
+    "/model": "Switch or show AI model",
+    "/effort": "Show or set thinking strength (off/low/medium/high)",
+    "/diff": "Show uncommitted git changes",
+    "/commit": "Commit changes with AI-generated message",
+    "/undo": "Undo last AI commit",
+    "/add": "Add file to context",
+    "/drop": "Remove file from context",
+    "/ls": "List context files",
+    "/lint": "Run linter / toggle auto-lint",
+    "/test": "Run tests / toggle auto-test",
     "/architect": "Enter architect mode (plan first, then execute)",
-    "/code":      "Return to normal coding mode",
-    "/save":      "Save current session",
-    "/load":      "Load a saved session",
-    "/history":   "List saved sessions",
-    "/cost":      "Show token usage and cost",
-    "/web":       "Fetch web page content into context",
-    "/think":     "View last AI thinking/reasoning content",
-    "/compact":   "Summarize conversation to free context window",
-    "/export":    "Export conversation as Markdown file",
-    "/image":     "Queue an image for the next message (vision)",
-    "/imgdiff":   "Diff two screenshots and queue the highlighted result",
-    "/approval":  "Show or set approval mode (always-ask/write/yolo)",
-    "/tree":      "Visualize session tree and navigate to history nodes",
-    "/branch":    "Branch from a specific message in history",
-    "/verbose":   "Toggle expanded tool-call parameter display",
-    "/memory":    "Show memory files (AGENTS.md/NEOW.md); /memory add <text>",
-    "/init":      "Generate AGENTS.md for this repository",
-    "/mcp":       "MCP servers and tools; /mcp reconnect <name>",
-    "/rewind":    "Undo file changes / conversation back to a turn",
+    "/code": "Return to normal coding mode",
+    "/save": "Save current session",
+    "/load": "Load a saved session",
+    "/history": "List saved sessions",
+    "/cost": "Show token usage and cost",
+    "/web": "Fetch web page content into context",
+    "/think": "View last AI thinking/reasoning content",
+    "/compact": "Summarize conversation to free context window",
+    "/export": "Export conversation as Markdown file",
+    "/image": "Queue an image for the next message (vision)",
+    "/imgdiff": "Diff two screenshots and queue the highlighted result",
+    "/approval": "Show or set approval mode (always-ask/write/yolo)",
+    "/tree": "Visualize session tree and navigate to history nodes",
+    "/branch": "Branch from a specific message in history",
+    "/verbose": "Toggle expanded tool-call parameter display",
+    "/memory": "Show memory files (AGENTS.md/NEOW.md); /memory add <text>",
+    "/init": "Generate AGENTS.md for this repository",
+    "/mcp": "MCP servers and tools; /mcp reconnect <name>",
+    "/rewind": "Undo file changes / conversation back to a turn",
 }
+
 
 def _expand_path(prefix: str) -> Path:
     """Expand a user-typed path prefix (handles ~ and relative paths)."""
@@ -177,7 +179,7 @@ class NeowCompleter(Completer):
         text_before = document.text_before_cursor
         # Find the current "word" (from last whitespace to cursor)
         last_space = text_before.rfind(" ")
-        current_word = text_before[last_space + 1:]
+        current_word = text_before[last_space + 1 :]
 
         if current_word.startswith("/"):
             yield from self._complete_command(current_word)
@@ -199,7 +201,7 @@ def _format_toolbar_text(
 class REPL:
     """Interactive REPL for Neow CLI."""
 
-    URL_PATTERN = re.compile(r'https?://[^\s]+')
+    URL_PATTERN = re.compile(r"https?://[^\s]+")
 
     def __init__(
         self,
@@ -263,7 +265,9 @@ class REPL:
             logger.warning(f"Failed to setup prompt-toolkit: {e}")
             self.session = None
 
-    def prompt_user_approval(self, tool_name: str, parameters: dict, reason: str) -> bool:
+    def prompt_user_approval(
+        self, tool_name: str, parameters: dict, reason: str
+    ) -> bool:
         """Prompt the user to approve a tool execution.
 
         Uses a single-keystroke prompt: Y to allow, N to deny,
@@ -271,6 +275,7 @@ class REPL:
         prompt_toolkit is unavailable.
         """
         from neow.utils.formatter import print_approval_request
+
         # Stop streaming spinner while waiting for user input
         spinner_was_running = False
         if self._stream_status is not None:
@@ -318,6 +323,7 @@ class REPL:
         try:
             if sys.platform == "win32":
                 import msvcrt
+
                 while True:
                     ch = msvcrt.getwch()
                     if ch in ("y", "Y"):
@@ -331,6 +337,7 @@ class REPL:
                         return False
             else:
                 import tty, termios
+
                 fd = sys.stdin.fileno()
                 old = termios.tcgetattr(fd)
                 try:
@@ -382,14 +389,16 @@ class REPL:
             sel = state["selected"]
             allow_style = "reverse" if sel == 0 else ""
             deny_style = "reverse" if sel == 1 else ""
-            return FormattedText([
-                ("", "  "),
-                (allow_style, " [Y] 允许 "),
-                ("", "   "),
-                (deny_style, " [N] 拒绝 "),
-                ("", "\n\n"),
-                ("", "  ↑/↓/←/→ 切换 · Enter 确认 · Esc 拒绝"),
-            ])
+            return FormattedText(
+                [
+                    ("", "  "),
+                    (allow_style, " [Y] 允许 "),
+                    ("", "   "),
+                    (deny_style, " [N] 拒绝 "),
+                    ("", "\n\n"),
+                    ("", "  ↑/↓/←/→ 切换 · Enter 确认 · Esc 拒绝"),
+                ]
+            )
 
         control = FormattedTextControl(text=_options_fragment)
         body = HSplit([Window(content=control, height=3)])
@@ -632,7 +641,8 @@ class REPL:
                 print_error("Configuration name already exists")
                 return
             provider = click.prompt(
-                "API protocol", type=click.Choice(PROVIDERS),
+                "API protocol",
+                type=click.Choice(PROVIDERS),
                 default="openai-compatible",
             )
             endpoint = click.prompt("API base URL", default="", show_default=False)
@@ -642,8 +652,10 @@ class REPL:
             ).strip()
             key = "" if env_name else click.prompt("API key", hide_input=True)
             entry = {
-                "provider": provider, "base_url": endpoint.strip(),
-                "model": model.strip(), "api_key_env": env_name.strip(),
+                "provider": provider,
+                "base_url": endpoint.strip(),
+                "model": model.strip(),
+                "api_key_env": env_name.strip(),
                 "api_key": key.strip(),
             }
             validate_model_entry(name, entry)
@@ -694,7 +706,9 @@ class REPL:
             return
         level = args.strip().lower()
         if level not in ("off",) + EFFORT_LEVELS:
-            print_error(f"Unknown effort: {level}. Use: off, {', '.join(EFFORT_LEVELS)}")
+            print_error(
+                f"Unknown effort: {level}. Use: off, {', '.join(EFFORT_LEVELS)}"
+            )
             return
         client.effort = None if level == "off" else level
         if name and self.config is not None:
@@ -756,7 +770,9 @@ class REPL:
                 print_info("Available models:")
                 for line in describe_models(self.config):
                     print_info(f"  {line}")
-                print_info("Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai")
+                print_info(
+                    "Aliases: sonnet->anthropic, claude->anthropic, deep->deepseek, gpt->openai"
+                )
                 print_info("Use /model add to configure a BYOK model")
         elif parsed.command == Command.EFFORT:
             self._handle_effort(parsed.args)
@@ -870,11 +886,19 @@ class REPL:
                 # Also save as JSONL
                 try:
                     tree_mgr = self.session_manager.session_tree
-                    tree_mgr.create(name, getattr(self.conversation.model_client, "model", "unknown"))
+                    tree_mgr.create(
+                        name,
+                        getattr(self.conversation.model_client, "model", "unknown"),
+                    )
                     for msg in self.conversation.messages:
                         meta_keys = {"tool_call_id", "tool_calls", "type", "name"}
                         meta = {k: msg[k] for k in meta_keys if k in msg}
-                        tree_mgr.append(name, msg.get("role", "user"), msg.get("content", ""), metadata=meta if meta else None)
+                        tree_mgr.append(
+                            name,
+                            msg.get("role", "user"),
+                            msg.get("content", ""),
+                            metadata=meta if meta else None,
+                        )
                 except Exception as e:
                     logger.warning(f"JSONL save failed: {e}")
                 print_info(f"Session saved: {name}")
@@ -889,7 +913,9 @@ class REPL:
                     jsonl_path = tree_mgr.find_session(parsed.args)
                     if jsonl_path:
                         self.conversation.messages.clear()
-                        self.conversation.messages.extend(tree_mgr.get_messages(parsed.args))
+                        self.conversation.messages.extend(
+                            tree_mgr.get_messages(parsed.args)
+                        )
                         self._session_name = parsed.args
                         loaded = True
                         print_info(f"Session loaded (JSONL): {parsed.args}")
@@ -909,7 +935,9 @@ class REPL:
                 if sessions:
                     print_info("Sessions:")
                     for s in sessions:
-                        print_info(f"  {s['name']} ({s['message_count']} msgs, {s['model']}, {s['created_at'][:16]})")
+                        print_info(
+                            f"  {s['name']} ({s['message_count']} msgs, {s['model']}, {s['created_at'][:16]})"
+                        )
                 else:
                     print_info("No saved sessions")
             else:
@@ -934,15 +962,20 @@ class REPL:
         elif parsed.command == Command.THINK:
             if self._last_reasoning:
                 from neow.utils.formatter import format_reasoning_expanded
+
                 console.print(format_reasoning_expanded(self._last_reasoning))
             else:
-                print_info("No thinking content available. Reasoning is captured during AI responses that use thinking mode.")
+                print_info(
+                    "No thinking content available. Reasoning is captured during AI responses that use thinking mode."
+                )
         elif parsed.command == Command.COMPACT:
             if parsed.args and parsed.args.strip().startswith("--keep-tokens"):
                 try:
                     parts = parsed.args.strip().split()
                     keep = int(parts[1]) if len(parts) > 1 else 4000
-                    result = self.conversation.compact_incremental(keep_recent_tokens=keep)
+                    result = self.conversation.compact_incremental(
+                        keep_recent_tokens=keep
+                    )
                 except (ValueError, IndexError):
                     result = self.conversation.compact_incremental()
             elif parsed.args and "incremental" in parsed.args.lower():
@@ -951,7 +984,9 @@ class REPL:
                 handoff = self.conversation.compact_with_handoff()
                 if handoff:
                     # Inject the handoff as context for the new session
-                    self.conversation.add_message("user", "[Session handoff from previous conversation]")
+                    self.conversation.add_message(
+                        "user", "[Session handoff from previous conversation]"
+                    )
                     self.conversation.add_message("assistant", handoff)
                 result = f"Handoff complete: {len(handoff)} char summary injected"
             else:
@@ -960,7 +995,9 @@ class REPL:
         elif parsed.command == Command.EXPORT:
             if self.session_manager:
                 export_name = parsed.args.strip() if parsed.args else None
-                path = self.session_manager.export_markdown(self.conversation, export_name)
+                path = self.session_manager.export_markdown(
+                    self.conversation, export_name
+                )
                 print_info(f"Exported to: {path}")
             else:
                 print_error("Session manager not available")
@@ -983,11 +1020,15 @@ class REPL:
                 from neow.tools.imgdiff import ImageDiffError, diff_images
 
                 before_path, after_path = parts
-                out_path = str(Path.home() / ".neow" / "imgdiff" / f"{int(time.time())}.png")
+                out_path = str(
+                    Path.home() / ".neow" / "imgdiff" / f"{int(time.time())}.png"
+                )
                 try:
                     result = diff_images(before_path, after_path, out_path)
                     status = "differs" if result.changed else "no visual difference"
-                    print_info(f"Diff ({status}, {result.size[0]}x{result.size[1]}): {result.out_path}")
+                    print_info(
+                        f"Diff ({status}, {result.size[0]}x{result.size[1]}): {result.out_path}"
+                    )
                     print_inline_image(result.out_path)
                     self.conversation.queue_image(result.out_path)
                 except ImageDiffError as e:
@@ -998,6 +1039,7 @@ class REPL:
             elif not parsed.args:
                 # Show current mode
                 from neow.core.approval import ApprovalMode
+
                 mode = self.approval_policy.mode
                 print_info(f"Approval mode: {mode.value}")
                 print_info("Available: always-ask | write | yolo")
@@ -1005,6 +1047,7 @@ class REPL:
                     print_info(f"Overrides: {self.approval_policy.tool_overrides}")
             else:
                 from neow.core.approval import ApprovalMode
+
                 arg = parsed.args.strip().lower()
                 mode_map = {
                     "always-ask": ApprovalMode.ALWAYS_ASK,
@@ -1028,7 +1071,11 @@ class REPL:
             self._handle_branch(parsed)
         elif parsed.command == Command.VERBOSE:
             self.verbose_tools = not self.verbose_tools
-            state = "expanded (all parameters shown)" if self.verbose_tools else "collapsed (one-line summary)"
+            state = (
+                "expanded (all parameters shown)"
+                if self.verbose_tools
+                else "collapsed (one-line summary)"
+            )
             print_info(f"Tool call display: {state}")
         elif parsed.command == Command.MEMORY:
             from neow.core.memory import add_memory_note, load_memory
@@ -1069,7 +1116,10 @@ class REPL:
             print_info("正在分析仓库并生成 AGENTS.md…")
             self._process_input(INIT_PROMPT)
         if parsed.command is None and parsed.raw_command:
-            if self.plugin_api and parsed.raw_command in self.plugin_api.plugin_commands:
+            if (
+                self.plugin_api
+                and parsed.raw_command in self.plugin_api.plugin_commands
+            ):
                 self.plugin_api.plugin_commands[parsed.raw_command](parsed.args)
             else:
                 print_error(f"Unknown command: {parsed.raw_command}")
@@ -1079,6 +1129,7 @@ class REPL:
     def _get_session_tree_mgr(self):
         """Get a SessionTree instance for the current sessions dir."""
         from neow.core.session_tree import SessionTree
+
         if self.session_manager:
             return self.session_manager.session_tree
         return SessionTree(Path.home() / ".neow" / "sessions")
@@ -1118,14 +1169,18 @@ class REPL:
                 if not tree:
                     print_info("Empty session tree")
                     return
-                print_info(f"Session: {session_name}  (leaf: {leaf_id[:8] if leaf_id else 'none'})")
+                print_info(
+                    f"Session: {session_name}  (leaf: {leaf_id[:8] if leaf_id else 'none'})"
+                )
                 roots = [nid for nid, n in tree.items() if n["parentId"] is None]
                 for root_id in roots:
                     self._print_tree_node(tree, root_id, leaf_id, indent=0)
             except FileNotFoundError:
                 print_error(f"Session not found: {session_name}")
 
-    def _print_tree_node(self, tree: dict, node_id: str, leaf_id: Optional[str], indent: int) -> None:
+    def _print_tree_node(
+        self, tree: dict, node_id: str, leaf_id: Optional[str], indent: int
+    ) -> None:
         """Recursively print a tree node."""
         node = tree.get(node_id)
         if not node:
@@ -1225,6 +1280,7 @@ class REPL:
             ):
                 # Idle maintenance: compact proactively if usage is moderate
                 import time
+
                 idle_secs = time.monotonic() - self._last_activity_time
                 if idle_secs > 30 and len(self.conversation.messages) > 8:
                     print_info("Idle maintenance: compacting conversation...")
@@ -1250,6 +1306,7 @@ class REPL:
             )
             return
         import time
+
         self._last_activity_time = time.monotonic()
         self._idle_compact_done = False
         # Also covers turns started without the prompt (auto lint/test fixes).
@@ -1268,7 +1325,9 @@ class REPL:
                         logger.warning(f"Auto-fetch failed for {url}: {e}")
 
         if self.event_bus:
-            self.event_bus.emit("pre_prompt", prompt=user_input, conversation=self.conversation)
+            self.event_bus.emit(
+                "pre_prompt", prompt=user_input, conversation=self.conversation
+            )
 
         # Token hard limit check
         if self.token_tracker and self.token_tracker.check_max_tokens():
@@ -1433,9 +1492,7 @@ class REPL:
                             if all_reasoning:
                                 full_reasoning = "".join(all_reasoning)
                                 self._last_reasoning = full_reasoning
-                                console.print(
-                                    format_reasoning_dropdown(full_reasoning)
-                                )
+                                console.print(format_reasoning_dropdown(full_reasoning))
                                 all_reasoning.clear()
                             content_buffer = ""
                             live = Live(
@@ -1487,9 +1544,7 @@ class REPL:
         from neow.cli.main import create_model_client
 
         try:
-            planner = create_model_client(
-                self.config, self.config.architect["planner"]
-            )
+            planner = create_model_client(self.config, self.config.architect["planner"])
             orch = ArchitectOrchestrator(planner, memory=self.conversation.memory)
             with console.status("Planning..."):
                 todos, text = orch.plan(user_input)

@@ -119,7 +119,7 @@ def test_grep_uses_ripgrep_when_available(repo, monkeypatch):
     out = grep("def main", output_mode="content", context=1, glob="*.py")
     assert out.splitlines() == ["src/app.py-2-", "src/app.py:3:def main():"]
     cmd = calls[0]
-    assert "--json" in cmd and ["--glob", "*.py"] == cmd[cmd.index("*.py") - 1:][:2]
+    assert "--json" in cmd and ["--glob", "*.py"] == cmd[cmd.index("*.py") - 1 :][:2]
     assert cmd[-1] == "." and "--context" in cmd
     assert "!node_modules" not in cmd  # inside git, .gitignore decides
 

@@ -89,9 +89,7 @@ def discover_memory_files(cwd: Path, home: Optional[Path] = None) -> List[Path]:
     return found
 
 
-def _expand(
-    path: Path, depth: int, seen: Set[Path], warnings: List[str]
-) -> str:
+def _expand(path: Path, depth: int, seen: Set[Path], warnings: List[str]) -> str:
     """File text with ``@imports`` inlined (bounded depth, no cycles)."""
     resolved = path.resolve()
     if resolved in seen:

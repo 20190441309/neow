@@ -176,47 +176,100 @@ def setup_tools(executor: ToolExecutor) -> None:
 
 @click.command(context_settings={"ignore_unknown_options": True})
 @click.argument("prompt", required=False, default=None)
-@click.option("--file", "-f", multiple=True, type=click.Path(exists=True),
-              help="Files to add to context")
-@click.option("--message-file", type=click.Path(exists=True),
-              help="Read prompt from file")
+@click.option(
+    "--file",
+    "-f",
+    multiple=True,
+    type=click.Path(exists=True),
+    help="Files to add to context",
+)
+@click.option(
+    "--message-file", type=click.Path(exists=True), help="Read prompt from file"
+)
 @click.option("--config", "-c", type=click.Path(exists=True), help="Config file path")
 @click.option("--model", "-m", type=str, help="AI model to use")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.option("--plain", is_flag=True, help="Use the classic line REPL")
 @click.option("--tui", is_flag=True, help="Force the full-screen TUI")
-@click.option("--print", "-p", "print_prompt", type=str, default=None,
-              help="Run PROMPT headless and print the result (scripts, CI)")
-@click.option("--output-format", type=click.Choice(["text", "json", "stream-json"]),
-              default=None, help="Headless output format (implies --print mode)")
-@click.option("--allowed-tools", type=str, default=None,
-              help="Only these tools (comma/space separated, * wildcards)")
-@click.option("--disallowed-tools", type=str, default=None,
-              help="Remove these tools (comma/space separated, * wildcards)")
-@click.option("--max-turns", type=click.IntRange(min=1), default=None,
-              help="Maximum model requests per turn")
-@click.option("--approval", type=click.Choice(["always-ask", "write", "yolo"]),
-              default=None, help="Approval mode for this run")
-@click.option("--approval-interactive", is_flag=True,
-              help="Headless + --output-format stream-json only: instead of "
-                   "refusing tools that need approval, emit an "
-                   "approval_request line and block for a decision on stdin "
-                   "(for editor/IDE integrations, task 21)")
-def main(prompt, file, message_file, config, model, verbose, plain, tui,
-         print_prompt, output_format, allowed_tools, disallowed_tools, max_turns,
-         approval, approval_interactive):
+@click.option(
+    "--print",
+    "-p",
+    "print_prompt",
+    type=str,
+    default=None,
+    help="Run PROMPT headless and print the result (scripts, CI)",
+)
+@click.option(
+    "--output-format",
+    type=click.Choice(["text", "json", "stream-json"]),
+    default=None,
+    help="Headless output format (implies --print mode)",
+)
+@click.option(
+    "--allowed-tools",
+    type=str,
+    default=None,
+    help="Only these tools (comma/space separated, * wildcards)",
+)
+@click.option(
+    "--disallowed-tools",
+    type=str,
+    default=None,
+    help="Remove these tools (comma/space separated, * wildcards)",
+)
+@click.option(
+    "--max-turns",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Maximum model requests per turn",
+)
+@click.option(
+    "--approval",
+    type=click.Choice(["always-ask", "write", "yolo"]),
+    default=None,
+    help="Approval mode for this run",
+)
+@click.option(
+    "--approval-interactive",
+    is_flag=True,
+    help="Headless + --output-format stream-json only: instead of "
+    "refusing tools that need approval, emit an "
+    "approval_request line and block for a decision on stdin "
+    "(for editor/IDE integrations, task 21)",
+)
+def main(
+    prompt,
+    file,
+    message_file,
+    config,
+    model,
+    verbose,
+    plain,
+    tui,
+    print_prompt,
+    output_format,
+    allowed_tools,
+    disallowed_tools,
+    max_turns,
+    approval,
+    approval_interactive,
+):
     """Neow - A lightweight, general-purpose AI CLI assistant."""
     headless = print_prompt is not None or output_format is not None
     if approval_interactive and output_format != "stream-json":
-        raise click.UsageError("--approval-interactive needs --output-format stream-json")
+        raise click.UsageError(
+            "--approval-interactive needs --output-format stream-json"
+        )
     if print_prompt is not None:
         if prompt:
             raise click.UsageError("give the prompt either as -p or as an argument")
         prompt = print_prompt
     if headless:
         if not (prompt or message_file or not sys.stdin.isatty()):
-            raise click.UsageError("headless mode needs a prompt (-p, argument, "
-                                   "--message-file or stdin)")
+            raise click.UsageError(
+                "headless mode needs a prompt (-p, argument, "
+                "--message-file or stdin)"
+            )
         # stdout carries only the result; notices and warnings go to stderr.
         console.file = sys.stderr
     # Detect pipe input (skipped under --approval-interactive: stdin there is
@@ -259,7 +312,8 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
 
         # Interactive users can configure BYOK before making any model request.
         interactive = (
-            stdin_is_tty and sys.stdout.isatty()
+            stdin_is_tty
+            and sys.stdout.isatty()
             and not (headless or prompt or message_file)
         )
         model_setup_notice = None
@@ -302,6 +356,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
         )
         # Wire approval policy
         from neow.core.approval import ApprovalMode, ApprovalPolicy
+
         approval_cfg = cfg.approval
         approval_policy = ApprovalPolicy(
             mode=ApprovalMode(approval_cfg.get("mode", "write")),
@@ -311,10 +366,11 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
             approval_policy.set_mode(ApprovalMode(approval))
         executor.approval_policy = approval_policy
 
-
         # Setup conversation manager (must be created before on_file_change callback)
         token_tracker = TokenTracker(cfg)
-        conversation = ConversationManager(model_client, executor, token_tracker=token_tracker)
+        conversation = ConversationManager(
+            model_client, executor, token_tracker=token_tracker
+        )
         conversation.model_setup_notice = model_setup_notice
         conversation.max_turns = max_turns or cfg.agent["max_turns"]
         conversation.max_tool_output_chars = cfg.agent["max_tool_output_chars"]
@@ -331,6 +387,7 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
 
         # Wire git auto-commit callback
         if cfg.git.get("auto_commit", True):
+
             def _on_file_change(tool_name: str, file_path: str):
                 event_bus.emit("file_changed", tool_name=tool_name, file_path=file_path)
                 try:
@@ -341,15 +398,15 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
                 # Auto-lint
                 if cfg.lint_test.get("auto_lint"):
                     from neow.tools.lint_test import run_lint
+
                     lint_result = run_lint(Path.cwd())
                     if not lint_result.success:
-                        conversation.pending_lint_feedback = (
-                            f"Lint errors after editing {file_path}:\n{lint_result.output}"
-                        )
+                        conversation.pending_lint_feedback = f"Lint errors after editing {file_path}:\n{lint_result.output}"
 
                 # Auto-test
                 if cfg.lint_test.get("auto_test"):
                     from neow.tools.lint_test import run_tests
+
                     test_result = run_tests(Path.cwd())
                     if not test_result.success:
                         existing = conversation.pending_lint_feedback or ""
@@ -358,7 +415,6 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
                         ).strip()
 
             executor.on_file_change = _on_file_change
-
 
         # Set system prompt; tools come from the registry on every request so
         # plugin (and later MCP) tools are visible to the model.
@@ -400,7 +456,11 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
             )
 
         if headless:
-            from neow.cli.headless import make_interactive_approval, refuse_approval, run_headless
+            from neow.cli.headless import (
+                make_interactive_approval,
+                refuse_approval,
+                run_headless,
+            )
 
             if not prompt:
                 print_error("headless mode needs a prompt (stdin was empty)")
@@ -446,16 +506,20 @@ def main(prompt, file, message_file, config, model, verbose, plain, tui,
                     executor=executor,
                 )
                 return
-            print_warning(
-                "Textual is not installed; falling back to the classic REPL"
-            )
+            print_warning("Textual is not installed; falling back to the classic REPL")
 
         # Start REPL
         streaming_enabled = cfg.streaming.get("enabled", True)
 
-        repl = REPL(conversation, config=cfg, streaming=streaming_enabled,
-                    token_tracker=token_tracker, session_manager=session_manager,
-                    plugin_api=plugin_api, event_bus=event_bus)
+        repl = REPL(
+            conversation,
+            config=cfg,
+            streaming=streaming_enabled,
+            token_tracker=token_tracker,
+            session_manager=session_manager,
+            plugin_api=plugin_api,
+            event_bus=event_bus,
+        )
         repl.approval_policy = approval_policy
         executor.approval_callback = repl.prompt_user_approval
         repl.start()

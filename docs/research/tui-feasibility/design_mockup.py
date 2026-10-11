@@ -80,23 +80,29 @@ class ApprovalModal(ModalScreen):
             Vertical(
                 Static(
                     Text.assemble(
-                        ("⚠  ", "#facc15"), ("审批请求", "#facc15 bold"),
+                        ("⚠  ", "#facc15"),
+                        ("审批请求", "#facc15 bold"),
                         ("   execute_command · tier: exec", "#64748b"),
                     ),
                     classes="modal-title",
                 ),
                 Static(
                     Text.assemble(
-                        ("$ ", "#64748b"), ("npm test", "#e5e7eb bold"), ("\n\n", ""),
+                        ("$ ", "#64748b"),
+                        ("npm test", "#e5e7eb bold"),
+                        ("\n\n", ""),
                         ("原因：", "#94a3b8"),
                         ("exec 级操作需要确认（危险命令检测：无）", "#71717a"),
                     )
                 ),
                 Static(
                     Text.assemble(
-                        ("[y]", "#34d399 bold"), (" 允许一次    ", "#94a3b8"),
-                        ("[a]", "#22d3ee bold"), (" 本会话总是允许    ", "#94a3b8"),
-                        ("[n/Esc]", "#f87171 bold"), (" 拒绝", "#94a3b8"),
+                        ("[y]", "#34d399 bold"),
+                        (" 允许一次    ", "#94a3b8"),
+                        ("[a]", "#22d3ee bold"),
+                        (" 本会话总是允许    ", "#94a3b8"),
+                        ("[n/Esc]", "#f87171 bold"),
+                        (" 拒绝", "#94a3b8"),
                     ),
                     classes="modal-hint",
                 ),
@@ -161,11 +167,16 @@ class MockChat(App):
     def compose(self) -> ComposeResult:
         yield Static(
             Text.assemble(
-                ("◆ ", "#22d3ee"), ("NEOW", "#e5e7eb bold"),
-                ("   ", ""), ("deepseek-v4-flash", "#a78bfa"),
-                ("  ·  ", "#334155"), ("⎇ main", "#94a3b8"),
-                ("  ·  ", "#334155"), ("⛨ approval: write", "#facc15"),
-                ("  ·  ", "#334155"), ("~/dev/neow", "#64748b"),
+                ("◆ ", "#22d3ee"),
+                ("NEOW", "#e5e7eb bold"),
+                ("   ", ""),
+                ("deepseek-v4-flash", "#a78bfa"),
+                ("  ·  ", "#334155"),
+                ("⎇ main", "#94a3b8"),
+                ("  ·  ", "#334155"),
+                ("⛨ approval: write", "#facc15"),
+                ("  ·  ", "#334155"),
+                ("~/dev/neow", "#64748b"),
             ),
             id="topbar",
         )
@@ -174,11 +185,16 @@ class MockChat(App):
                 # user
                 with Vertical(classes="card user"):
                     yield card_title("❯", "You", "#1 · 12:04")
-                    yield Static("帮我修复 grep_code 已定义但没有注册成工具的问题", classes="card-body")
+                    yield Static(
+                        "帮我修复 grep_code 已定义但没有注册成工具的问题",
+                        classes="card-body",
+                    )
                 # thinking (scrambling)
                 with Vertical(classes="card thinking"):
                     yield card_title("✻", "Thinking", "2.4s · reasoning", "thinking")
-                    yield ScrambleLine("让我确认 tool definitions 的流向，从 prompts.py ", 36)
+                    yield ScrambleLine(
+                        "让我确认 tool definitions 的流向，从 prompts.py ", 36
+                    )
                 # assistant with markdown + diff
                 with Vertical(classes="card assistant"):
                     yield card_title("●", "Assistant", "#2 · 12:04")
@@ -198,18 +214,34 @@ class MockChat(App):
                 # tool card running
                 with Vertical(classes="card tool"):
                     yield Collapsible(
-                        Static(Text("⠹ npm test 运行中…  (12s)", style="#facc15"), classes="card-body"),
+                        Static(
+                            Text("⠹ npm test 运行中…  (12s)", style="#facc15"),
+                            classes="card-body",
+                        ),
                         title="⟳ execute_command   npm test",
                         collapsed=False,
                     )
                 # error card
                 with Vertical(classes="card error"):
                     yield card_title("✗", "Test Failure", "2 failed · 43 passed")
-                    yield Static(Text("tests/test_formatter.py::test_narrow_wrap\nAssertionError: 92 != 88", style="#fca5a5"), classes="card-body")
+                    yield Static(
+                        Text(
+                            "tests/test_formatter.py::test_narrow_wrap\nAssertionError: 92 != 88",
+                            style="#fca5a5",
+                        ),
+                        classes="card-body",
+                    )
                 # compaction
                 with Vertical(classes="card compact"):
-                    yield card_title("◈", "Context Compacted", "18 messages → summary · -12.4k tokens")
-                    yield Static(Text("旧对话已摘要保存，可在 /tree 中回看。", style="#7dd3fc"), classes="card-body")
+                    yield card_title(
+                        "◈",
+                        "Context Compacted",
+                        "18 messages → summary · -12.4k tokens",
+                    )
+                    yield Static(
+                        Text("旧对话已摘要保存，可在 /tree 中回看。", style="#7dd3fc"),
+                        classes="card-body",
+                    )
             with Vertical(id="sidebar"):
                 yield Static("CONTEXT · 3 files", classes="sect")
                 yield Static(
@@ -221,9 +253,12 @@ class MockChat(App):
                 yield Static("SESSION TREE", classes="sect")
                 yield Static(
                     Text.assemble(
-                        ("● ", "#22d3ee"), ("fix grep_code registration\n", "#cbd5e1"),
-                        ("├─ ", "#475569"), ("you: 帮我修复…\n", "#64748b"),
-                        ("└─ ", "#475569"), ("you: 再加个测试\n", "#64748b"),
+                        ("● ", "#22d3ee"),
+                        ("fix grep_code registration\n", "#cbd5e1"),
+                        ("├─ ", "#475569"),
+                        ("you: 帮我修复…\n", "#64748b"),
+                        ("└─ ", "#475569"),
+                        ("you: 再加个测试\n", "#64748b"),
                     )
                 )
                 yield Static("\nGIT", classes="sect")
@@ -236,19 +271,27 @@ class MockChat(App):
                 )
         with Vertical(id="inputdock"):
             yield Static(
-                Text.assemble(("❯ ", "#22d3ee"), ("输入消息…", "#475569"), ("▊", "#a78bfa")),
+                Text.assemble(
+                    ("❯ ", "#22d3ee"), ("输入消息…", "#475569"), ("▊", "#a78bfa")
+                ),
             )
             yield Static(
                 Text.assemble(
-                    ("  Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断", "#475569"),
+                    (
+                        "  Enter 发送 · Ctrl+J 换行 · @ 文件 · / 命令 · Esc 中断",
+                        "#475569",
+                    ),
                 )
             )
         yield Static(
             Text.assemble(
                 ("▲ 1.2k  ▼ 3.4k tokens", "#94a3b8"),
-                ("   ·   ", "#334155"), ("$0.0042", "#34d399"),
-                ("   ·   ", "#334155"), ("ctx 12%", "#94a3b8"),
-                ("   ·   ", "#334155"), ("⏱ 3m12s", "#94a3b8"),
+                ("   ·   ", "#334155"),
+                ("$0.0042", "#34d399"),
+                ("   ·   ", "#334155"),
+                ("ctx 12%", "#94a3b8"),
+                ("   ·   ", "#334155"),
+                ("⏱ 3m12s", "#94a3b8"),
                 ("        Ctrl+P 命令面板 · Tab 侧栏 · Ctrl+Q 退出", "#475569"),
             ),
             id="statusbar",

@@ -28,9 +28,7 @@ class TokenTracker:
         # Usage outside the main conversation, e.g. "subagent" -> tokens/cost.
         self._source_usage: Dict[str, Dict[str, float]] = {}
 
-    def record(
-        self, usage: Dict[str, int], model: str, source: str = "main"
-    ) -> None:
+    def record(self, usage: Dict[str, int], model: str, source: str = "main") -> None:
         """Record token usage from a single API response.
 
         Args:

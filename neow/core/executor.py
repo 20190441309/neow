@@ -133,7 +133,9 @@ class ToolExecutor:
         self.security_guard: Optional[Any] = None
         self.allowed_commands: List[str] = []
         self.approval_policy: Optional[Any] = None  # ApprovalPolicy
-        self.approval_callback: Optional[Callable[[str, Dict[str, Any], str], bool]] = None
+        self.approval_callback: Optional[Callable[[str, Dict[str, Any], str], bool]] = (
+            None
+        )
         # Refuse edits to files the agent has not read, or that changed since.
         self.require_read_before_edit = True
         self._known_files: Dict[str, Optional[str]] = {}  # abs path -> hash
@@ -235,9 +237,14 @@ class ToolExecutor:
         if self.approval_policy:
             is_dangerous = False
             if self.security_guard and tool_name == "execute_command":
-                is_dangerous = self.security_guard.is_dangerous(parameters.get("command", ""))
+                is_dangerous = self.security_guard.is_dangerous(
+                    parameters.get("command", "")
+                )
             approval = self.approval_policy.check_approval(
-                tool_name, parameters, is_dangerous=is_dangerous, tier=spec.tier,
+                tool_name,
+                parameters,
+                is_dangerous=is_dangerous,
+                tier=spec.tier,
             )
             if approval.needs_approval:
                 if self.approval_callback:

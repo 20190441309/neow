@@ -125,9 +125,7 @@ def detect_test_command(project_root: Path) -> Optional[str]:
     return None
 
 
-def run_lint(
-    project_root: Path, lint_command: Optional[str] = None
-) -> LintResult:
+def run_lint(project_root: Path, lint_command: Optional[str] = None) -> LintResult:
     """Run linter on the project.
 
     Args:
@@ -176,9 +174,7 @@ def run_lint(
         )
 
 
-def run_tests(
-    project_root: Path, test_command: Optional[str] = None
-) -> TestResult:
+def run_tests(project_root: Path, test_command: Optional[str] = None) -> TestResult:
     """Run tests on the project.
 
     Args:

@@ -442,6 +442,7 @@ class TestContextInjection:
 
     def test_conversation_accepts_context_manager(self, tmp_path):
         from unittest.mock import MagicMock
+
         mock_client = MagicMock()
         mock_ctx = MagicMock()
         mock_ctx.get_project_structure.return_value = {"src": {}}
@@ -451,6 +452,7 @@ class TestContextInjection:
 
     def test_project_structure_injected_on_first_call(self, tmp_path):
         from unittest.mock import MagicMock
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "ok"
@@ -460,7 +462,10 @@ class TestContextInjection:
         mock_client.chat.return_value = mock_response
 
         mock_ctx = MagicMock()
-        mock_ctx.get_project_structure.return_value = {"src": {"main.py": None}, "README.md": None}
+        mock_ctx.get_project_structure.return_value = {
+            "src": {"main.py": None},
+            "README.md": None,
+        }
         mock_ctx.get_relevant_files.return_value = []
 
         manager = ConversationManager(mock_client, context_manager=mock_ctx)
@@ -469,11 +474,14 @@ class TestContextInjection:
 
         mock_ctx.get_project_structure.assert_called_once()
         call_args = mock_client.chat.call_args
-        prompt = call_args.kwargs.get("system_prompt") or call_args[1].get("system_prompt", "")
+        prompt = call_args.kwargs.get("system_prompt") or call_args[1].get(
+            "system_prompt", ""
+        )
         assert "Project Structure" in prompt or "src" in prompt
 
     def test_relevant_files_injected_per_query(self, tmp_path):
         from unittest.mock import MagicMock
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "ok"
@@ -496,6 +504,7 @@ class TestContextInjection:
 
     def test_no_context_manager_preserves_behavior(self):
         from unittest.mock import MagicMock
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "ok"
@@ -515,12 +524,14 @@ class TestFormatProjectContext:
 
     def test_format_structure_flat(self):
         from neow.core.prompts import _format_structure
+
         result = _format_structure({"README.md": None, "setup.py": None})
         assert "README.md" in result
         assert "setup.py" in result
 
     def test_format_structure_nested(self):
         from neow.core.prompts import _format_structure
+
         structure = {"src": {"main.py": None}, "tests": {"test_main.py": None}}
         result = _format_structure(structure)
         assert "src/" in result
@@ -530,6 +541,7 @@ class TestFormatProjectContext:
 
     def test_format_project_context_structure_only(self):
         from neow.core.prompts import format_project_context
+
         structure = {"src": {"main.py": None}}
         result = format_project_context(structure, [])
         assert "Project Structure" in result
@@ -537,6 +549,7 @@ class TestFormatProjectContext:
 
     def test_format_project_context_with_relevant_files(self):
         from neow.core.prompts import format_project_context
+
         relevant = [{"path": "main.py", "content": "def main(): pass"}]
         result = format_project_context({}, relevant)
         assert "Relevant Files" in result
@@ -545,6 +558,7 @@ class TestFormatProjectContext:
 
     def test_format_project_context_structure_and_files(self):
         from neow.core.prompts import format_project_context
+
         structure = {"src": {}}
         relevant = [{"path": "app.py", "content": "x = 1"}]
         result = format_project_context(structure, relevant)
@@ -667,6 +681,7 @@ class TestTokenTracker:
     def test_init(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
@@ -679,6 +694,7 @@ class TestTokenTracker:
     def test_record_usage(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
@@ -692,6 +708,7 @@ class TestTokenTracker:
     def test_record_accumulates(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
@@ -706,39 +723,48 @@ class TestTokenTracker:
     def test_calculate_cost(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
             "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
         }
         tracker = TokenTracker(mock_config)
-        tracker.record({"prompt_tokens": 1000000, "completion_tokens": 1000000}, "deepseek-chat")
+        tracker.record(
+            {"prompt_tokens": 1000000, "completion_tokens": 1000000}, "deepseek-chat"
+        )
         cost = tracker.get_session_cost()
         assert abs(cost - 0.42) < 0.01  # 0.14 + 0.28
 
     def test_format_usage_line(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
             "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
         }
         tracker = TokenTracker(mock_config)
-        line = tracker.format_usage_line({"prompt_tokens": 100, "completion_tokens": 50}, "deepseek-chat")
+        line = tracker.format_usage_line(
+            {"prompt_tokens": 100, "completion_tokens": 50}, "deepseek-chat"
+        )
         assert "100" in line
         assert "50" in line
 
     def test_get_session_summary(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
             "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
         }
         tracker = TokenTracker(mock_config)
-        tracker.record({"prompt_tokens": 1000, "completion_tokens": 500}, "deepseek-chat")
+        tracker.record(
+            {"prompt_tokens": 1000, "completion_tokens": 500}, "deepseek-chat"
+        )
         summary = tracker.get_session_summary()
         assert "1,000" in summary or "1000" in summary
         assert "500" in summary
@@ -746,6 +772,7 @@ class TestTokenTracker:
     def test_unknown_model_cost(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_config = MagicMock()
         mock_config.token = {
             "show_usage": True,
@@ -763,6 +790,7 @@ class TestConversationTokenTracking:
     def test_conversation_accepts_token_tracker(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_client = MagicMock()
         mock_config = MagicMock()
         mock_config.token = {"show_usage": True, "prices": {}}
@@ -773,16 +801,24 @@ class TestConversationTokenTracking:
     def test_token_tracker_records_usage(self):
         from unittest.mock import MagicMock
         from neow.core.token_tracker import TokenTracker
+
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "ok"
         mock_response.has_tool_calls = False
         mock_response.tool_calls = []
-        mock_response.usage = {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150}
+        mock_response.usage = {
+            "prompt_tokens": 100,
+            "completion_tokens": 50,
+            "total_tokens": 150,
+        }
         mock_client.chat.return_value = mock_response
 
         mock_config = MagicMock()
-        mock_config.token = {"show_usage": True, "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}}}
+        mock_config.token = {
+            "show_usage": True,
+            "prices": {"deepseek-chat": {"input": 0.14, "output": 0.28}},
+        }
         tracker = TokenTracker(mock_config)
         manager = ConversationManager(mock_client, token_tracker=tracker)
         manager.set_system_prompt("test")
@@ -797,6 +833,7 @@ class TestExecutorSecurity:
 
     def test_executor_blocks_non_whitelisted_command(self):
         from neow.core.security import SecurityGuard
+
         executor = ToolExecutor()
         executor.security_guard = SecurityGuard()
         executor.allowed_commands = ["ls", "cat"]
@@ -808,6 +845,7 @@ class TestExecutorSecurity:
 
     def test_executor_blocks_protected_file(self):
         from neow.core.security import SecurityGuard
+
         executor = ToolExecutor()
         executor.security_guard = SecurityGuard()
         executor.allowed_commands = []
@@ -819,6 +857,7 @@ class TestExecutorSecurity:
 
     def test_executor_allows_safe_operations(self):
         from neow.core.security import SecurityGuard
+
         executor = ToolExecutor()
         executor.security_guard = SecurityGuard()
         executor.allowed_commands = ["ls", "cat", "python"]
@@ -833,6 +872,7 @@ class TestWebCache:
 
     def test_web_cache_init(self):
         from unittest.mock import MagicMock
+
         manager = ConversationManager(MagicMock())
         assert hasattr(manager, "web_cache")
         assert manager.web_cache == {}
@@ -840,10 +880,13 @@ class TestWebCache:
     def test_add_web_content(self):
         from unittest.mock import MagicMock
         from neow.tools.web import WebContent
+
         manager = ConversationManager(MagicMock())
         content = WebContent(
-            url="https://example.com", title="Example",
-            text="Hello world", code_blocks=[("python", "print('hi')")],
+            url="https://example.com",
+            title="Example",
+            text="Hello world",
+            code_blocks=[("python", "print('hi')")],
             content_type="webpage",
         )
         manager.add_web_content("https://example.com", content)
@@ -853,11 +896,14 @@ class TestWebCache:
     def test_web_content_in_context_prompt(self):
         from unittest.mock import MagicMock
         from neow.tools.web import WebContent
+
         manager = ConversationManager(MagicMock())
         manager.set_system_prompt("You are Neow.")
         content = WebContent(
-            url="https://example.com", title="Example",
-            text="Hello world", code_blocks=[],
+            url="https://example.com",
+            title="Example",
+            text="Hello world",
+            code_blocks=[],
             content_type="webpage",
         )
         manager.add_web_content("https://example.com", content)
@@ -869,11 +915,14 @@ class TestWebCache:
     def test_web_content_with_code_blocks_in_prompt(self):
         from unittest.mock import MagicMock
         from neow.tools.web import WebContent
+
         manager = ConversationManager(MagicMock())
         manager.set_system_prompt("You are Neow.")
         content = WebContent(
-            url="https://example.com", title="Code",
-            text="See code", code_blocks=[("python", "x = 1")],
+            url="https://example.com",
+            title="Code",
+            text="See code",
+            code_blocks=[("python", "x = 1")],
             content_type="webpage",
         )
         manager.add_web_content("https://example.com", content)
@@ -881,6 +930,7 @@ class TestWebCache:
 
     def test_no_web_cache_empty_prompt(self):
         from unittest.mock import MagicMock
+
         manager = ConversationManager(MagicMock())
         manager.set_system_prompt("You are Neow.")
         prompt = manager._get_effective_system_prompt()
@@ -900,10 +950,12 @@ class TestCompactIncremental:
         )
         manager = ConversationManager(mock_client)
         for i in range(msg_count):
-            manager.messages.append({
-                "role": "user" if i % 2 == 0 else "assistant",
-                "content": "x" * msg_len + f" message {i}",
-            })
+            manager.messages.append(
+                {
+                    "role": "user" if i % 2 == 0 else "assistant",
+                    "content": "x" * msg_len + f" message {i}",
+                }
+            )
         return manager
 
     def test_too_few_messages(self):
@@ -990,11 +1042,25 @@ class TestCompactIncremental:
 
         # Build messages with tool calls in the middle
         manager.messages.append({"role": "user", "content": "x" * 1000})  # 0: old
-        manager.messages.append({"role": "assistant", "content": "", "tool_calls": [  # 1: tool call
-            {"id": "tc1", "type": "function", "function": {"name": "read_file", "arguments": "{}"}}
-        ]})
-        manager.messages.append({"role": "tool", "content": "file content", "tool_call_id": "tc1"})  # 2: tool result
-        manager.messages.append({"role": "assistant", "content": "x" * 1000 + " recent"})  # 3: recent
+        manager.messages.append(
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [  # 1: tool call
+                    {
+                        "id": "tc1",
+                        "type": "function",
+                        "function": {"name": "read_file", "arguments": "{}"},
+                    }
+                ],
+            }
+        )
+        manager.messages.append(
+            {"role": "tool", "content": "file content", "tool_call_id": "tc1"}
+        )  # 2: tool result
+        manager.messages.append(
+            {"role": "assistant", "content": "x" * 1000 + " recent"}
+        )  # 3: recent
 
         # With keep_recent_tokens=200 (~800 chars), the split would land around index 2
         # The tool result (role=tool) should push split back to include index 0
@@ -1006,10 +1072,14 @@ class TestCompactIncremental:
                 # Every tool result must have a preceding assistant with tool_calls
                 has_preceding_call = False
                 for j in range(i - 1, -1, -1):
-                    if manager.messages[j].get("role") == "assistant" and manager.messages[j].get("tool_calls"):
+                    if manager.messages[j].get(
+                        "role"
+                    ) == "assistant" and manager.messages[j].get("tool_calls"):
                         has_preceding_call = True
                         break
-                assert has_preceding_call, f"Tool result at index {i} has no preceding tool_calls"
+                assert (
+                    has_preceding_call
+                ), f"Tool result at index {i} has no preceding tool_calls"
 
     def test_compact_with_handoff(self):
         """Handoff compact should reset the conversation and return a summary."""
@@ -1021,7 +1091,9 @@ class TestCompactIncremental:
         )
         manager = ConversationManager(mock_client)
         manager.messages.append({"role": "user", "content": "Fix the auth bug"})
-        manager.messages.append({"role": "assistant", "content": "I fixed it in auth.py"})
+        manager.messages.append(
+            {"role": "assistant", "content": "I fixed it in auth.py"}
+        )
 
         handoff = manager.compact_with_handoff()
 

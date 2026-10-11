@@ -19,7 +19,6 @@ from rich.table import Table
 from rich.theme import Theme
 from rich import box
 
-
 # ── Theme System ───────────────────────────────────────────────────
 #
 # All visual styling is expressed as semantic tokens (``role.*``, ``sev.*``,
@@ -34,43 +33,39 @@ from rich import box
 #   accent.<purpose>       — small decorative accents (model name, version)
 
 
-NEOW_THEME = Theme({
-    # ── User (the human) ───────────────────────────────────────────
-    "role.user":              "bold cyan",
-    "role.user.border":       "cyan",
-
-    # ── Assistant (Neow) ───────────────────────────────────────────
-    "role.assistant":         "bold spring_green2",
-    "role.assistant.border":  "spring_green2",
-
-    # ── Tool calls ─────────────────────────────────────────────────
-    "role.tool":              "bold gold1",
-    "role.tool.border":       "gold1",
-    "role.tool.result_border":"dim",
-    "role.tool.error_border": "red",
-    "role.tool.result_title": "bold green",
-    "role.tool.error_title":  "bold red",
-
-    # ── Approval (interactive prompt) ─────────────────────────────
-    "role.approval":          "bold magenta",
-    "role.approval.border":   "magenta",
-
-    # ── Reasoning / thinking ──────────────────────────────────────
-    "role.reasoning":         "bold dim",
-    "role.reasoning.border":  "dim",
-
-    # ── Severity levels ───────────────────────────────────────────
-    "sev.info":               "bold cyan",
-    "sev.warn":               "bold gold1",
-    "sev.error":              "bold red",
-    "sev.success":            "bold green",
-
-    # ── Accent / decorative ───────────────────────────────────────
-    "accent.model":           "bold green",
-    "accent.version":         "dim",
-    "accent.ready":           "dim",
-    "status.bar":             "dim",
-})
+NEOW_THEME = Theme(
+    {
+        # ── User (the human) ───────────────────────────────────────────
+        "role.user": "bold cyan",
+        "role.user.border": "cyan",
+        # ── Assistant (Neow) ───────────────────────────────────────────
+        "role.assistant": "bold spring_green2",
+        "role.assistant.border": "spring_green2",
+        # ── Tool calls ─────────────────────────────────────────────────
+        "role.tool": "bold gold1",
+        "role.tool.border": "gold1",
+        "role.tool.result_border": "dim",
+        "role.tool.error_border": "red",
+        "role.tool.result_title": "bold green",
+        "role.tool.error_title": "bold red",
+        # ── Approval (interactive prompt) ─────────────────────────────
+        "role.approval": "bold magenta",
+        "role.approval.border": "magenta",
+        # ── Reasoning / thinking ──────────────────────────────────────
+        "role.reasoning": "bold dim",
+        "role.reasoning.border": "dim",
+        # ── Severity levels ───────────────────────────────────────────
+        "sev.info": "bold cyan",
+        "sev.warn": "bold gold1",
+        "sev.error": "bold red",
+        "sev.success": "bold green",
+        # ── Accent / decorative ───────────────────────────────────────
+        "accent.model": "bold green",
+        "accent.version": "dim",
+        "accent.ready": "dim",
+        "status.bar": "dim",
+    }
+)
 
 
 # Syntax highlighting theme used by ``print_code`` / ``print_diff``.
@@ -213,22 +208,22 @@ def _looks_like_markdown(text: str) -> bool:
     """
     # Line-anchored patterns (matched at start of each stripped line).
     anchored = [
-        r"^#{1,6}\s",         # ATX headings
-        r"^\* ",               # bullet list (asterisk)
-        r"^- ",                # bullet list (hyphen)
-        r"^\+ ",               # bullet list (plus)
-        r"^\d+\.\s",           # numbered list
-        r"^```",               # fenced code block
-        r"^\|.+\|",            # table row
-        r"^>\s",               # blockquote
+        r"^#{1,6}\s",  # ATX headings
+        r"^\* ",  # bullet list (asterisk)
+        r"^- ",  # bullet list (hyphen)
+        r"^\+ ",  # bullet list (plus)
+        r"^\d+\.\s",  # numbered list
+        r"^```",  # fenced code block
+        r"^\|.+\|",  # table row
+        r"^>\s",  # blockquote
     ]
     # Anywhere-in-line patterns (searched, not anchored — so inline code /
     # bold that appears mid-sentence is still detected).
     inline = [
-        r"\[.+\]\(.+\)",       # inline link
-        r"`.+`",               # inline code
-        r"\*\*.+\*\*",         # bold (asterisk)
-        r"__.+__",             # bold (underscore)
+        r"\[.+\]\(.+\)",  # inline link
+        r"`.+`",  # inline code
+        r"\*\*.+\*\*",  # bold (asterisk)
+        r"__.+__",  # bold (underscore)
     ]
     for line in text.split("\n"):
         stripped = line.strip()
@@ -262,6 +257,7 @@ def _make_markdown(content: str) -> Markdown:
 def _now_timestamp() -> str:
     """Return current local time as ``HH:MM:SS``."""
     from datetime import datetime
+
     return datetime.now().strftime("%H:%M:%S")
 
 
@@ -405,20 +401,20 @@ TOOL_ICONS = {
 # one-line summary.  When none of the listed keys are present, the formatter
 # falls back to the first parameter in the dict.
 TOOL_SUMMARY_KEYS: Dict[str, list] = {
-    "read_file":       ["file_path", "path"],
-    "write_file":      ["file_path", "path"],
-    "edit_file":       ["file_path", "path"],
-    "create_file":     ["file_path", "path"],
-    "delete_file":     ["file_path", "path"],
+    "read_file": ["file_path", "path"],
+    "write_file": ["file_path", "path"],
+    "edit_file": ["file_path", "path"],
+    "create_file": ["file_path", "path"],
+    "delete_file": ["file_path", "path"],
     "execute_command": ["command", "cmd"],
-    "search_code":     ["pattern", "query", "regex"],
-    "grep_code":       ["pattern", "query", "regex"],
-    "grep":            ["pattern"],
-    "glob":            ["pattern"],
-    "list_dir":        ["path"],
-    "git_commit":      ["message", "msg"],
-    "hashline_edit":   ["file_path", "path"],
-    "web":             ["url"],
+    "search_code": ["pattern", "query", "regex"],
+    "grep_code": ["pattern", "query", "regex"],
+    "grep": ["pattern"],
+    "glob": ["pattern"],
+    "list_dir": ["path"],
+    "git_commit": ["message", "msg"],
+    "hashline_edit": ["file_path", "path"],
+    "web": ["url"],
 }
 
 # Max length of a value shown in the collapsed summary line.  Longer values
@@ -621,7 +617,9 @@ def print_status_bar(
 # ── Feature 3b: Approval Panel ──────────────────────────────────────
 
 
-def format_approval_panel(tool_name: str, parameters: Dict[str, Any], reason: str) -> Panel:
+def format_approval_panel(
+    tool_name: str, parameters: Dict[str, Any], reason: str
+) -> Panel:
     """Format an approval request as a visually distinct panel.
 
     Args:
@@ -635,10 +633,12 @@ def format_approval_panel(tool_name: str, parameters: Dict[str, Any], reason: st
     lines = [f"[bold]{escape(reason)}[/bold]"]
     if tool_name == "execute_command":
         cmd_limit = _adaptive_limit(default=120, narrow=60)
-        cmd = escape(str(parameters.get('command', '')))
+        cmd = escape(str(parameters.get("command", "")))
         lines.append(f"  [dim]Command:[/dim] {_truncate(cmd, cmd_limit)}")
     elif "file_path" in parameters:
-        lines.append(f"  [dim]File:[/dim] {escape(str(parameters.get('file_path', '')))}")
+        lines.append(
+            f"  [dim]File:[/dim] {escape(str(parameters.get('file_path', '')))}"
+        )
         if "content" in parameters:
             content = str(parameters["content"])
             content_limit = _adaptive_limit(default=80, narrow=40)
@@ -650,7 +650,9 @@ def format_approval_panel(tool_name: str, parameters: Dict[str, Any], reason: st
                 f"  [dim]Replace:[/dim] {escape(_truncate(str(parameters.get('old_text', '')), replace_limit))}"
             )
     lines.append("")
-    lines.append("[dim]用 [bold]↑/↓/←/→[/bold] 选择 · [bold]Enter[/bold] 确认 · 或按 [bold]Y/N[/bold] 快捷键[/dim]")
+    lines.append(
+        "[dim]用 [bold]↑/↓/←/→[/bold] 选择 · [bold]Enter[/bold] 确认 · 或按 [bold]Y/N[/bold] 快捷键[/dim]"
+    )
     return Panel(
         "\n".join(lines),
         title="[role.approval]⚠ Approval Required[/role.approval]",
@@ -658,7 +660,10 @@ def format_approval_panel(tool_name: str, parameters: Dict[str, Any], reason: st
         padding=(0, 1),
     )
 
-def print_approval_request(tool_name: str, parameters: Dict[str, Any], reason: str) -> None:
+
+def print_approval_request(
+    tool_name: str, parameters: Dict[str, Any], reason: str
+) -> None:
     """Print approval request with panel formatting."""
     console.print(format_approval_panel(tool_name, parameters, reason))
 
@@ -730,10 +735,10 @@ def print_markdown(content: str) -> None:
 
 
 # Diff lexer token styles (semantic, theme-independent).
-_DIFF_ADD_STYLE     = "bold green"
-_DIFF_DEL_STYLE     = "bold red"
-_DIFF_HUNK_STYLE    = "bold cyan"
-_DIFF_META_STYLE    = "dim"
+_DIFF_ADD_STYLE = "bold green"
+_DIFF_DEL_STYLE = "bold red"
+_DIFF_HUNK_STYLE = "bold cyan"
+_DIFF_META_STYLE = "dim"
 _DIFF_CONTEXT_STYLE = "dim"
 
 
@@ -762,7 +767,11 @@ def _colorize_diff_lines(diff_text: str) -> Text:
             text.append("\n")
         if line.startswith("+++") or line.startswith("---"):
             text.append(line, style=_DIFF_META_STYLE)
-        elif line.startswith("diff ") or line.startswith("index ") or line.startswith("Index:"):
+        elif (
+            line.startswith("diff ")
+            or line.startswith("index ")
+            or line.startswith("Index:")
+        ):
             text.append(line, style=_DIFF_META_STYLE)
         elif line.startswith("@@"):
             text.append(line, style=_DIFF_HUNK_STYLE)
@@ -808,16 +817,22 @@ def _split_diff(diff_text: str) -> Table:
         new_buf.clear()
 
     for line in diff_text.split("\n"):
-        if line.startswith("+++") or line.startswith("---") or \
-           line.startswith("diff ") or line.startswith("index ") or \
-           line.startswith("Index:"):
+        if (
+            line.startswith("+++")
+            or line.startswith("---")
+            or line.startswith("diff ")
+            or line.startswith("index ")
+            or line.startswith("Index:")
+        ):
             flush()
-            table.add_row(Text(line, style=_DIFF_META_STYLE),
-                          Text(line, style=_DIFF_META_STYLE))
+            table.add_row(
+                Text(line, style=_DIFF_META_STYLE), Text(line, style=_DIFF_META_STYLE)
+            )
         elif line.startswith("@@"):
             flush()
-            table.add_row(Text(line, style=_DIFF_HUNK_STYLE),
-                          Text(line, style=_DIFF_HUNK_STYLE))
+            table.add_row(
+                Text(line, style=_DIFF_HUNK_STYLE), Text(line, style=_DIFF_HUNK_STYLE)
+            )
         elif line.startswith("+"):
             new_buf.append(Text(line, style=_DIFF_ADD_STYLE))
         elif line.startswith("-"):
@@ -912,7 +927,9 @@ def print_inline_image(path: str) -> bool:
         sys.stdout.write(f"\033]1337;File=inline=1;size={len(data)}:{encoded}\a\n")
     else:  # kitty: base64 in <=4096-byte chunks, m=1 on all but the last
         chunk_size = 4096
-        chunks = [encoded[i : i + chunk_size] for i in range(0, len(encoded), chunk_size)] or [""]
+        chunks = [
+            encoded[i : i + chunk_size] for i in range(0, len(encoded), chunk_size)
+        ] or [""]
         for i, chunk in enumerate(chunks):
             more = 0 if i == len(chunks) - 1 else 1
             control = f"a=T,f=100,m={more}" if i == 0 else f"m={more}"
@@ -962,39 +979,51 @@ def print_welcome(
     # ── Command groups (categorised for scannability) ────────────────
     # Each tuple: (group label, [(command, description), ...])
     command_groups = [
-        ("General", [
-            ("/help",       "Show this help message"),
-            ("/clear",      "Clear conversation history"),
-            ("/exit",       "Exit the CLI"),
-            ("/cost",       "Show token usage and cost"),
-            ("/approval",   "Show or set approval mode"),
-        ]),
-        ("Files & Code", [
-            ("/add <file>",  "Add file to conversation context"),
-            ("/drop <file>", "Remove file from context"),
-            ("/ls",          "List context files"),
-            ("/lint",        "Run linter  ('on'/'off' to toggle)"),
-            ("/test",        "Run tests    ('on'/'off' to toggle)"),
-        ]),
-        ("Git", [
-            ("/diff",         "Show uncommitted changes"),
-            ("/commit [msg]", "Commit (AI writes message if none)"),
-            ("/undo",         "Undo last AI commit"),
-        ]),
-        ("Session & Context", [
-            ("/save [name]",   "Save current session"),
-            ("/load <name>",   "Load a saved session"),
-            ("/history",       "List saved sessions"),
-            ("/web <url>",     "Fetch web page into context"),
-            ("/model <name>",  "Switch model; add BYOK; magpie sync"),
-            ("/architect",     "Enter architect mode (plan first)"),
-            ("/code",          "Return to normal coding mode"),
-            ("/think",         "View last AI reasoning content"),
-            ("/compact",       "Summarize conversation to free context"),
-            ("/export",        "Export conversation as Markdown"),
-            ("/tree",          "Visualize session tree"),
-            ("/branch",        "Branch from a specific message"),
-        ]),
+        (
+            "General",
+            [
+                ("/help", "Show this help message"),
+                ("/clear", "Clear conversation history"),
+                ("/exit", "Exit the CLI"),
+                ("/cost", "Show token usage and cost"),
+                ("/approval", "Show or set approval mode"),
+            ],
+        ),
+        (
+            "Files & Code",
+            [
+                ("/add <file>", "Add file to conversation context"),
+                ("/drop <file>", "Remove file from context"),
+                ("/ls", "List context files"),
+                ("/lint", "Run linter  ('on'/'off' to toggle)"),
+                ("/test", "Run tests    ('on'/'off' to toggle)"),
+            ],
+        ),
+        (
+            "Git",
+            [
+                ("/diff", "Show uncommitted changes"),
+                ("/commit [msg]", "Commit (AI writes message if none)"),
+                ("/undo", "Undo last AI commit"),
+            ],
+        ),
+        (
+            "Session & Context",
+            [
+                ("/save [name]", "Save current session"),
+                ("/load <name>", "Load a saved session"),
+                ("/history", "List saved sessions"),
+                ("/web <url>", "Fetch web page into context"),
+                ("/model <name>", "Switch model; add BYOK; magpie sync"),
+                ("/architect", "Enter architect mode (plan first)"),
+                ("/code", "Return to normal coding mode"),
+                ("/think", "View last AI reasoning content"),
+                ("/compact", "Summarize conversation to free context"),
+                ("/export", "Export conversation as Markdown"),
+                ("/tree", "Visualize session tree"),
+                ("/branch", "Branch from a specific message"),
+            ],
+        ),
     ]
 
     # Render each group as a compact borderless Table prefixed by a dim header.
@@ -1002,7 +1031,9 @@ def print_welcome(
     for group_label, items in command_groups:
         console.print(f"[role.tool] {group_label} [/role.tool]")
         table = Table(show_header=False, box=None, padding=(0, 2))
-        table.add_column("Command", style="role.user", no_wrap=True, width=cmd_col_width)
+        table.add_column(
+            "Command", style="role.user", no_wrap=True, width=cmd_col_width
+        )
         table.add_column("Description", style="dim", overflow="ellipsis", no_wrap=False)
         for cmd, desc in items:
             table.add_row(cmd, desc)
@@ -1015,7 +1046,12 @@ def print_welcome(
         if shown:
             console.print("[role.tool] Recent Sessions [/role.tool]")
             sess_table = Table(show_header=False, box=None, padding=(0, 2))
-            sess_table.add_column("Name", style="accent.model", no_wrap=True, width=_adaptive_limit(default=22, narrow=18))
+            sess_table.add_column(
+                "Name",
+                style="accent.model",
+                no_wrap=True,
+                width=_adaptive_limit(default=22, narrow=18),
+            )
             sess_table.add_column("Model", style="dim", width=18, no_wrap=True)
             sess_table.add_column("Msgs", style="dim", justify="right", width=6)
             sess_table.add_column("Created", style="dim", width=17, no_wrap=True)
@@ -1030,7 +1066,9 @@ def print_welcome(
             # On narrow terminals drop the Model/Created columns to save width.
             if _is_narrow():
                 sess_table = Table(show_header=False, box=None, padding=(0, 2))
-                sess_table.add_column("Name", style="accent.model", no_wrap=True, width=18)
+                sess_table.add_column(
+                    "Name", style="accent.model", no_wrap=True, width=18
+                )
                 sess_table.add_column("Msgs", style="dim", justify="right", width=6)
                 for s in shown:
                     sess_table.add_row(
