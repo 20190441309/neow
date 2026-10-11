@@ -1,5 +1,7 @@
 """Tests for UI formatter functions."""
 
+import pytest
+
 from neow.utils.formatter import (
     make_logo,
     format_user_panel,
@@ -256,6 +258,26 @@ class TestLooksLikeMarkdown:
 
 
 class TestStatusBar:
+    @pytest.fixture(autouse=True)
+    def wide_console(self, monkeypatch):
+        """Pin a wide terminal: ``create_status_bar`` collapses below 80 cols.
+
+        The ambient width cannot be assumed — a legacy Windows console reports
+        79 columns for a standard 80-column terminal — and the compact form
+        deliberately drops cost, branch and the progress bar.
+        """
+        import io
+
+        from rich.console import Console
+
+        from neow.utils import formatter
+
+        monkeypatch.setattr(
+            formatter,
+            "console",
+            Console(file=io.StringIO(), width=120, theme=formatter.NEOW_THEME),
+        )
+
     def test_create_status_bar_returns_string(self):
         result = create_status_bar("deepseek-chat", 1200, 128000, 0.03)
         assert isinstance(result, str)

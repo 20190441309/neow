@@ -17,7 +17,9 @@ def _lines(n):
 
 def test_read_file_numbers_lines_and_keeps_hashline(tmp_path):
     path = tmp_path / "a.py"
-    path.write_text("first\nsecond\n")
+    # newline="" keeps the file LF-only: read_file hashes the raw bytes, so a
+    # platform-translated CRLF file would hash differently from this literal.
+    path.write_text("first\nsecond\n", newline="")
     result = read_file(str(path))
     expected_hash = compute_hash("first\nsecond\n")
     assert result.splitlines()[:2] == ["     1\tfirst", "     2\tsecond"]
@@ -27,7 +29,7 @@ def test_read_file_numbers_lines_and_keeps_hashline(tmp_path):
 def test_read_file_offset_limit_numbered(tmp_path):
     path = tmp_path / "big.txt"
     content = _lines(2500)
-    path.write_text(content)
+    path.write_text(content, newline="")
 
     first = read_file(str(path))
     assert first.splitlines()[0] == "     1\tline 1"

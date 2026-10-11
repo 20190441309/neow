@@ -125,7 +125,8 @@ async def test_light_palette_reaches_status_bar():
         assert LIGHT["success"] in styles
 
 
-def test_status_helpers_shorten_numbers_and_paths(monkeypatch):
+def test_status_helpers_shorten_numbers_and_paths(monkeypatch, tmp_path):
+    import os
     from pathlib import Path
 
     from neow.tui.widgets.status_bar import human_tokens, short_path
@@ -133,8 +134,12 @@ def test_status_helpers_shorten_numbers_and_paths(monkeypatch):
     assert human_tokens(932) == "932"
     assert human_tokens(12840) == "12.8k"
     assert human_tokens(2_500_000) == "2.50M"
-    monkeypatch.setenv("HOME", "/home/me")
-    assert short_path(Path("/home/me/proj")) == "~/proj"
-    assert short_path(Path("/a/very/long/path/that/keeps/going/to/repo"), 12) == (
-        "…/to/repo"
-    )
+    # short_path reads ~ via os.path.expanduser, which consults USERPROFILE on
+    # Windows and HOME elsewhere, so point both at the same scratch home.
+    home = tmp_path / "home"
+    (home / "proj").mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    assert short_path(home / "proj") == f"~{os.sep}proj"
+    long_path = Path(*"a very long path that keeps going to repo".split())
+    assert short_path(long_path, 12) == f"…{os.sep}to{os.sep}repo"

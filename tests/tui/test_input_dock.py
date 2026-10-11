@@ -1,5 +1,7 @@
 """Input dock tests (plan task 12)."""
 
+import os
+
 from neow.tui.widgets.input_dock import InputDock
 from tests.tui.conftest import _host
 
@@ -49,7 +51,9 @@ async def test_at_file_completion(tmp_path, monkeypatch):
     async with _host(dock) as pilot:
         await pilot.press(*"@ne")
         await pilot.pause()
-        assert any("neow/" in option for option in dock.completion_options())
+        # Completions carry the platform's own separator.
+        expected = os.path.join("neow", "main.py")
+        assert any(expected in option for option in dock.completion_options())
 
 
 async def test_file_options_are_cached(monkeypatch):
@@ -127,9 +131,10 @@ async def test_completion_preserves_file_marker_and_surrounding_text(
         dock.set_text("read\n  @sr please")
         dock._area.move_cursor((1, 5))
         await pilot.pause()
-        assert dock.completion_options() == ["@src/main.py"]
+        completed = "@" + os.path.join("src", "main.py")
+        assert dock.completion_options() == [completed]
         await pilot.press("tab")
-        assert dock.text() == "read\n  @src/main.py please"
+        assert dock.text() == f"read\n  {completed} please"
         assert dock._area.has_focus
 
 

@@ -1,6 +1,7 @@
 """Model persistence, credential isolation, and gateway catalog tests."""
 
 import json
+import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -37,7 +38,11 @@ def test_save_preserves_settings_without_persisting_environment(
     assert "env-secret" not in raw
     data = yaml.safe_load(raw)
     assert data["tools"]["enabled"] == ["read_file"]
-    assert path.stat().st_mode & 0o777 == 0o600
+    if sys.platform != "win32":
+        # save_model chmods the temp file to 0600 before replacing the config.
+        # Windows has no POSIX mode bits (chmod only toggles the read-only
+        # flag), so this can only be asserted on POSIX.
+        assert path.stat().st_mode & 0o777 == 0o600
     reloaded = Config(path)
     assert reloaded.models["router"]["model"] == "m"
 

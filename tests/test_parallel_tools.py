@@ -65,11 +65,13 @@ def _tool_results(conv):
 def test_parallel_read_only_calls_run_concurrently():
     log = []
     calls = [_call(f"c{i}", "slow_read", key=f"k{i}") for i in range(4)]
-    conv, events, elapsed = _run(calls, _executor(log))
-    assert elapsed < DELAY * 2.5  # sequential would take 4 × DELAY
+    conv, events, _ = _run(calls, _executor(log))
     starts = [t for kind, _, t in log if kind == "start"]
     ends = [t for kind, _, t in log if kind == "end"]
-    assert max(starts) < min(ends)  # all four were running at once
+    # Overlap, not wall-clock: a duration threshold would also fail on a busy
+    # machine, while "all four were running at once" is the actual property
+    # (sequential execution would take 4 × DELAY and never overlap).
+    assert max(starts) < min(ends)
     kinds = [e["type"] for e in events]
     assert kinds == ["tool_start"] * 4 + ["tool_end"] * 4
     assert all(e["status"] == "ok" for e in events if e["type"] == "tool_end")
@@ -85,8 +87,7 @@ def test_mixed_calls_run_sequentially():
     ]
     executor = _executor(log)
     executor.approval_policy = ApprovalPolicy(mode=ApprovalMode.YOLO)
-    conv, events, elapsed = _run(calls, executor)
-    assert elapsed >= DELAY * 3
+    conv, events, _ = _run(calls, executor)
     order = [(kind, key) for kind, key, _ in log]
     assert order == [
         ("start", "a"),
@@ -112,8 +113,16 @@ def test_read_only_calls_needing_approval_run_sequentially():
 
     executor.approval_callback = approve
     calls = [_call(f"c{i}", "slow_read", key=f"k{i}") for i in range(2)]
-    _, _, elapsed = _run(calls, executor)
-    assert elapsed >= DELAY * 2
+    _, _, _ = _run(calls, executor)
+    # Two sleeps of DELAY would measure ~DELAY * 2, but Windows timer
+    # granularity makes that threshold flaky; the ordering below is the actual
+    # property — the second call only started once the first had finished.
+    assert [(kind, key) for kind, key, _ in log] == [
+        ("start", "k0"),
+        ("end", "k0"),
+        ("start", "k1"),
+        ("end", "k1"),
+    ]
     assert len(prompts) == 2
     assert all(not name.startswith("neow-tool") for name in prompts)
 
