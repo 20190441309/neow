@@ -114,7 +114,9 @@ def test_mcp_server_failure_is_isolated(tmp_path):
     try:
         manager.attach(executor.registry)
         assert manager.states["broken"].status == "failed"
-        assert "No such file" in manager.states["broken"].error
+        # The OS message is localised ("No such file" / "[WinError 2] …"), so
+        # assert on the command we failed to start instead.
+        assert "/nonexistent/neow-mcp" in manager.states["broken"].error
         assert manager.states["echo"].status == "connected"
         assert set(executor.registry.names()) - before == {
             "mcp__echo__echo",

@@ -318,7 +318,7 @@ class MCPManager:
         except BaseException as exc:  # noqa: BLE001 - isolate every failure
             if state.status != "stopped":
                 state.status = "failed"
-                state.error = _describe_error(exc)
+                state.error = _describe_error(exc, state.config)
                 logger.warning(f"MCP server {state.config.name} failed: {state.error}")
             if not connected.done():
                 connected.set_exception(MCPError(state.error or "stopped"))
@@ -494,12 +494,23 @@ def mcp_command(manager: Optional[MCPManager], args: str, wait: bool = True):
     return manager.describe(), "info"
 
 
-def _describe_error(exc: BaseException) -> str:
-    """Innermost useful message (anyio wraps failures in exception groups)."""
+def _describe_error(exc: BaseException, config: Optional[ServerConfig] = None) -> str:
+    """Innermost useful message (anyio wraps failures in exception groups).
+
+    The OS text is localised — ``[Errno 2] No such file`` on Linux versus
+    ``[WinError 2]`` plus a translated sentence on Windows — so the server we
+    tried to reach is what makes the message diagnosable.  It is prepended
+    unless it already appears in the text.
+    """
     while getattr(exc, "exceptions", None):  # BaseExceptionGroup (3.11+)
         exc = exc.exceptions[0]
     text = str(exc) or type(exc).__name__
-    return text.splitlines()[0][:300]
+    text = text.splitlines()[0][:300]
+    if config is not None:
+        target = config.describe()
+        if target and target not in text:
+            return f"{target}: {text}"
+    return text
 
 
 def start_manager(
