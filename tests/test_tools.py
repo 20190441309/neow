@@ -191,6 +191,39 @@ class TestCommand:
         assert result.startswith("Error:")
 
 
+class TestPowerShellTranslation:
+    """The Unix→PowerShell rewrite must not touch arguments that merely
+    contain a dash (``made-by-shell.txt`` is a file name, not a flag)."""
+
+    @pytest.mark.parametrize(
+        "command, expected",
+        [
+            ("touch made-by-shell.txt", "New-Item -ItemType File made-by-shell.txt"),
+            (
+                "rm -rf made-by-shell.txt",
+                "Remove-Item -Recurse -Force made-by-shell.txt",
+            ),
+            ("cp -r src-dir dst-dir", "Copy-Item -Recurse src-dir dst-dir"),
+            ("mv old-name.txt new-name.txt", "Move-Item old-name.txt new-name.txt"),
+            ("ls -la", "Get-ChildItem -Force"),
+            ("mkdir -p a-b/c-d", "New-Item -ItemType Directory a-b/c-d"),
+        ],
+    )
+    def test_dashed_arguments_survive(self, command, expected):
+        from neow.tools.command import _translate_for_powershell
+
+        assert _translate_for_powershell(command) == expected
+
+    def test_extract_and_strip_flags_ignore_dashed_words(self):
+        from neow.tools.command import _extract_flags, _strip_flags
+
+        assert _strip_flags("made-by-shell.txt") == "made-by-shell.txt"
+        assert _extract_flags("made-by-shell.txt") == ""
+        assert _strip_flags("-rf dir") == "dir"
+        assert _extract_flags("-la") == "la"
+        assert _extract_flags("--help") == ""
+
+
 class TestSearch:
     """Tests for code search tools."""
 

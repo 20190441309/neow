@@ -237,25 +237,25 @@ def _translate_for_powershell(command: str) -> str:
     return command
 
 
+# A short flag is a standalone token: ``-x``, ``-la``, ``-rf``.  Requiring the
+# surrounding whitespace matters: ``made-by-shell.txt`` is a file name, not a
+# flag, and a looser pattern silently ate the ``-by`` and ``-shell`` parts
+# (turning ``touch made-by-shell.txt`` into ``New-Item … made.txt``).
+_FLAG_TOKEN = re.compile(r"(?:^|\s)-([a-zA-Z]+)(?=\s|$)")
+
+
 def _extract_flags(rest: str) -> str:
     """Extract combined short flags like ``-la`` or ``-rn``.
 
     Returns a string of flag characters without dashes, e.g. ``"la"``.
+    Long flags (``--help``) are not short flags and are skipped.
     """
-    flags = ""
-    for m in re.finditer(r"-([a-zA-Z]+)", rest):
-        chunk = m.group(1)
-        # Skip long flags like --help or --recursive
-        if len(chunk) > 1 and chunk[0].isupper() == chunk[0].islower():
-            continue  # single letter flags only, skip --long-flags
-        if len(chunk) == 1 or chunk.isalpha():
-            flags += chunk
-    return flags.lower()
+    return "".join(m.group(1) for m in _FLAG_TOKEN.finditer(rest)).lower()
 
 
 def _strip_flags(rest: str) -> str:
     """Remove short flags (``-x``, ``-xyz``) from *rest*, keep args."""
-    return re.sub(r"\s*-[a-zA-Z]+\b", "", rest).strip()
+    return _FLAG_TOKEN.sub("", rest).strip()
 
 
 def _translate_unix_command(command: str) -> str:
@@ -399,7 +399,13 @@ def execute_command(
     timeout = effective_timeout(timeout)
     token = current_cancel_token()
     logger.debug(f"Executing command: {command}")
-    argv, note = (None, "") if sys.platform == "win32" else sandbox.plan(command, cwd)
+    # Ask the sandbox on every platform: Windows has no sandbox, but plan()
+    # still has to report that so ``strict`` refuses the command and ``auto``
+    # adds its "running without it" note.  The argv it returns is a POSIX
+    # command line, which _spawn cannot use on Windows — it builds its own.
+    argv, note = sandbox.plan(command, cwd)
+    if sys.platform == "win32":
+        argv = None
     if note.startswith("Error:"):
         return note
     try:

@@ -72,7 +72,9 @@ def test_modes_without_a_sandbox(project, monkeypatch):
 
     sandbox.configure(mode="strict")
     result = execute_command("touch made.txt", cwd=str(project))
-    assert result.startswith("Error: sandbox required") and "bwrap" in result
+    # The reason differs per platform ("bwrap (bubblewrap) is not installed",
+    # "no sandbox is available on win32", …), so assert on the refusal itself.
+    assert result.startswith("Error: sandbox required") and "was not run" in result
     assert not (project / "made.txt").exists()  # refused, not run
 
     sandbox.configure(mode="auto")
