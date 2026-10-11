@@ -9,15 +9,32 @@
  ╚═╝  ╚═══╝╚══════╝ ╚═════╝  ╚══╝╚══╝
 </pre>
 
+### The AI pair programmer that lives in your terminal.
+
 <p>
-  <strong>A lightweight, general-purpose AI CLI assistant.</strong><br>
-  <em>Your intelligent pair programmer, right in the terminal.</em>
+  <em>Multi-model · streaming agent loop · surgical edits · full Git awareness · full-screen TUI.</em>
 </p>
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/20190441309/neow/ci.yml?style=for-the-badge&label=CI&logo=githubactions&logoColor=white)](https://github.com/20190441309/neow/actions)
+[![Models](https://img.shields.io/badge/models-Claude%20·%20GPT%20·%20DeepSeek%20·%20BYOK-8A2BE2?style=for-the-badge)](#any-openai-compatible-provider-byok)
+
+**[Features](#-features) · [TUI](#️-full-screen-tui-default) · [Install](#️-installation) · [Config](#️-configuration) · [Usage](#-usage) · [Dev](#-development)**
 
 </div>
+
+---
+
+## Why Neow
+
+Most AI CLI wrappers stop at "send prompt, print reply." Neow is a full agent loop built to be driven for real work: it reads your repo, edits exact lines (not whole files), runs your tests, commits its own work, and lets you watch — or take over — at every step.
+
+- 🔁 **Model-agnostic** — Claude, GPT, DeepSeek, or anything OpenAI-compatible (OpenRouter, Ollama, vLLM, local gateways).
+- 🎯 **Precision editing** — hash-anchored, line-level edits instead of blind `str.replace()`.
+- 🧬 **Git-native** — every AI edit is an atomic commit; `/diff`, `/undo`, `/commit` are first-class.
+- 🛡️ **Approval-gated** — nothing destructive runs without your sign-off, tunable per-tool.
+- 🖥️ **Two faces, one brain** — a slick full-screen TUI for interactive work, a scriptable headless mode for CI.
 
 ---
 
@@ -25,16 +42,33 @@
 
 **Neow** isn't just another chatbot wrapper. It's a full-featured coding agent designed to seamlessly integrate into your workflow.
 
-- **Multi-Model Support**: Switch effortlessly between **DeepSeek**, **Anthropic Claude**, and **OpenAI GPT** models.
-- **Intelligent Code Editing**: 
-  - Standard file creation and modification.
-  - **Hashline Editing**: A unique, surgical editing system using content-addressable hashing. Make precise changes to specific lines without rewriting entire files.
-- **Developer Toolkit**:
-  - 📂 **File Operations**: Read, write, and manage your project files.
-  - 🔍 **Code Search**: Regex-powered codebase search to find what you need instantly.
-  - 🌐 **Web & GitHub**: Fetch web content and extract details from GitHub Issues/PRs directly.
-  - 🛠️ **Linting & Testing**: Auto-detects and runs your project's linter and test suite.
-- **Rich UI**: Beautiful, syntax-highlighted terminal output powered by `rich`.
+- **Multi-Model Support** — switch effortlessly between **DeepSeek**, **Anthropic Claude**, **OpenAI GPT**, and any OpenAI-compatible endpoint.
+- **Intelligent Code Editing**
+  - Standard file creation, overwrite and deletion.
+  - **Hashline Editing** — a surgical editing system using content-addressable hashing. Make precise changes to specific lines without rewriting entire files, with stale-anchor recovery if the file moved under you.
+- **Agent Core**
+  - 🧩 Unified tool registry (built-in + plugin tools, all visible to the model).
+  - 📋 Persistent task checklist (`todo_write`) with live TUI card.
+  - 🤖 Sub-agents (`task` tool) for parallel read-only exploration or scoped edits.
+  - 🧠 Project memory via `AGENTS.md` / `NEOW.md`, auto-loaded from repo root down to cwd.
+  - 🔌 MCP client — connect any [Model Context Protocol](https://modelcontextprotocol.io) server.
+  - ⏪ `/rewind` — per-turn file checkpoints, undo any turn's edits and chat independently.
+- **Developer Toolkit**
+  - 📂 **File Operations** — read, write, and manage your project files, with "read before edit" safety.
+  - 🔍 **Code Search** — `grep` (ripgrep-backed), `glob`, `list_dir`, all git-ignore aware.
+  - 🌐 **Web & GitHub** — fetch web content and extract GitHub Issues/PRs directly into context.
+  - 🖼️ **Vision** — `/image`, `/imgdiff` screenshot diffing, inline terminal image preview (iTerm2/kitty).
+  - 🛠️ **Linting & Testing** — auto-detects and runs your project's linter and test suite, feeding failures back to the model.
+  - 🧱 **Command sandbox** (experimental) — bubblewrap/`sandbox-exec` isolation for shell tool calls.
+- **Safety & Control**
+  - Three-tier **approval modes** (`always-ask` / `write` / `yolo`), overridable per tool.
+  - Allowlisted commands, chained-command protection, sensitive-file guards (`.env`, `id_rsa`, …).
+  - Configurable **hooks** around every stage of the agent loop (Claude-Code-compatible format).
+- **Session & Cost**
+  - Tree-structured, JSONL-backed sessions — `/tree`, `/branch`, `/save`, `/load`, `/history`.
+  - Incremental, auto-triggered **compaction** so long sessions never blow the context window.
+  - `/cost` — live token usage, cache-hit savings, and per-model pricing.
+- **Rich UI** — beautiful, syntax-highlighted terminal output powered by `rich`, plus a full Textual TUI.
 
 ---
 
@@ -42,7 +76,7 @@
 
 Running `neow` on a TTY opens the full-screen TUI:
 
-- **Card timeline**: user, assistant, thinking, tool call, error and compaction cards; tool cards collapse automatically when done.
+- **Card timeline**: user, assistant, thinking, tool call, sub-agent, error and compaction cards; tool cards collapse automatically when done.
 - **Thinking scramble** (`✻ Thinking`): live reasoning with a crush-style scrambled frontier that settles into `✻ Thought …` and collapses when finished.
 - **Keyboard**: `Enter` send · `Ctrl+J` newline · `Esc` interrupt · `Ctrl+B` sidebar · `Ctrl+T` sidebar tab · `Ctrl+O` collapse card · `Ctrl+P` command palette · `F1` help · `Ctrl+Y` copy the last code block (OSC52; not supported by macOS Terminal) · `Ctrl+Q` quit.
 - **Completion**: type `/` or `@`, use `Up`/`Down` to choose, `Tab` or `Enter` to complete, and `Esc` to dismiss. Press `Enter` again to submit. `PgUp`/`PgDn` scroll the conversation without leaving the editor.
@@ -74,7 +108,7 @@ Get up and running in seconds.
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/neow.git
+git clone https://github.com/20190441309/neow.git
 cd neow
 
 # Install in editable mode
@@ -290,6 +324,7 @@ git diff | neow -p "Review this diff" --allowed-tools "read_file,grep,glob"
 ```
 
 - `json` prints `{"type": "result", "result", "is_error", "session_id", "num_turns", "usage", "cost", "duration_ms", "model"}`; `stream-json` prints one JSON event per line (`init`, `content_delta`, `tool_start`, `tool_end`, …) and the same `result` object last. Only the result goes to stdout; notices go to stderr.
+- `--approval-interactive` (with `--output-format stream-json`) turns tool approvals into a request/response protocol over stdio instead of auto-denying — this is what the VS Code bridge (`editors/vscode/`) drives.
 - Tools that would ask for approval are refused (the model is told why) unless you pass `--approval yolo`. Narrow the toolset with `--allowed-tools` / `--disallowed-tools` (comma or space separated, `*` wildcards such as `mcp__github__*`), and cap requests with `--max-turns N`.
 - Exit codes: `0` success, `1` the model request or startup failed, `2` invalid arguments, `130` interrupted.
 
@@ -314,15 +349,34 @@ GitHub Actions example:
 | `/help` | Show the help message |
 | `/clear` | Clear conversation history |
 | `/model <name>` | Switch active AI model (e.g., `deepseek`, `anthropic`) |
+| `/add` `/drop` `/ls` | Manage files in context |
+| `/diff` `/commit` `/undo` | Git integration — review, commit, revert AI changes |
+| `/architect` | Switch to plan-then-execute mode |
+| `/lint` `/test` | Run the project linter / test suite |
+| `/tree` `/branch` `/save` `/load` `/history` | Session tree navigation and persistence |
+| `/rewind [n]` | Undo a turn's file edits and/or chat |
+| `/compact` | Summarize older history to free context |
+| `/cost` | Token usage and cost for this session |
+| `/approval` | View/switch approval mode (`always-ask` / `write` / `yolo`) |
+| `/mcp` | Status of connected MCP servers |
+| `/memory` `/init` | Inspect or bootstrap project memory (`AGENTS.md`) |
+| `/image <path>` `/imgdiff <a> <b>` | Add a screenshot to context / diff two screenshots |
+| `/web <url>` | Fetch a web page or GitHub issue/PR into context |
 | `/exit` | Exit the CLI |
 
 ### 🧠 The Hashline Edit System
 
-Neow uses a sophisticated **Hashline** system to ensure file edits are precise and reliable. 
+Neow uses a sophisticated **Hashline** system to ensure file edits are precise and reliable.
 
 1. **Snapshot**: When Neow reads a file, it calculates a unique SHA-256 hash (e.g., `a1b2c3d4`).
 2. **Anchor**: Edits are requested using the format `¶path/to/file.py#a1b2c3d4`.
 3. **Apply**: Neow applies changes strictly to the anchored version of the file. If the file has changed externally (stale hash), Neow intelligently attempts to recover or alerts you, preventing accidental overwrites.
+
+---
+
+## 🧩 Editor integration
+
+A minimal VS Code bridge lives in `editors/vscode/` — it drives Neow headlessly over `--approval-interactive --output-format stream-json`, shows the conversation in an Output Channel, routes tool approvals through `showInformationMessage`, and renders file edits with VS Code's native diff view. No separate approval or editing logic: it's the same `ApprovalPolicy` and tools (`edit_file`, `hashline_edit`, `write_file`, …) the CLI already uses.
 
 ---
 
@@ -340,6 +394,8 @@ pytest
 # Format code
 black .
 ```
+
+A scripted, zero-cost eval suite lives in `evals/` (see `evals/README.md`) and runs as part of the test suite in CI (`.github/workflows/ci.yml`).
 
 ---
 
