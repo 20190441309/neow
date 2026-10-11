@@ -171,7 +171,9 @@ class StatusBar(Static):
         out.append(self._activity, palette["accent2"])
         if self._busy_since is not None:
             elapsed = int(time.monotonic() - self._busy_since)
-            out.append(f"  {elapsed}s", palette["muted"])
+            minutes, seconds = divmod(elapsed, 60)
+            text = f"{elapsed}s" if minutes == 0 else f"{minutes}m{seconds:02d}s"
+            out.append(f"  {text}", palette["muted"])
         return out
 
     def _render_right(self, palette) -> Text:
