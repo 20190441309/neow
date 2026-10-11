@@ -203,8 +203,13 @@ class ToolCard(CardBase):
 
     def on_mount(self) -> None:
         super().on_mount()
-        # Fast tools can start and finish before the card is mounted.
-        self.call_after_refresh(self._render_body)
+        # A fast tool can start and finish before the card is mounted, so its
+        # start()/finish() left the body alone: Static.update() has to go
+        # through widget.app.console to visualise a Rich renderable, and there
+        # was no app yet.  ``is_mounted`` is still False inside on_mount, but
+        # the app does exist now, so force the render instead of leaving the
+        # card blank until the next refresh.
+        self._render_body(force=True)
 
     # -- lifecycle -----------------------------------------------------
 
@@ -327,7 +332,12 @@ class ToolCard(CardBase):
 
     # -- rendering -----------------------------------------------------
 
-    def _render_body(self) -> None:
+    def _render_body(self, force: bool = False) -> None:
+        # Skipped while detached: Static.update() needs a live app to turn the
+        # Rich renderable into Textual content, so an unmounted card just
+        # remembers its state and on_mount() renders it (with force=True).
+        if not (force or self.is_mounted):
+            return
         palette = widget_palette(self)
         if self._status in ("pending", "running"):
             body = Text()
@@ -336,8 +346,7 @@ class ToolCard(CardBase):
                     f"$ {self._args.get('command', '')}\n", f"bold {palette['text']}"
                 )
             body.append("运行中…", f"italic {palette['muted']}")
-            if self.is_mounted:
-                self._body_widget.update(body)
+            self._body_widget.update(body)
             return
         body = render_tool_body(self._name, self._args, self._result, palette=palette)
         lines = body.split("\n")
@@ -347,8 +356,7 @@ class ToolCard(CardBase):
                 f"\n… (+{len(lines) - MAX_BODY_LINES} 行)",
                 style=palette["muted"],
             )
-        if self.is_mounted:
-            self._body_widget.update(body)
+        self._body_widget.update(body)
 
 
 __all__ = [
