@@ -33,11 +33,16 @@ call without asking the user. Every event is also emitted on the plugin
 import json
 import os
 import re
+import signal
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from neow.utils.logger import logger
+
+# How long to wait for a killed hook process to actually die.
+KILL_GRACE = 2.0
 
 EVENTS = (
     "session_start",
@@ -163,37 +168,49 @@ class HookRunner:
     def _run_one(
         self, hook: Hook, event: str, payload: Dict[str, Any], outcome: HookOutcome
     ) -> None:
+        options = dict(
+            shell=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="replace",
+            cwd=self.cwd,
+            env={**os.environ, "NEOW_HOOK_EVENT": event},
+        )
+        if sys.platform != "win32":
+            # Own process group, so a timeout can signal the whole tree.
+            options["start_new_session"] = True
         try:
-            proc = subprocess.run(
-                hook.command,
-                shell=True,
-                input=json.dumps(payload, ensure_ascii=False, default=str),
-                capture_output=True,
-                text=True,
-                timeout=hook.timeout,
-                cwd=self.cwd,
-                env={**os.environ, "NEOW_HOOK_EVENT": event},
-            )
-        except subprocess.TimeoutExpired:
-            logger.warning(
-                f"Hook {event} timed out after {hook.timeout:.0f}s: {hook.command}"
-            )
-            return
+            proc = subprocess.Popen(hook.command, **options)
         except OSError as exc:
             logger.warning(f"Hook {event} failed to start ({hook.command}): {exc}")
             return
 
-        if proc.returncode == BLOCK_EXIT_CODE:
-            outcome.blocked = True
-            outcome.reason = proc.stderr.strip() or f"blocked by hook: {hook.command}"
-            return
-        if proc.returncode != 0:
+        try:
+            stdout, stderr = proc.communicate(
+                json.dumps(payload, ensure_ascii=False, default=str),
+                timeout=hook.timeout,
+            )
+        except subprocess.TimeoutExpired:
+            _terminate_tree(proc)
             logger.warning(
-                f"Hook {event} exited {proc.returncode} ({hook.command}): "
-                f"{proc.stderr.strip()[:300]}"
+                f"Hook {event} timed out after {hook.timeout:g}s: {hook.command}"
             )
             return
-        stdout = proc.stdout.strip()
+
+        returncode = proc.returncode
+        if returncode == BLOCK_EXIT_CODE:
+            outcome.blocked = True
+            outcome.reason = stderr.strip() or f"blocked by hook: {hook.command}"
+            return
+        if returncode != 0:
+            logger.warning(
+                f"Hook {event} exited {returncode} ({hook.command}): "
+                f"{stderr.strip()[:300]}"
+            )
+            return
+        stdout = stdout.strip()
         decision = _json_object(stdout)
         if decision is None:
             if stdout and event == "user_prompt_submit":
@@ -209,6 +226,29 @@ class HookRunner:
         extra = decision.get("additional_context") or decision.get("additionalContext")
         if extra:
             outcome.context.append(str(extra))
+
+
+def _terminate_tree(proc: subprocess.Popen) -> None:
+    """Kill *proc* and everything it started, then reap it.
+
+    ``subprocess.run(timeout=...)`` only kills the direct child.  A hook runs
+    through the shell, so the shell's own children inherit the stdout/stderr
+    pipes and outlive it — on Windows that made ``run()``'s cleanup block for
+    as long as the grandchild lived, i.e. the timeout did not bound anything.
+    """
+    if sys.platform == "win32":
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True
+        )
+    else:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (OSError, ProcessLookupError):
+            proc.kill()
+    try:
+        proc.communicate(timeout=KILL_GRACE)
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        proc.kill()
 
 
 def _json_object(text: str) -> Optional[Dict[str, Any]]:

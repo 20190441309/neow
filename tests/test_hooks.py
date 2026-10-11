@@ -16,9 +16,16 @@ from tests.test_agent_loop import _call, _conversation
 
 
 def _script(tmp_path, name, body):
-    """A Python hook script; returns the shell command that runs it."""
+    """A Python hook script; returns the shell command that runs it.
+
+    Hooks run through the platform shell (``HookRunner`` uses ``shell=True``),
+    so the quoting has to match that shell: ``shlex.quote`` emits POSIX single
+    quotes, which ``cmd.exe`` treats as literal characters rather than quotes.
+    """
     path = tmp_path / f"{name}.py"
     path.write_text("import json, sys\npayload = json.load(sys.stdin)\n" + body)
+    if sys.platform == "win32":
+        return f'"{sys.executable}" "{path}"'
     return f"{shlex.quote(sys.executable)} {shlex.quote(str(path))}"
 
 
