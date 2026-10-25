@@ -90,6 +90,7 @@ class Config:
             "effects": "full",
             "sidebar_default": False,
             "theme": "midnight",
+            "show_thinking": True,
         },
         "agent": {
             "max_turns": 50,
@@ -301,6 +302,7 @@ class Config:
             "effects": effects,
             "sidebar_default": bool(cfg.get("sidebar_default", False)),
             "theme": theme,
+            "show_thinking": bool(cfg.get("show_thinking", True)),
         }
 
     @property
@@ -364,8 +366,15 @@ class Config:
                 return key
         raise ConfigError(f"Model '{model_name}' not found in configuration")
 
-    def persist_updates(self, updates: Dict[str, Any]) -> Path:
-        """Atomically save explicit changes without copying resolved env secrets."""
+    def persist_updates(
+        self,
+        updates: Dict[str, Any],
+        remove_keys: Optional[Dict[str, Any]] = None,
+    ) -> Path:
+        """Atomically save explicit changes without copying resolved env secrets.
+
+        Optionally prunes specified keys (e.g. deleted models) before merging updates.
+        """
         path = self.source_path or Path.home() / ".neow" / "config.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         is_yaml = path.suffix in (".yml", ".yaml")
@@ -374,6 +383,14 @@ class Config:
             data = (yaml.safe_load(raw) if is_yaml else json.loads(raw)) or {}
             if not isinstance(data, dict):
                 raise ConfigError("Configuration must be an object")
+
+            # Prune removed keys from on-disk structure
+            if remove_keys:
+                for section, keys_to_remove in remove_keys.items():
+                    if section in data and isinstance(data[section], dict):
+                        for k in keys_to_remove:
+                            data[section].pop(k, None)
+
             self._merge_config(data, deepcopy(updates))
             text = (
                 yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
@@ -396,6 +413,14 @@ class Config:
                     os.unlink(temporary)
         except (OSError, ValueError, yaml.YAMLError) as exc:
             raise ConfigError("Could not save model configuration") from exc
+
+        # Also prune and update in-memory config
+        if remove_keys:
+            for section, keys_to_remove in remove_keys.items():
+                if section in self._config and isinstance(self._config[section], dict):
+                    for k in keys_to_remove:
+                        self._config[section].pop(k, None)
+
         self._merge_config(self._config, deepcopy(updates))
         self.source_path = path
         return path
@@ -404,6 +429,12 @@ class Config:
         """Save one model entry, retaining all unrelated on-disk settings."""
         # Empty auth fields deliberately clear a previous credential reference.
         return self.persist_updates({"models": {name: entry}})
+
+    def delete_model(self, name: str) -> Path:
+        """Delete one model entry from configuration."""
+        if name not in self._config.get("models", {}):
+            raise ConfigError(f"Model '{name}' not found in configuration")
+        return self.persist_updates({}, remove_keys={"models": [name]})
 
     def set_default_model(self, name: str) -> Path:
         """Remember an explicitly selected model for the next launch."""

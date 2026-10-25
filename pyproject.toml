@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neow"
-version = "0.1.0"
+version = "0.1.2"
 description = "A lightweight, general-purpose AI CLI assistant"
 readme = "README.md"
 license = {text = "MIT"}

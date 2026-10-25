@@ -72,7 +72,7 @@ class SessionTreeScreen(ModalScreen):
                 add(widget.root, node_id)
         widget.root.expand()
         box = Vertical(classes="dialog tall wide")
-        box.border_title = "会话树"
+        box.border_title = "◆ 会话树"
         box.border_subtitle = "enter 跳转 · b 分叉 · esc 返回"
         with box:
             if not self.tree_data:

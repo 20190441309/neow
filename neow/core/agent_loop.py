@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
 
 from neow.core.cancellation import CancelToken, cancellation_scope
+from neow.core.context_masking import mask_old_observations
 from neow.core.executor import ToolDenied
 from neow.core.tool_context import LoopChannel, loop_channel
 from neow.models.base import (
@@ -266,9 +267,12 @@ class AgentLoop:
         self, user_input: str, stream: bool
     ) -> Generator[StreamChunk, None, ModelResponse]:
         conv = self.conversation
+        raw_messages = conv.messages
+        if getattr(conv, "mask_observations", True):
+            raw_messages = mask_old_observations(raw_messages)
         messages = [
             {k: sanitize_text(v) if isinstance(v, str) else v for k, v in msg.items()}
-            for msg in conv.messages
+            for msg in raw_messages
         ]
         kwargs = dict(
             messages=messages,
@@ -440,14 +444,7 @@ class AgentLoop:
     def _run_in_workers(
         self, calls: List["_Call"], cancel: CancelToken
     ) -> Generator[StreamChunk, None, None]:
-        """Run calls in worker threads while this thread relays their events.
-
-        Used for batches of read-only calls (run together) and for tools that
-        report progress (``task``). Workers send progress and requests that
-        must run here - approval prompts - through a :class:`LoopChannel`.
-        Results enter the history in call order; ``tool_end`` events follow
-        completion order.
-        """
+        """Run calls in worker threads while this thread relays their events."""
         for call in calls:
             yield self._start_event(call)
         events: "queue.Queue[tuple]" = queue.Queue()

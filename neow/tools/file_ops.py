@@ -4,9 +4,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
-
-from neow.utils.logger import logger
+from neow.tools.diagnostics import append_diagnostics
 from neow.tools.hashline_edit import compute_hash, format_hashline
+from neow.utils.logger import logger
 
 
 class FileError(Exception):
@@ -101,7 +101,7 @@ def write_file(file_path: str, content: str) -> str:
         content: Content to write.
 
     Returns:
-        Success message.
+        Success message (with post-edit syntax diagnostics if any).
 
     Raises:
         FileError: If file cannot be written.
@@ -111,7 +111,7 @@ def write_file(file_path: str, content: str) -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         logger.debug(f"Wrote file: {file_path}")
-        return f"File written successfully: {file_path}"
+        return append_diagnostics(file_path, f"File written successfully: {file_path}")
     except Exception as e:
         logger.error(f"Failed to write file {file_path}: {e}")
         raise FileError(f"Failed to write file: {e}")
@@ -136,7 +136,7 @@ def edit_file(
         end_line: End line number (1-indexed, inclusive).
 
     Returns:
-        Success message.
+        Success message (with post-edit syntax diagnostics if any).
 
     Raises:
         FileError: If file cannot be edited.
@@ -186,8 +186,10 @@ def edit_file(
 
             path.write_text(new_content, encoding="utf-8")
             logger.debug(f"Edited file (lines {start_line}-{end_line}): {file_path}")
-            return (
-                f"File edited successfully: {file_path} (lines {start_line}-{end_line})"
+            return append_diagnostics(
+                file_path,
+                f"File edited successfully: {file_path} "
+                f"(lines {start_line}-{end_line})",
             )
 
         # Standard text replacement mode
@@ -203,7 +205,10 @@ def edit_file(
         logger.debug(f"Edited file: {file_path}")
         count = 1 if first_only else content.count(old_text)
         plural = "s" if count != 1 else ""
-        return f"File edited successfully: {file_path} ({count} replacement{plural})"
+        return append_diagnostics(
+            file_path,
+            f"File edited successfully: {file_path} ({count} replacement{plural})",
+        )
     except FileError:
         raise
     except Exception as e:
@@ -219,7 +224,7 @@ def create_file(file_path: str, content: str = "") -> str:
         content: Initial content (default empty).
 
     Returns:
-        Success message.
+        Success message (with post-edit syntax diagnostics if any).
 
     Raises:
         FileError: If file already exists.
@@ -233,7 +238,7 @@ def create_file(file_path: str, content: str = "") -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         logger.debug(f"Created file: {file_path}")
-        return f"File created successfully: {file_path}"
+        return append_diagnostics(file_path, f"File created successfully: {file_path}")
     except FileError:
         raise
     except Exception as e:
@@ -280,7 +285,7 @@ def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
              "insert_before": bool, "insert_after": bool}
 
     Returns:
-        Result message with new file hash.
+        Result message with new file hash (and diagnostics if any).
     """
     import json
     from neow.tools.hashline_edit import (
@@ -316,6 +321,6 @@ def hashline_edit(file_path: str, expected_hash: str, edits: str) -> str:
 
     try:
         result_msg, _snapshots = apply_batch_edits(file_path, edit_list)
-        return result_msg
+        return append_diagnostics(file_path, result_msg)
     except HashlineEditError as e:
         raise FileError(str(e))

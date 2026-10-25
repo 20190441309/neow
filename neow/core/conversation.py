@@ -54,6 +54,9 @@ class ConversationManager:
             token_tracker: Optional TokenTracker for usage tracking.
         """
         self.model_client = model_client
+        self.ask_user_callback: Optional[Callable[[str, Optional[List[str]]], str]] = (
+            None
+        )
         if tool_executor is None:
             from neow.core.executor import ToolExecutor
 
@@ -63,6 +66,8 @@ class ConversationManager:
         registry = getattr(self.tool_executor, "registry", None)
         if registry is not None and "todo_write" in registry:
             registry.bind("todo_write", self.write_todos)
+        if registry is not None and "ask_user" in registry:
+            registry.bind("ask_user", self.ask_user)
         if registry is not None and "task" in registry:
             from functools import partial
 
@@ -107,6 +112,23 @@ class ConversationManager:
         self._usage_length = 0
         # Longest tool result kept in history (head + tail beyond this).
         self.max_tool_output_chars = DEFAULT_MAX_TOOL_OUTPUT_CHARS
+        self.mask_observations = True
+
+    def ask_user(self, question: str, options: Optional[List[str]] = None) -> str:
+        """Implementation of the ``ask_user`` tool: ask the user interactively."""
+        if self.ask_user_callback is not None:
+            try:
+                answer = self.ask_user_callback(question, options or [])
+                if answer:
+                    return f"User answered: {answer}"
+                return "User skipped the question."
+            except Exception as exc:
+                logger.warning(f"ask_user_callback failed: {exc}")
+        opts = f" (options: {', '.join(str(o) for o in options)})" if options else ""
+        return (
+            f"[Non-interactive mode: could not prompt user for '{question}'{opts}. "
+            "Proceed with the most reasonable default assumption.]"
+        )
 
     def set_system_prompt(self, prompt: str) -> None:
         """Set system prompt.
@@ -208,17 +230,7 @@ class ConversationManager:
     def get_response(
         self, user_input: str, *, cancel: Optional[CancelToken] = None
     ) -> ModelResponse:
-        """Get AI response for user input (blocking).
-
-        Runs the full tool loop; see :class:`~neow.core.agent_loop.AgentLoop`.
-
-        Args:
-            user_input: User input text.
-            cancel: Optional token to stop the turn early.
-
-        Returns:
-            ModelResponse with the final reply text and last usage.
-        """
+        """Get AI response for user input (blocking)."""
         loop = AgentLoop(self, max_turns=self.max_turns)
         for _ in loop.run(user_input, stream=False, cancel=cancel):
             pass
@@ -230,15 +242,7 @@ class ConversationManager:
     def get_response_stream(
         self, user_input: str, *, cancel: Optional[CancelToken] = None
     ) -> Generator[StreamChunk, None, None]:
-        """Get streaming AI response for user input.
-
-        Args:
-            user_input: User input text.
-            cancel: Optional token to stop the turn early.
-
-        Yields:
-            StreamChunk objects (model output and progress events).
-        """
+        """Get streaming AI response for user input."""
         loop = AgentLoop(self, max_turns=self.max_turns)
         yield from loop.run(user_input, stream=True, cancel=cancel)
 
@@ -254,13 +258,7 @@ class ConversationManager:
             self._usage_length = len(self.messages)
 
     def context_usage(self) -> Tuple[int, int, float]:
-        """``(tokens, context_window, percent)`` for the next request.
-
-        Uses the last provider-reported count plus an estimate for messages
-        added since.  If the history was rewritten (clear, compaction, load)
-        the anchor message is gone and everything is estimated (~4 chars per
-        token).
-        """
+        """``(tokens, context_window, percent)`` for the next request."""
         window = getattr(self.model_client, "context_window", None)
         if not isinstance(window, int) or window < 1:
             window = DEFAULT_CONTEXT_WINDOW
@@ -282,13 +280,7 @@ class ConversationManager:
         return percent >= threshold * 100 and len(self.messages) > 4
 
     def add_tool_result(self, tool_call_id: str, result: str) -> None:
-        """Add tool result to conversation history.
-
-        Args:
-            tool_call_id: Tool call ID.
-            result: Tool execution result.
-        """
-        # Note: DeepSeek API requires 'type' field for tool messages
+        """Add tool result to conversation history."""
         self.messages.append(
             {
                 "role": "tool",
@@ -315,23 +307,11 @@ class ConversationManager:
         logger.debug("Conversation history cleared")
 
     def get_history(self) -> List[Dict[str, Any]]:
-        """Get conversation history.
-
-        Returns:
-            List of message dictionaries.
-        """
+        """Get conversation history."""
         return self.messages.copy()
 
     def compact(self) -> str:
-        """Summarize conversation history to free context window space.
-
-        Replaces the message history with a condensed summary while
-        preserving the system prompt and context files.
-
-        Returns:
-            Summary of what was compressed.
-        """
-        # Extract user/assistant text messages only (skip tool calls/results)
+        """Summarize conversation history to free context window space."""
         text_messages = []
         for msg in self.messages:
             role = msg.get("role")
@@ -347,7 +327,6 @@ class ConversationManager:
         conversation_text = "\n".join(text_messages)
         msg_count = len(self.messages)
 
-        # Ask the model to summarize
         summary_prompt = (
             "Summarize the following conversation into a concise context "
             "that preserves all key decisions, file changes made, bugs fixed, "
@@ -363,13 +342,11 @@ class ConversationManager:
             ),
         )
 
-        # Safety: summarizer should not return tool_calls, but guard against it
         if response.has_tool_calls:
             logger.warning("Summarizer returned tool_calls, ignoring")
 
         summary = response.content
 
-        # Replace history with summary
         self.messages.clear()
         self.messages.append(
             {
@@ -384,7 +361,6 @@ class ConversationManager:
             }
         )
 
-        # Record the summary tokens
         if self.token_tracker and response.usage:
             self.token_tracker.record(
                 response.usage, getattr(self.model_client, "model", "unknown")
@@ -396,22 +372,10 @@ class ConversationManager:
         return f"Compacted {msg_count} messages → {len(summary)} char summary"
 
     def compact_incremental(self, keep_recent_tokens: int = 4000) -> str:
-        """Incrementally compact old messages while preserving recent context.
-
-        Only summarizes messages older than the recent N estimated tokens,
-        keeping the most recent messages intact for continuity.
-
-        Args:
-            keep_recent_tokens: Approximate number of recent tokens to preserve.
-                Estimated as ~4 chars per token.
-
-        Returns:
-            Summary of what was compressed.
-        """
+        """Incrementally compact old messages while preserving recent context."""
         if len(self.messages) <= 4:
             return "Too few messages to compact."
 
-        # Estimate token boundary: walk backward from end to find split point
         chars_per_token = 4
         keep_chars = keep_recent_tokens * chars_per_token
         recent_char_count = 0
@@ -426,32 +390,23 @@ class ConversationManager:
                 split_idx = i + 1
                 break
         else:
-            # All messages fit within keep_recent_tokens
             return "Recent context fits within keep_recent_tokens. Nothing to compact."
 
         if split_idx <= 2:
             return "Too few old messages to compact."
 
-        # Split-turn preservation: never split in the middle of a tool-call turn.
-        # If the first "recent" message is a tool result (role=tool), move the
-        # split point back to include the assistant message that initiated it.
         while split_idx > 1 and self.messages[split_idx - 1].get("role") == "tool":
             split_idx -= 1
-        # Also ensure we don't leave a bare tool_calls assistant without its results
         if split_idx < len(self.messages) and self.messages[split_idx - 1].get(
             "tool_calls"
         ):
-            # The assistant message at split_idx-1 has tool_calls but its results
-            # would be in the "recent" section — move it all to recent
             split_idx -= 1
 
         if split_idx <= 2:
             return "Too few old messages to compact after turn alignment."
 
-        # Split: old messages [0..split_idx) to summarize, recent [split_idx..) to keep
         old_messages = self.messages[:split_idx]
         recent_messages = self.messages[split_idx:]
-        # Extract text from old messages
         text_messages = []
         for msg in old_messages:
             role = msg.get("role")
@@ -488,7 +443,6 @@ class ConversationManager:
 
         summary = response.content
 
-        # Replace: summary + recent messages
         self.messages.clear()
         self.messages.append(
             {
@@ -519,15 +473,7 @@ class ConversationManager:
         )
 
     def compact_with_handoff(self) -> str:
-        """Compact the entire conversation into a handoff summary for a new session.
-
-        Unlike compact() which keeps the summary in-place, this produces a
-        richer handoff prompt that the next session can use to continue
-        seamlessly. The conversation is fully reset after handoff.
-
-        Returns:
-            The handoff prompt string (caller should inject into next session).
-        """
+        """Compact the entire conversation into a handoff summary for a new session."""
         text_messages = []
         for msg in self.messages:
             role = msg.get("role")
@@ -569,7 +515,6 @@ class ConversationManager:
 
         handoff = response.content
 
-        # Reset conversation completely
         self.messages.clear()
         self.context_files.clear()
         self.web_cache.clear()
@@ -587,20 +532,7 @@ class ConversationManager:
         return handoff
 
     def add_context_file(self, file_path: str) -> str:
-        """Add a file to the conversation context.
-
-        Image files are queued for vision instead (see queue_image) — they
-        aren't readable as text context.
-
-        Args:
-            file_path: Path to the file.
-
-        Returns:
-            Confirmation message.
-
-        Raises:
-            FileNotFoundError: If file doesn't exist.
-        """
+        """Add a file to the conversation context."""
         import mimetypes
 
         path = Path(file_path)
@@ -616,22 +548,11 @@ class ConversationManager:
         return f"Added to context: {file_path} ({len(content)} chars)"
 
     def drop_context_file(self, file_path: str) -> str:
-        """Remove a file from the conversation context.
-
-        Args:
-            file_path: Path or name of the file.
-
-        Returns:
-            Confirmation message.
-
-        Raises:
-            KeyError: If file not in context.
-        """
+        """Remove a file from the conversation context."""
         abs_path = str(Path(file_path).resolve())
         if abs_path in self.context_files:
             del self.context_files[abs_path]
             return f"Removed from context: {file_path}"
-        # Try matching by filename
         for key in list(self.context_files.keys()):
             if key.endswith(file_path) or Path(key).name == file_path:
                 del self.context_files[key]
@@ -639,32 +560,16 @@ class ConversationManager:
         raise KeyError(f"File not in context: {file_path}")
 
     def list_context_files(self) -> List[str]:
-        """List files in the conversation context.
-
-        Returns:
-            List of file paths.
-        """
+        """List files in the conversation context."""
         return list(self.context_files.keys())
 
     def add_web_content(self, url: str, content: Any) -> None:
-        """Cache fetched web content for context injection.
-
-        Args:
-            url: The source URL.
-            content: WebContent instance.
-        """
+        """Cache fetched web content for context injection."""
         self.web_cache[url] = content
         logger.info(f"Cached web content: {url} ({len(content.text)} chars)")
 
     def refresh_context_file(self, file_path: str) -> bool:
-        """Re-read a context file to pick up external changes.
-
-        Args:
-            file_path: Path to the file.
-
-        Returns:
-            True if refreshed, False if not in context.
-        """
+        """Re-read a context file to pick up external changes."""
         abs_path = str(Path(file_path).resolve())
         if abs_path in self.context_files:
             try:
@@ -677,13 +582,6 @@ class ConversationManager:
         return False
 
     # -- context -----------------------------------------------------------
-    #
-    # The system prompt stays identical for the whole session so providers
-    # can cache it.  Context that changes (files added with /add, fetched web
-    # pages, files matching the question) travels in a user message tagged
-    # ``neow_context`` placed before the user's own message, and is only sent
-    # again when its content changes.  Hashes live on those messages, so
-    # /clear, compaction and session restore naturally trigger a resend.
 
     def _project_structure(self) -> str:
         """Project structure summary, computed once per session."""
@@ -691,9 +589,13 @@ class ConversationManager:
             return ""
         if not self._structure_injected or self._structure_text is None:
             from neow.core.prompts import format_project_context
+            from neow.core.skills import discover_skills, format_skills_index
 
             structure = self.context_manager.get_project_structure(max_depth=2)
-            self._structure_text = format_project_context(structure, [])
+            skills_text = format_skills_index(
+                discover_skills(getattr(self.context_manager, "project_root", None))
+            )
+            self._structure_text = format_project_context(structure, []) + skills_text
             self._structure_injected = True
         return self._structure_text
 
@@ -746,14 +648,7 @@ class ConversationManager:
         }
 
     def _get_effective_system_prompt(self, user_input: str = "") -> Optional[str]:
-        """System prompt sent with every request: stable for the session.
-
-        Args:
-            user_input: Unused; kept for callers of the old signature.
-
-        Returns:
-            Base prompt plus the project structure summary, or None if empty.
-        """
+        """System prompt sent with every request: stable for the session."""
         memory = getattr(self.memory, "text", "") or ""
         prompt = self.system_prompt + memory + self._project_structure()
         return prompt or None

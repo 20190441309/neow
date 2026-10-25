@@ -1,9 +1,12 @@
 """Built-in tool specs: schema, implementation and approval policy in one place."""
 
-from typing import Any, List
+from typing import Any, List, Optional
 
 from neow.core.approval import ApprovalTier
+from neow.core.background_tasks import background_task
+from neow.core.skills import load_skill_content
 from neow.core.tools_registry import ToolSpec
+from neow.tools.code_intel import file_outline, repo_map
 from neow.tools.command import execute_command
 from neow.tools.file_ops import (
     create_file,
@@ -34,6 +37,22 @@ def _task_unbound(description: str, prompt: str, agent_type: str = "explore") ->
     """Placeholder: each ConversationManager binds ``task`` to itself."""
 
     raise RuntimeError("task is not connected to a conversation")
+
+
+def _ask_user_default(question: str, options: Optional[List[str]] = None) -> str:
+    """Default ask_user implementation when no interactive UI callback is bound."""
+
+    opts = f" (options: {', '.join(str(o) for o in options)})" if options else ""
+    return (
+        f"[Non-interactive mode: could not prompt user for '{question}'{opts}. "
+        "Proceed with the most reasonable default assumption.]"
+    )
+
+
+def _load_skill(name: str) -> str:
+    """Load full markdown instructions of a discovered skill by name."""
+
+    return load_skill_content(name)
 
 
 def builtin_specs() -> List[ToolSpec]:
@@ -496,6 +515,139 @@ def builtin_specs() -> List[ToolSpec]:
             tier=ApprovalTier.NONE,
             reports_progress=True,
             parallel_when=lambda args: args.get("agent_type", "explore") == "explore",
+        ),
+        ToolSpec(
+            name="repo_map",
+            description=(
+                "Build a structural AST/symbol map of the repository (classes, "
+                "functions, methods and line numbers), ranked by optional query."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "directory": {
+                        "type": "string",
+                        "description": "Directory to scan (default: '.')",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Optional keywords to rank relevant files/symbols"
+                        ),
+                    },
+                    "max_files": {
+                        "type": "integer",
+                        "description": (
+                            "Maximum number of files to include (default: 30)"
+                        ),
+                    },
+                },
+            },
+            func=repo_map,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="file_outline",
+            description=(
+                "Extract the structural symbol outline (classes, methods, "
+                "functions with line numbers) of a source file without reading "
+                "every line."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Path to the source file",
+                    }
+                },
+                "required": ["file_path"],
+            },
+            func=file_outline,
+            tier=ApprovalTier.READ,
+            read_only=True,
+        ),
+        ToolSpec(
+            name="ask_user",
+            description=(
+                "Ask the user a clarifying question with optional multiple-choice "
+                "options when requirements are ambiguous or a design choice needs "
+                "confirmation."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "description": "Clear question to ask the user",
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Optional list of selectable choices",
+                    },
+                },
+                "required": ["question"],
+            },
+            func=_ask_user_default,
+            tier=ApprovalTier.NONE,
+        ),
+        ToolSpec(
+            name="background_task",
+            description=(
+                "Start, inspect, list, or stop long-running background commands "
+                "(e.g. dev servers, watchers) without blocking the turn."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["start", "list", "status", "output", "stop"],
+                        "description": "Action to perform",
+                    },
+                    "command": {
+                        "type": "string",
+                        "description": "Command to launch when action is 'start'",
+                    },
+                    "task_id": {
+                        "type": "string",
+                        "description": (
+                            "Background task ID (e.g. 'bg-1') for status/output/stop"
+                        ),
+                    },
+                    "lines": {
+                        "type": "integer",
+                        "description": (
+                            "Number of recent log lines to show (default: 50)"
+                        ),
+                    },
+                },
+                "required": ["action"],
+            },
+            func=background_task,
+            tier=ApprovalTier.EXEC,
+        ),
+        ToolSpec(
+            name="load_skill",
+            description=(
+                "Load the full instructions (SKILL.md) of a discovered workspace "
+                "or user skill by name."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Skill name to load",
+                    }
+                },
+                "required": ["name"],
+            },
+            func=_load_skill,
+            tier=ApprovalTier.READ,
+            read_only=True,
         ),
     ]
 

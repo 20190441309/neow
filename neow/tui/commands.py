@@ -117,6 +117,8 @@ class CommandDispatcher:
         return self._hook("help")
 
     def _cmd_clear(self, args: str) -> CommandResult:
+        if not args and "clear" in self.hooks:
+            return self._hook("clear")
         self.conversation.clear_history()
         return CommandResult("Conversation history cleared")
 
@@ -161,6 +163,8 @@ class CommandDispatcher:
             return CommandResult("No model configured", kind="error")
         name = getattr(client, "config_name", None)
         if not args:
+            if "effort" in self.hooks:
+                return self._hook("effort")
             level = getattr(client, "effort", None) or "off"
             return CommandResult(
                 f"Effort: {level}\nAvailable: off, {', '.join(EFFORT_LEVELS)}"
@@ -186,6 +190,8 @@ class CommandDispatcher:
         return self._hook("diff")
 
     def _cmd_commit(self, args: str) -> CommandResult:
+        if not args and "commit" in self.hooks:
+            return self._hook("commit")
         if args:
             from neow.tools.git import GitError, git_commit
 
@@ -200,6 +206,8 @@ class CommandDispatcher:
 
     def _cmd_add(self, args: str) -> CommandResult:
         if not args:
+            if "add" in self.hooks:
+                return self._hook("add")
             return CommandResult("Usage: /add <file_path>", kind="error")
         try:
             return CommandResult(self.conversation.add_context_file(args))
@@ -208,6 +216,8 @@ class CommandDispatcher:
 
     def _cmd_drop(self, args: str) -> CommandResult:
         if not args:
+            if "drop" in self.hooks:
+                return self._hook("drop")
             return CommandResult("Usage: /drop <file_path>", kind="error")
         try:
             return CommandResult(self.conversation.drop_context_file(args))
@@ -215,6 +225,8 @@ class CommandDispatcher:
             return CommandResult(str(exc), kind="error")
 
     def _cmd_imgdiff(self, args: str) -> CommandResult:
+        if not args and "imgdiff" in self.hooks:
+            return self._hook("imgdiff")
         parts = args.split()
         if len(parts) != 2:
             return CommandResult("Usage: /imgdiff <before> <after>", kind="error")
@@ -235,12 +247,16 @@ class CommandDispatcher:
         )
 
     def _cmd_ls(self, args: str) -> CommandResult:
+        if not args and "ls" in self.hooks:
+            return self._hook("ls")
         files = self.conversation.list_context_files()
         if not files:
             return CommandResult("No files in context")
         return CommandResult("Context files:\n" + "\n".join(f"  {f}" for f in files))
 
     def _cmd_lint(self, args: str) -> CommandResult:
+        if not args and "lint" in self.hooks:
+            return self._hook("lint")
         from neow.tools.lint_test import run_lint
 
         if args == "on":
@@ -258,6 +274,8 @@ class CommandDispatcher:
         return CommandResult(result.output or "Lint passed")
 
     def _cmd_test(self, args: str) -> CommandResult:
+        if not args and "test" in self.hooks:
+            return self._hook("test")
         from neow.tools.lint_test import run_tests
 
         if args == "on":
@@ -275,6 +293,8 @@ class CommandDispatcher:
         return CommandResult(result.output or "Tests passed")
 
     def _cmd_architect(self, args: str) -> CommandResult:
+        if not args and "architect" in self.hooks:
+            return self._hook("architect")
         self.architect_mode = True
         return CommandResult(
             "Architect mode enabled. The planner model turns each request "
@@ -283,10 +303,20 @@ class CommandDispatcher:
         )
 
     def _cmd_code(self, args: str) -> CommandResult:
+        if not args and "code" in self.hooks:
+            return self._hook("code")
         self.architect_mode = False
         return CommandResult("Normal coding mode restored.")
 
+    def _cmd_mode(self, args: str) -> CommandResult:
+        if "mode" in self.hooks:
+            return self._hook("mode")
+        mode = "architect" if self.architect_mode else "code"
+        return CommandResult(f"Current mode: {mode}")
+
     def _cmd_save(self, args: str) -> CommandResult:
+        if not args and "save" in self.hooks:
+            return self._hook("save")
         if self.session_manager is None:
             return CommandResult("Session manager not available", kind="error")
         name = self.session_manager.save(self.conversation, args or None)
@@ -324,6 +354,8 @@ class CommandDispatcher:
 
     def _cmd_web(self, args: str) -> CommandResult:
         if not args:
+            if "web" in self.hooks:
+                return self._hook("web")
             return CommandResult("Usage: /web <url>", kind="error")
         if self.web_fetcher is None:
             return CommandResult("Web fetcher not available", kind="error")
@@ -337,14 +369,44 @@ class CommandDispatcher:
             return CommandResult(f"Failed to fetch URL: {exc}", kind="error")
 
     def _cmd_think(self, args: str) -> CommandResult:
-        if "think" in self.hooks:
-            return self._hook("think")
-        return CommandResult(
-            "No thinking content available. Reasoning is captured during "
-            "AI responses that use thinking mode."
-        )
+        if not args:
+            if "thinking" in self.hooks:
+                return self._hook("thinking")
+            if "think" in self.hooks:
+                return self._hook("think")
+        return self._cmd_thinking(args or "view")
+
+    def _cmd_thinking(self, args: str) -> CommandResult:
+        arg = args.strip().lower()
+        if not arg and "thinking" in self.hooks:
+            return self._hook("thinking")
+        if arg in ("view", "detail", "trace", "show", "history"):
+            if "think" in self.hooks:
+                return self._hook("think")
+            return CommandResult(
+                "No thinking content available. Reasoning is captured during "
+                "AI responses that use thinking mode."
+            )
+        if arg in ("on", "1", "true", "enable"):
+            enabled = True
+        elif arg in ("off", "0", "false", "hide", "disable"):
+            enabled = False
+        elif not arg:
+            current = getattr(self.conversation, "show_thinking", True)
+            enabled = not current
+        else:
+            return CommandResult(
+                "Usage: /thinking [on|off|view] - 控制思考过程显示开关或查看详情",
+                kind="warn",
+            )
+        self.conversation.show_thinking = enabled
+        self._set_config("tui", "show_thinking", enabled)
+        status = "开启 (显示)" if enabled else "关闭 (隐藏)"
+        return CommandResult(f"思考过程显示已{status}。")
 
     def _cmd_compact(self, args: str) -> CommandResult:
+        if not args and "compact" in self.hooks:
+            return self._hook("compact")
         if args.startswith("--keep-tokens"):
             parts = args.split()
             try:
@@ -373,6 +435,8 @@ class CommandDispatcher:
         return CommandResult(str(self.conversation.compact()), kind="compaction")
 
     def _cmd_export(self, args: str) -> CommandResult:
+        if not args and "export" in self.hooks:
+            return self._hook("export")
         if self.session_manager is None:
             return CommandResult("Session manager not available", kind="error")
         path = self.session_manager.export_markdown(self.conversation, args or None)
@@ -380,6 +444,8 @@ class CommandDispatcher:
 
     def _cmd_image(self, args: str) -> CommandResult:
         if not args:
+            if "image" in self.hooks:
+                return self._hook("image")
             return CommandResult("Usage: /image <file_path>", kind="error")
         try:
             return CommandResult(str(self.conversation.queue_image(args)))
@@ -387,6 +453,8 @@ class CommandDispatcher:
             return CommandResult(str(exc), kind="error")
 
     def _cmd_approval(self, args: str) -> CommandResult:
+        if not args and "approval" in self.hooks:
+            return self._hook("approval")
         from neow.core.approval import ApprovalMode
 
         if self.approval_policy is None:
@@ -425,6 +493,8 @@ class CommandDispatcher:
         return self._hook("branch")
 
     def _cmd_memory(self, args: str) -> CommandResult:
+        if not args and "memory" in self.hooks:
+            return self._hook("memory")
         from neow.core.memory import add_memory_note, load_memory
 
         if args.startswith("add"):
@@ -439,6 +509,8 @@ class CommandDispatcher:
         return CommandResult(describe_memory(self.conversation.memory))
 
     def _cmd_mcp(self, args: str) -> CommandResult:
+        if not args and "mcp" in self.hooks:
+            return self._hook("mcp")
         from neow.core.mcp_client import mcp_command
 
         manager = getattr(self.conversation, "mcp", None)
@@ -446,6 +518,8 @@ class CommandDispatcher:
         return CommandResult(text, kind=kind)
 
     def _cmd_rewind(self, args: str) -> CommandResult:
+        if not args and "rewind" in self.hooks:
+            return self._hook("rewind")
         from neow.core.checkpoints import rewind_command
 
         store = getattr(self.conversation, "checkpoints", None)
@@ -468,6 +542,8 @@ class CommandDispatcher:
         return CommandResult("正在分析仓库并生成 AGENTS.md…")
 
     def _cmd_verbose(self, args: str) -> CommandResult:
+        if not args and "verbose" in self.hooks:
+            return self._hook("verbose")
         self.verbose = not self.verbose
         state = (
             "expanded (all parameters shown)"
@@ -475,6 +551,128 @@ class CommandDispatcher:
             else "collapsed (one-line summary)"
         )
         return CommandResult(f"Tool call display: {state}")
+
+    def _cmd_goal(self, args: str) -> CommandResult:
+        arg = args.strip()
+        if not arg:
+            if "goal" in self.hooks:
+                return self._hook("goal")
+            state = getattr(self.conversation, "goal_state", None)
+            if state and getattr(state, "active", False):
+                return CommandResult(
+                    (
+                        f"正在执行目标 (第 {state.current_round}/{state.max_rounds} 轮): "
+                        f"{state.goal}"
+                    )
+                )
+            return CommandResult("Usage: /goal <目标描述> | /goal stop | /goal status")
+
+        low = arg.lower()
+        if low in ("stop", "off", "cancel", "clear"):
+            stop_hook = self.hooks.get("goal_stop")
+            if stop_hook is not None:
+                stop_hook()
+                return CommandResult("")
+            state = getattr(self.conversation, "goal_state", None)
+            if state is not None:
+                state.active = False
+            return CommandResult("已停止当前目标模式。")
+
+        if low == "status":
+            state = getattr(self.conversation, "goal_state", None)
+            if state and getattr(state, "active", False):
+                return CommandResult(
+                    (
+                        f"正在执行目标 (第 {state.current_round}/{state.max_rounds} 轮): "
+                        f"{state.goal}"
+                    )
+                )
+            return CommandResult("当前没有正在运行的目标。")
+
+        start_hook = self.hooks.get("goal_start")
+        if start_hook is not None:
+            start_hook(arg)
+            return CommandResult("")
+
+        from neow.core.goal import GoalState, build_goal_initial_prompt
+
+        self.conversation.goal_state = GoalState(goal=arg, active=True)
+        submit = self.hooks.get("submit")
+        if submit is not None:
+            submit(build_goal_initial_prompt(arg))
+        return CommandResult(f"◆ 已启动目标模式: {arg}")
+
+    def _cmd_plan(self, args: str) -> CommandResult:
+        arg = args.strip()
+        if not arg:
+            if "plan" in self.hooks:
+                return self._hook("plan")
+            return CommandResult("Usage: /plan <任务描述> | /plan approve")
+
+        if arg.lower() in ("approve", "run", "go", "execute"):
+            approve_hook = self.hooks.get("plan_approve")
+            if approve_hook is not None:
+                approve_hook("")
+                return CommandResult("")
+            submit = self.hooks.get("submit")
+            if submit is not None:
+                submit("请按照已制定的计划清单依次执行所有步骤。")
+            return CommandResult("◆ 已批准计划并开始执行。")
+
+        plan_start = self.hooks.get("plan_start")
+        if plan_start is not None:
+            plan_start(arg)
+            return CommandResult("")
+
+        plan_prompt = (
+            f"请先为以下任务制定详细的分步执行计划，调用 `todo_write` 记录步骤，"
+            f"如有不明确之处请调用 `ask_user` 询问，在用户确认前暂不修改代码：\n\n{arg}"
+        )
+        submit = self.hooks.get("submit")
+        if submit is not None:
+            submit(plan_prompt)
+        return CommandResult(f"◆ 正在生成执行计划: {arg}")
+
+    def _cmd_tasks(self, args: str) -> CommandResult:
+        arg = args.strip()
+        if not arg and "tasks" in self.hooks:
+            return self._hook("tasks")
+        from neow.core.background_tasks import background_task
+
+        parts = arg.split(maxsplit=1)
+        action = parts[0].lower() if parts else "list"
+        rest = parts[1] if len(parts) > 1 else ""
+        if action == "start":
+            return CommandResult(background_task("start", command=rest))
+        if action in ("stop", "status", "output"):
+            return CommandResult(background_task(action, task_id=rest))
+        return CommandResult(background_task("list"))
+
+    def _cmd_skills(self, args: str) -> CommandResult:
+        arg = args.strip()
+        if not arg and "skills" in self.hooks:
+            return self._hook("skills")
+        from neow.core.skills import discover_skills, load_skill_content
+
+        if arg:
+            content = load_skill_content(arg)
+            if content.startswith("Error:"):
+                return CommandResult(content, kind="error")
+            self.conversation.add_message(
+                "user", f'<skill name="{arg}">\n{content}\n</skill>'
+            )
+            return CommandResult(f"◆ 已加载技能到上下文: {arg}")
+
+        skills = discover_skills()
+        if not skills:
+            return CommandResult(
+                "未发现技能文件 (.neow/skills/<name>/SKILL.md "
+                "或 ~/.neow/skills/<name>/SKILL.md)。"
+            )
+        lines = ["已发现的技能："]
+        for s in skills:
+            lines.append(f"  ◆ {s.name} [{s.scope}] — {s.description}")
+        return CommandResult("\n".join(lines))
 
 
 __all__ = ["CommandDispatcher", "CommandResult"]

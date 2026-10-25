@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from neow.core.config import Config
 from neow.tui.app import resolve_effects
 from neow.tui.screens.approval import ApprovalModal
 from neow.tui.screens.chat import ChatScreen
@@ -63,6 +64,22 @@ async def test_submit_creates_cards_in_order():
             "ToolCard",
             "AssistantCard",
         ]
+
+
+async def test_show_thinking_disabled_omits_thinking_card():
+    conv = FakeConversation(script=CARD_SCRIPT)
+    cfg = Config()
+    cfg._config["tui"]["show_thinking"] = False
+    app = _chat_app(conv, config=cfg)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = app.screen
+        assert isinstance(screen, ChatScreen)
+        assert screen.show_thinking is False
+        screen.submit_prompt("hi")
+        await pilot.pause(0.5)
+        cards = [type(card).__name__ for card in screen.query(CardBase)]
+        assert "ThinkingCard" not in cards
+        assert screen._last_reasoning == "think"
 
 
 async def test_queue_drains_after_turn():
@@ -197,6 +214,8 @@ async def test_compact_command_renders_compaction_card():
         await pilot.pause()
         screen = app.screen
         screen.dispatch_command("/compact")
+        await pilot.pause()
+        await pilot.press("enter")
         await pilot.pause()
         cards = list(screen.query(CompactionCard))
         assert cards and cards[-1].collapsed

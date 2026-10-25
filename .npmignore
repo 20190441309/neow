@@ -1,0 +1,19 @@
+# Exclude caches, tests, and dev artifacts from the npm package
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+tests/
+evals/
+docs/
+editors/
+neow.egg-info/
+.neow_history
+.neow/
+.git/
+.github/

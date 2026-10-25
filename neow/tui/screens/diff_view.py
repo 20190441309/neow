@@ -60,7 +60,7 @@ class DiffScreen(ModalScreen):
 
     def compose(self):
         box = Vertical(classes="dialog tall wide")
-        box.border_title = "改动"
+        box.border_title = "◆ 代码改动"
         box.border_subtitle = "c 提交 · u 回退 · esc 返回"
         with box:
             with VerticalScroll():

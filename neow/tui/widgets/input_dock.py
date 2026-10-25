@@ -51,7 +51,6 @@ SLASH_COMMANDS = [
     "/history",
     "/cost",
     "/web",
-    "/think",
     "/compact",
     "/export",
     "/image",
@@ -64,6 +63,11 @@ SLASH_COMMANDS = [
     "/mcp",
     "/rewind",
     "/init",
+    "/thinking",
+    "/goal",
+    "/plan",
+    "/tasks",
+    "/skills",
 ]
 
 COMMAND_HINTS = {
@@ -87,7 +91,6 @@ COMMAND_HINTS = {
     "/history": "历史会话",
     "/cost": "用量与费用",
     "/web": "读取网页",
-    "/think": "查看推理",
     "/compact": "压缩上下文",
     "/export": "导出对话",
     "/image": "添加图片",
@@ -100,6 +103,11 @@ COMMAND_HINTS = {
     "/mcp": "MCP 服务器",
     "/rewind": "回退改动",
     "/init": "生成 AGENTS.md",
+    "/thinking": "思考过程控制 (开关/查看详情)",
+    "/goal": "自主目标达成模式",
+    "/plan": "先规划确认再执行",
+    "/tasks": "后台任务管理与日志",
+    "/skills": "浏览与加载技能 (SKILL.md)",
 }
 
 HINT_IDLE = "enter 发送 · ctrl+j 换行 · @ 文件 · / 命令"
@@ -123,7 +131,6 @@ class PromptArea(TextArea):
             pass
         key = event.key
         if key in ("up", "down", "tab", "enter", "escape"):
-            # Pasted/rapid keys can arrive before TextArea.Changed is delivered.
             self._dock._refresh_completions()
         if self._dock.completion_open and key in (
             "up",
@@ -206,6 +213,11 @@ class InputDock(Vertical):
         max-height: 6;
         border: tall $primary;
         background: $surface;
+    }
+    InputDock PromptArea .text-area--cursor {
+        color: $primary;
+        background: transparent;
+        text-style: underline;
     }
     InputDock #completions {
         display: none;
@@ -421,7 +433,6 @@ class InputDock(Vertical):
         elif match:
             options = ["@" + path for path in self._file_options(match.group(1))]
             self._completion_span = (match.start(), cursor)
-        # Replace the rest of a partially edited token, not the following words.
         if options:
             end = cursor
             while end < len(text) and not text[end].isspace():

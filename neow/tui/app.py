@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 from concurrent.futures import Future
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from textual.app import App, SystemCommand
 from textual.theme import Theme
 
 from neow.tui.bridge.controller import ApprovalBridge
 from neow.tui.screens.approval import ApprovalModal, apply_decision
+from neow.tui.screens.ask_user_modal import AskUserModalScreen
 from neow.tui.screens.chat import ChatScreen
 from neow.tui.theme import PALETTES, theme_variables
 from neow.tui.widgets.input_dock import SLASH_COMMANDS
@@ -20,11 +21,7 @@ VALID_EFFECTS = ("full", "subtle", "off")
 
 
 def resolve_effects(config_value: str, *, env_none: Optional[bool] = None) -> str:
-    """Resolve the effective animation mode (design spec §6.4).
-
-    ``TEXTUAL_ANIMATIONS=none`` forces ``off``.  Non-TTY downgrades are
-    enforced earlier by the entry-mode selection (``select_run_mode``).
-    """
+    """Resolve the effective animation mode (design spec §6.4)."""
 
     animations_off = (
         env_none
@@ -69,9 +66,12 @@ class NeowApp(App):
         self.theme_name = self._config_theme()
         self.palette = PALETTES.get(self.theme_name, PALETTES["midnight"])
         self._install_themes()
+        self.show_thinking = self._config_show_thinking()
         self.approval_bridge = ApprovalBridge(request=self._request_approval)
         if executor is not None:
             executor.approval_callback = self.approval_bridge
+        if conversation is not None and hasattr(conversation, "ask_user_callback"):
+            conversation.ask_user_callback = self._ask_user_from_thread
 
     def _config_effects(self) -> str:
         if self.config is not None:
@@ -88,6 +88,14 @@ class NeowApp(App):
             except Exception:
                 pass
         return "midnight"
+
+    def _config_show_thinking(self) -> bool:
+        if self.config is not None:
+            try:
+                return bool(self.config.tui.get("show_thinking", True))
+            except Exception:
+                pass
+        return True
 
     def _install_themes(self) -> None:
         """Register the neow palettes as Textual themes (spec §8.3)."""
@@ -140,7 +148,7 @@ class NeowApp(App):
             return
         logo.collapse_splash()
 
-    # -- approval bridge -----------------------------------------------
+    # -- approval & ask_user bridge ------------------------------------
 
     def _request_approval(
         self,
@@ -165,6 +173,30 @@ class NeowApp(App):
 
         self.push_screen(
             ApprovalModal(tool=tool, params=params, reason=reason),
+            _done,
+        )
+
+    def _ask_user_from_thread(
+        self, question: str, options: Optional[List[str]] = None
+    ) -> str:
+        """Schedule AskUserModalScreen on the UI thread from a worker."""
+
+        future: Future = Future()
+        try:
+            self.call_from_thread(
+                self._show_ask_user, question, list(options or []), future
+            )
+            return str(future.result(timeout=600.0) or "")
+        except Exception:
+            return ""
+
+    def _show_ask_user(self, question: str, options: List[str], future: Future) -> None:
+        def _done(answer: Optional[str]) -> None:
+            if not future.done():
+                future.set_result(answer or "")
+
+        self.push_screen(
+            AskUserModalScreen(question=question, options=options),
             _done,
         )
 

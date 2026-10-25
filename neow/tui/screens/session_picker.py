@@ -40,7 +40,7 @@ class SessionPickerScreen(ModalScreen):
 
     def compose(self):
         box = Vertical(classes="dialog")
-        box.border_title = "历史会话"
+        box.border_title = "◆ 历史会话"
         box.border_subtitle = "enter 载入 · esc 返回"
         with box:
             if not self.sessions:

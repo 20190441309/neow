@@ -67,6 +67,18 @@ class FakeConversation:
     def compact_with_handoff(self) -> str:
         return "handoff"
 
+    def list_context_files(self):
+        return list(getattr(self, "context_files", []))
+
+    def drop_context_file(self, path):
+        if hasattr(self, "context_files") and path in self.context_files:
+            self.context_files.remove(path)
+        return f"Dropped {path}"
+
+    def clear_history(self):
+        if hasattr(self, "messages"):
+            self.messages.clear()
+
 
 def _chat_app(conversation=None, *, effects=None, config=None, **kwargs):
     """Build a NeowApp for Pilot tests."""

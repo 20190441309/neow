@@ -20,7 +20,7 @@ class CostScreen(ModalScreen):
 
     def compose(self):
         box = Vertical(classes="dialog")
-        box.border_title = "用量与费用"
+        box.border_title = "◆ 用量与费用"
         box.border_subtitle = "esc 返回"
         with box:
             with VerticalScroll():

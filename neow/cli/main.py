@@ -401,11 +401,31 @@ def main(
         try:
             model_client = create_model_client(cfg, model_name)
         except ConfigError as exc:
-            if not interactive:
-                raise
-            model_client = None
-            model_setup_notice = str(exc)
-        else:
+            discovered = None
+            if (
+                config is None
+                and model is None
+                and (
+                    cfg.source_path is None
+                    or cfg.source_path == Path.home() / ".neow" / "config.json"
+                )
+            ):
+                from neow.models.management import auto_discover_magpie
+
+                discovered = auto_discover_magpie(cfg)
+            if discovered:
+                try:
+                    model_name = discovered
+                    model_client = create_model_client(cfg, model_name)
+                except ConfigError:
+                    model_client = None
+                    model_setup_notice = str(exc)
+            else:
+                if not interactive:
+                    raise
+                model_client = None
+                model_setup_notice = str(exc)
+        if model_client is not None:
             if not model_client.validate_connection():
                 if not interactive:
                     print_error(f"Failed to connect to {model_name} API")

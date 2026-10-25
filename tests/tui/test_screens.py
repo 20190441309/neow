@@ -6,14 +6,40 @@ from html import unescape
 from textual.containers import VerticalScroll
 from textual.widgets import Input, Tree
 from neow.core.config import Config
-from neow.tui.screens.model_editor import ModelEditorScreen
+from neow.tui.screens.approval_mode import ApprovalModeScreen
 from neow.tui.screens.chat import ChatScreen
+from neow.tui.screens.clear_confirm import ClearConfirmScreen
+from neow.tui.screens.commit_modal import CommitModalScreen
+from neow.tui.screens.compaction_picker import CompactionPickerScreen
+from neow.tui.screens.context_drop import ContextDropScreen
+from neow.tui.screens.context_list import ContextListScreen
 from neow.tui.screens.cost import CostScreen
 from neow.tui.screens.diff_view import DiffScreen
+from neow.tui.screens.effort_picker import EffortPickerScreen
+from neow.tui.screens.exit_confirm import ExitConfirmScreen
+from neow.tui.screens.export_picker import ExportPickerScreen
+from neow.tui.screens.file_picker import FilePickerScreen
+from neow.tui.screens.goal_modal import GoalModalScreen
 from neow.tui.screens.help import HelpScreen
+from neow.tui.screens.image_picker import ImagePickerScreen
+from neow.tui.screens.imgdiff_modal import ImgDiffModalScreen
+from neow.tui.screens.init_modal import InitModalScreen
+from neow.tui.screens.lint_modal import LintModalScreen
+from neow.tui.screens.mcp_manager import McpManagerScreen
+from neow.tui.screens.memory import MemoryScreen
+from neow.tui.screens.mode_picker import ModePickerScreen
+from neow.tui.screens.model_editor import ModelEditorScreen
 from neow.tui.screens.model_picker import ModelPickerScreen
+from neow.tui.screens.rewind_picker import RewindPickerScreen
 from neow.tui.screens.session_picker import SessionPickerScreen
+from neow.tui.screens.session_save import SessionSaveScreen
+from neow.tui.screens.test_modal import TestModalScreen
+from neow.tui.screens.thinking_detail import ThinkingDetailScreen
+from neow.tui.screens.thinking_picker import ThinkingPickerScreen
 from neow.tui.screens.tree import SessionTreeScreen
+from neow.tui.screens.undo_confirm import UndoConfirmScreen
+from neow.tui.screens.verbosity_picker import VerbosityPickerScreen
+from neow.tui.screens.web_fetch import WebFetchScreen
 from tests.tui.conftest import FakeConversation, _chat_app, _screen_app
 
 
@@ -280,3 +306,432 @@ async def test_tree_branch_uses_highlighted_node():
         tree.select_node(tree.root.children[0])
         await pilot.press("b")
         assert branched == ["node1"]
+
+
+async def test_effort_picker_renders_levels_and_selects():
+    selected = []
+    app = _screen_app(
+        EffortPickerScreen(
+            current="off",
+            model_name="test-model",
+            on_select=selected.append,
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        text = _app_text(app)
+        assert "off" in text
+        assert "low" in text
+        assert "medium" in text
+        assert "high" in text
+        assert "当前" in text
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert selected == ["low"]
+
+
+async def test_chat_screen_effort_command_flow():
+    conv = FakeConversation()
+    chat_app = _chat_app(conv, config=Config())
+    async with chat_app.run_test() as pilot:
+        await pilot.pause()
+        chat = chat_app.screen
+        assert isinstance(chat, ChatScreen)
+        chat.dispatch_command("/effort")
+        await pilot.pause()
+        assert isinstance(chat_app.screen, EffortPickerScreen)
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert isinstance(chat_app.screen, ChatScreen)
+        assert conv.model_client.effort == "low"
+
+
+async def test_approval_mode_picker_renders_and_selects():
+    selected = []
+    app = _screen_app(ApprovalModeScreen(current="write", on_select=selected.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "write" in _app_text(app)
+        await pilot.press("enter")
+        await pilot.pause()
+        assert selected == ["write"]
+
+
+async def test_mode_picker_renders_and_selects():
+    selected = []
+    app = _screen_app(ModePickerScreen(current="code", on_select=selected.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "code" in _app_text(app)
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert selected == ["architect"]
+
+
+async def test_verbosity_picker_renders_and_selects():
+    selected = []
+    app = _screen_app(VerbosityPickerScreen(current=False, on_select=selected.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "off" in _app_text(app)
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert selected == [True]
+
+
+async def test_clear_confirm_screen_runs_callback():
+    confirmed = []
+    app = _screen_app(ClearConfirmScreen(on_confirm=lambda: confirmed.append(True)))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#confirm-btn")
+        await pilot.pause()
+        assert confirmed == [True]
+
+
+async def test_undo_confirm_screen_runs_callback():
+    confirmed = []
+    app = _screen_app(UndoConfirmScreen(on_confirm=lambda: confirmed.append(True)))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#confirm-btn")
+        await pilot.pause()
+        assert confirmed == [True]
+
+
+async def test_exit_confirm_screen_runs_callback():
+    exited = []
+    app = _screen_app(ExitConfirmScreen(on_exit=exited.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#direct-exit-btn")
+        await pilot.pause()
+        assert exited == [False]
+
+
+async def test_session_save_screen_submits_name():
+    saved = []
+    app = _screen_app(SessionSaveScreen(default_name="test-sess", on_save=saved.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert saved == ["test-sess"]
+
+
+async def test_web_fetch_screen_submits_url():
+    fetched = []
+    app = _screen_app(WebFetchScreen(on_fetch=fetched.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen.query_one(Input).value = "https://example.com"
+        await pilot.press("enter")
+        await pilot.pause()
+        assert fetched == ["https://example.com"]
+
+
+async def test_compaction_picker_selects_strategy():
+    compacted = []
+    app = _screen_app(CompactionPickerScreen(on_select=compacted.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert compacted == ["full"]
+
+
+async def test_export_picker_selects_format():
+    exported = []
+    app = _screen_app(ExportPickerScreen(on_select=exported.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert exported == ["markdown"]
+
+
+async def test_context_drop_screen_drops_file():
+    dropped = []
+    app = _screen_app(ContextDropScreen(files=["a.py", "b.py"], on_drop=dropped.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert dropped == ["a.py"]
+
+
+async def test_context_list_screen_renders():
+    app = _screen_app(ContextListScreen(files=["main.py"]))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "main.py" in _app_text(app)
+
+
+async def test_file_picker_screen_selects_file(tmp_path):
+    (tmp_path / "hello.py").write_text("print('hi')")
+    selected = []
+    app = _screen_app(
+        FilePickerScreen(workspace_root=tmp_path, on_select=selected.append)
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert selected == ["hello.py"]
+
+
+async def test_image_picker_screen_selects_image(tmp_path):
+    (tmp_path / "shot.png").write_text("fake png")
+    selected = []
+    app = _screen_app(
+        ImagePickerScreen(workspace_root=tmp_path, on_select=selected.append)
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert selected == ["shot.png"]
+
+
+async def test_imgdiff_modal_submits_images():
+    compared = []
+    app = _screen_app(
+        ImgDiffModalScreen(on_compare=lambda a, b: compared.append((a, b)))
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen.query_one("#img1-input", Input).value = "a.png"
+        app.screen.query_one("#img2-input", Input).value = "b.png"
+        await pilot.click("#compare-btn")
+        await pilot.pause()
+        assert compared == [("a.png", "b.png")]
+
+
+async def test_commit_modal_submits_message():
+    committed = []
+    app = _screen_app(
+        CommitModalScreen(changed_files_summary="2 files", on_commit=committed.append)
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen.query_one(Input).value = "feat: new feature"
+        await pilot.click("#commit-btn")
+        await pilot.pause()
+        assert committed == ["feat: new feature"]
+
+
+async def test_lint_modal_screen_renders():
+    fixed = []
+    app = _screen_app(
+        LintModalScreen(
+            command="flake8", output="all ok", on_auto_fix=lambda: fixed.append(True)
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "all ok" in _app_text(app)
+        await pilot.click("#fix-btn")
+        await pilot.pause()
+        assert fixed == [True]
+
+
+async def test_test_modal_screen_renders():
+    fixed = []
+    app = _screen_app(
+        TestModalScreen(
+            command="pytest",
+            output="all passed",
+            on_auto_fix=lambda: fixed.append(True),
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "all passed" in _app_text(app)
+        await pilot.click("#fix-btn")
+        await pilot.pause()
+        assert fixed == [True]
+
+
+async def test_init_modal_screen_generates():
+    generated = []
+    app = _screen_app(
+        InitModalScreen(
+            preview_text="# AI rules", on_generate=lambda: generated.append(True)
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "AI rules" in _app_text(app)
+        await pilot.click("#gen-btn")
+        await pilot.pause()
+        assert generated == [True]
+
+
+async def test_memory_screen_adds_note():
+    notes = []
+    app = _screen_app(MemoryScreen(notes=["Project rule 1"], on_add_note=notes.append))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "Project rule 1" in _app_text(app)
+        app.screen.query_one(Input).value = "Project rule 2"
+        await pilot.click("#add-note-btn")
+        await pilot.pause()
+        assert notes == ["Project rule 2"]
+
+
+async def test_mcp_manager_screen_renders():
+    app = _screen_app(McpManagerScreen(servers={"github": {}}, tools=["get_issue"]))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        text = _app_text(app)
+        assert "github" in text
+        assert "get_issue" in text
+
+
+async def test_rewind_picker_selects_turn():
+    rewound = []
+    app = _screen_app(
+        RewindPickerScreen(
+            checkpoints=[{"turn": 2, "prompt": "rewind test", "files": {}}],
+            on_rewind=rewound.append,
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert rewound == [2]
+
+
+async def test_thinking_detail_screen_renders():
+    app = _screen_app(ThinkingDetailScreen(reasoning="Deep reasoning trace text"))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "Deep reasoning trace text" in _app_text(app)
+
+
+async def test_thinking_picker_screen_selects_option():
+    selected = []
+    screen = ThinkingPickerScreen(current=True, on_select=selected.append)
+    app = _screen_app(screen)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("down", "enter")
+        await pilot.pause()
+        assert selected == ["off"]
+
+    selected_view = []
+    screen2 = ThinkingPickerScreen(current=True, on_select=selected_view.append)
+    app2 = _screen_app(screen2)
+    async with app2.run_test() as pilot2:
+        await pilot2.pause()
+        await pilot2.press("down", "down", "enter")
+        await pilot2.pause()
+        assert selected_view == ["view"]
+
+
+async def test_chat_screen_interactive_commands_push_modals():
+    conv = FakeConversation()
+    conv.context_files = ["x.py"]
+    chat_app = _chat_app(conv, config=Config())
+    async with chat_app.run_test() as pilot:
+        await pilot.pause()
+        chat = chat_app.screen
+        assert isinstance(chat, ChatScreen)
+
+        modal_cmds = [
+            ("/approval", ApprovalModeScreen),
+            ("/mode", ModePickerScreen),
+            ("/save", SessionSaveScreen),
+            ("/web", WebFetchScreen),
+            ("/compact", CompactionPickerScreen),
+            ("/export", ExportPickerScreen),
+            ("/commit", CommitModalScreen),
+            ("/memory", MemoryScreen),
+            ("/mcp", McpManagerScreen),
+            ("/rewind", RewindPickerScreen),
+            ("/thinking", ThinkingPickerScreen),
+            ("/ls", ContextListScreen),
+            ("/add", FilePickerScreen),
+            ("/drop", ContextDropScreen),
+            ("/image", ImagePickerScreen),
+            ("/imgdiff", ImgDiffModalScreen),
+            ("/goal", GoalModalScreen),
+        ]
+
+        for cmd, screen_cls in modal_cmds:
+            chat.dispatch_command(cmd)
+            await pilot.pause()
+            curr = chat_app.screen
+            assert isinstance(
+                curr, screen_cls
+            ), f"Expected {screen_cls.__name__} for {cmd}, got {type(curr).__name__}"
+            await pilot.press("escape")
+            await pilot.pause()
+            assert isinstance(chat_app.screen, ChatScreen)
+
+        # Direct execution commands that do NOT open modals
+        chat.dispatch_command("/architect")
+        await pilot.pause()
+        assert isinstance(chat_app.screen, ChatScreen)
+        assert conv.architect_mode is True
+
+        chat.dispatch_command("/code")
+        await pilot.pause()
+        assert isinstance(chat_app.screen, ChatScreen)
+        assert conv.architect_mode is False
+
+        chat.dispatch_command("/verbose")
+        await pilot.pause()
+        assert isinstance(chat_app.screen, ChatScreen)
+        assert conv.verbose is True
+
+        chat.dispatch_command("/clear")
+        await pilot.pause()
+        assert isinstance(chat_app.screen, ChatScreen)
+
+
+async def test_chat_screen_exit_command_exits_directly_without_modal():
+    conv = FakeConversation()
+    chat_app = _chat_app(conv)
+    async with chat_app.run_test() as pilot:
+        await pilot.pause()
+        chat = chat_app.screen
+        assert isinstance(chat, ChatScreen)
+        chat.dispatch_command("/exit")
+        await pilot.pause()
+        assert chat_app._exit is True
+
+
+async def test_goal_modal_screen_starts_and_stops():
+    from neow.core.goal import GoalState
+
+    started = []
+    stopped = []
+    app = _screen_app(
+        GoalModalScreen(
+            active_goal=GoalState(goal="old goal", active=True, current_round=2),
+            on_start=started.append,
+            on_stop=lambda: stopped.append(True),
+        )
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert "old goal" in _app_text(app)
+        app.screen.query_one("#goal-input", Input).value = "new goal"
+        await pilot.click("#start-goal-btn")
+        await pilot.pause()
+        assert started == ["new goal"]
+
+    app2 = _screen_app(
+        GoalModalScreen(
+            active_goal=GoalState(goal="running goal", active=True, current_round=1),
+            on_start=started.append,
+            on_stop=lambda: stopped.append(True),
+        )
+    )
+    async with app2.run_test() as pilot2:
+        await pilot2.pause()
+        await pilot2.click("#stop-goal-btn")
+        await pilot2.pause()
+        assert stopped == [True]

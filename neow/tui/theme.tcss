@@ -169,6 +169,12 @@ NewMessagesBanner {
     background: transparent;
 }
 
+#inputdock PromptArea .text-area--cursor {
+    color: $neow-accent1;
+    background: transparent;
+    text-style: underline;
+}
+
 #inputdock PromptArea .text-area--placeholder {
     color: $neow-muted;
 }
@@ -254,38 +260,42 @@ ApprovalModal .approval-command {
 }
 
 .dialog-backdrop {
-    background: $neow-bg 70%;
+    background: $neow-bg 75%;
     align: center middle;
 }
 
 .dialog {
-    width: 84;
+    width: 78;
     max-width: 94%;
     height: auto;
-    max-height: 90%;
+    max-height: 88%;
     background: $neow-surface;
     border: round $neow-border_strong;
-    border-title-color: $neow-accent2;
+    border-title-color: $neow-accent1;
     border-title-style: bold;
     border-subtitle-color: $neow-muted;
     padding: 1 2;
 }
 
 .dialog.tall {
-    height: 90%;
+    height: 88%;
 }
 
 .dialog.wide {
-    width: 120;
+    width: 112;
 }
 
 .dialog OptionList,
 .dialog Tree {
     height: auto;
-    max-height: 24;
+    max-height: 20;
     border: none;
-    background: $neow-surface;
+    background: transparent;
     padding: 0;
+}
+
+.dialog OptionList > .option-list--option {
+    padding: 0 1;
 }
 
 .dialog.tall Tree,
@@ -297,6 +307,9 @@ ApprovalModal .approval-command {
 .dialog VerticalScroll {
     height: auto;
     max-height: 100%;
+    border: none;
+    background: transparent;
+    padding: 0;
 }
 
 .dialog OptionList > .option-list--option-highlighted,
@@ -311,9 +324,78 @@ ApprovalModal .approval-command {
     text-style: bold;
 }
 
+.dialog Input {
+    background: $neow-bg;
+    color: $neow-text;
+    border: round $neow-border_strong;
+    padding: 0 1;
+    height: 3;
+}
+
+.dialog Input:focus {
+    border: round $neow-accent1;
+    background: $neow-bg;
+}
+
+.dialog .actions,
+.dialog .model-actions {
+    height: 1;
+    margin-top: 1;
+}
+
+.dialog Button {
+    height: 1;
+    min-width: 10;
+    border: none;
+    background: $neow-elevated;
+    color: $neow-dim;
+    padding: 0 2;
+    margin-right: 1;
+    text-style: none;
+}
+
+.dialog Button:hover,
+.dialog Button:focus {
+    background: $neow-selection;
+    color: $neow-text;
+    text-style: bold;
+}
+
+.dialog Button.-primary {
+    background: $neow-selection;
+    color: $neow-accent1;
+    text-style: bold;
+}
+
+.dialog Button.-primary:hover,
+.dialog Button.-primary:focus {
+    background: $neow-accent1 25%;
+    color: $neow-accent1;
+    text-style: bold;
+}
+
+.dialog Button.-error {
+    background: $neow-error_bg;
+    color: $neow-error;
+    text-style: bold;
+}
+
+.dialog-label {
+    color: $neow-dim;
+    height: 1;
+    margin: 0;
+}
+
+.dialog-block {
+    background: $neow-code_bg;
+    border-left: outer $neow-border_strong;
+    padding: 0 1;
+    margin: 0;
+    height: auto;
+}
+
 .dialog-empty {
     color: $neow-muted;
-    text-style: italic;
 }
 
 .picker-title {

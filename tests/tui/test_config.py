@@ -5,7 +5,12 @@ from neow.core.config import Config
 
 def test_tui_config_defaults(tmp_path):
     cfg = Config(tmp_path / "missing.json")
-    assert cfg.tui == {"effects": "full", "sidebar_default": False, "theme": "midnight"}
+    assert cfg.tui == {
+        "effects": "full",
+        "sidebar_default": False,
+        "theme": "midnight",
+        "show_thinking": True,
+    }
 
 
 def test_tui_config_unknown_effects_falls_back(tmp_path):

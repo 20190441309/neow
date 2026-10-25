@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional
 
@@ -45,7 +46,31 @@ from neow.tui.screens.cost import CostScreen
 from neow.tui.screens.diff_view import DiffScreen
 from neow.tui.screens.help import HelpScreen
 from neow.tui.screens.model_editor import ModelEditorScreen
+from neow.tui.screens.approval_mode import ApprovalModeScreen
+from neow.tui.screens.commit_modal import CommitModalScreen
+from neow.tui.screens.compaction_picker import CompactionPickerScreen
+from neow.tui.screens.context_drop import ContextDropScreen
+from neow.tui.screens.context_list import ContextListScreen
+from neow.tui.screens.effort_picker import EffortPickerScreen
+from neow.tui.screens.export_picker import ExportPickerScreen
+from neow.tui.screens.file_picker import FilePickerScreen
+from neow.tui.screens.goal_modal import GoalModalScreen
+from neow.tui.screens.plan_modal import PlanModalScreen
+from neow.tui.screens.skills_modal import SkillsModalScreen
+from neow.tui.screens.tasks_modal import TasksModalScreen
+from neow.tui.screens.image_picker import ImagePickerScreen
+from neow.tui.screens.imgdiff_modal import ImgDiffModalScreen
+from neow.tui.screens.lint_modal import LintModalScreen
+from neow.tui.screens.mcp_manager import McpManagerScreen
+from neow.tui.screens.memory import MemoryScreen
 from neow.tui.screens.model_picker import ModelPickerScreen
+from neow.tui.screens.mode_picker import ModePickerScreen
+from neow.tui.screens.rewind_picker import RewindPickerScreen
+from neow.tui.screens.session_save import SessionSaveScreen
+from neow.tui.screens.test_modal import TestModalScreen
+from neow.tui.screens.thinking_detail import ThinkingDetailScreen
+from neow.tui.screens.thinking_picker import ThinkingPickerScreen
+from neow.tui.screens.web_fetch import WebFetchScreen
 from neow.tui.screens.session_picker import SessionPickerScreen
 from neow.tui.screens.tree import SessionTreeScreen
 from neow.tui.widgets.input_dock import InputDock
@@ -107,6 +132,9 @@ class ChatScreen(Screen):
         self._model_switching = False
         self.commands: Optional[CommandDispatcher] = None
         self.sidebar_tab = "context"
+        self.show_thinking = True
+        self._goal_state = None
+        self._last_assistant_content = ""
 
     # -- composition ---------------------------------------------------
 
@@ -122,6 +150,7 @@ class ChatScreen(Screen):
     def on_mount(self) -> None:
         self.apply_width_classes(self.size.width)
         app = self.app
+        self.show_thinking = getattr(app, "show_thinking", True)
         self._controller = ChatController(
             app.conversation,
             event_callback=self._post_event,
@@ -146,17 +175,49 @@ class ChatScreen(Screen):
                 "model_add": self._open_model_editor,
                 "model_sync": self._sync_magpie_models,
                 "model_switch": self._switch_model_command,
+                "effort": self._open_effort_picker,
                 "history": self._open_session_picker,
                 "load": self._open_session_picker,
                 "tree": self._open_tree,
                 "branch": self._open_tree,
                 "diff": self._open_diff,
+                "commit": self._open_commit_modal,
                 "commit_ai": self._commit_ai,
                 "submit": self.submit_prompt,
                 "rewound": self._mark_rewound,
                 "undo": self._undo_action,
                 "cost": self._open_cost,
-                "think": self._show_thinking,
+                "think": self._open_think_screen,
+                "think_card": self._show_thinking,
+                "clear": self._clear_conversation,
+                "add": self._open_file_picker,
+                "drop": self._open_context_drop,
+                "ls": self._open_context_list,
+                "imgdiff": self._open_imgdiff_modal,
+                "lint": self._open_lint_modal,
+                "test": self._open_test_modal,
+                "mode": self._open_mode_picker,
+                "architect": self._enter_architect_mode,
+                "code": self._enter_code_mode,
+                "save": self._open_session_save,
+                "web": self._open_web_fetch,
+                "compact": self._open_compaction_picker,
+                "export": self._open_export_picker,
+                "image": self._open_image_picker,
+                "approval": self._open_approval_picker,
+                "verbose": self._toggle_verbosity,
+                "thinking": self._open_thinking_picker,
+                "memory": self._open_memory_screen,
+                "mcp": self._open_mcp_manager,
+                "rewind": self._open_rewind_picker,
+                "goal": self._open_goal_modal,
+                "goal_start": self._start_goal,
+                "goal_stop": self._stop_goal,
+                "plan": self._open_plan_modal,
+                "plan_start": self._generate_plan,
+                "plan_approve": self._approve_plan,
+                "tasks": self._open_tasks_modal,
+                "skills": self._open_skills_modal,
             }
         )
         self.refresh_status()
@@ -209,6 +270,10 @@ class ChatScreen(Screen):
     # -- widgets -------------------------------------------------------
 
     @property
+    def conversation(self):
+        return getattr(self.app, "conversation", None)
+
+    @property
     def timeline(self) -> TimelineScroll:
         return self.query_one("#timeline", TimelineScroll)
 
@@ -251,6 +316,8 @@ class ChatScreen(Screen):
         self._start_turn(text)
 
     def cancel_turn(self) -> None:
+        if self._goal_state is not None and self._goal_state.active:
+            self._goal_state.active = False
         if self._controller is not None:
             self._controller.cancel()
 
@@ -336,14 +403,17 @@ class ChatScreen(Screen):
 
     def handle_event(self, event: Any) -> None:
         if isinstance(event, ReasoningStarted):
-            self._ensure_thinking()
+            if self.show_thinking:
+                self._ensure_thinking()
         elif isinstance(event, ReasoningDelta):
-            self._ensure_thinking().append_reasoning(event.text)
+            if self.show_thinking:
+                self._ensure_thinking().append_reasoning(event.text)
         elif isinstance(event, ReasoningEnd):
-            card = self._ensure_thinking()
-            card.finish_reasoning(event.duration)
+            if self.show_thinking:
+                card = self._ensure_thinking()
+                card.finish_reasoning(event.duration)
+                self._current_thinking = None
             self._last_reasoning = event.reasoning
-            self._current_thinking = None
         elif isinstance(event, ContentDelta):
             card = self._ensure_assistant()
             self.call_later(card.append_content, event.text)
@@ -398,6 +468,8 @@ class ChatScreen(Screen):
         elif isinstance(event, TurnCompleted):
             self._finish_turn(event.content)
         elif isinstance(event, TurnFailed):
+            if self._goal_state is not None and self._goal_state.active:
+                self._goal_state.active = False
             self._add_card(ErrorCard("模型错误", event.message))
             self._finish_turn("")
 
@@ -453,6 +525,7 @@ class ChatScreen(Screen):
         return str(getattr(client, "model", "") or "Assistant")
 
     def _finish_turn(self, content: str) -> None:
+        self._last_assistant_content = content or ""
         duration = time.monotonic() - self._turn_started
         if self._current_assistant is not None:
             self._current_assistant.finish(time.monotonic() - self._segment_started)
@@ -483,6 +556,44 @@ class ChatScreen(Screen):
             self.app.conversation.pending_lint_feedback = None
             self._add_card(SystemCard("自动修复 lint/test 错误", level="warn"))
             self._start_turn(feedback)
+            return
+
+        if self._goal_state is not None and self._goal_state.active:
+            from neow.core.goal import (
+                build_goal_continuation_prompt,
+                is_goal_achieved,
+            )
+
+            todos = getattr(self.app.conversation, "todos", None) or []
+            if is_goal_achieved(self._last_assistant_content, todos):
+                self._goal_state.active = False
+                self._add_card(
+                    SystemCard(
+                        f"◆ 目标已达成 (共 {self._goal_state.current_round} 轮): "
+                        f"{self._goal_state.goal}",
+                        level="info",
+                    )
+                )
+                return
+            if self._goal_state.current_round >= self._goal_state.max_rounds:
+                self._goal_state.active = False
+                self._add_card(
+                    SystemCard(
+                        f"◆ 目标模式已达最大轮次 ({self._goal_state.max_rounds} 轮)，"
+                        f"已自动停止: {self._goal_state.goal}",
+                        level="warn",
+                    )
+                )
+                return
+            self._goal_state.current_round += 1
+            self._add_card(
+                SystemCard(
+                    f"◆ 目标推进中 (第 {self._goal_state.current_round}/"
+                    f"{self._goal_state.max_rounds} 轮): {self._goal_state.goal}",
+                    level="info",
+                )
+            )
+            self._start_turn(build_goal_continuation_prompt(self._goal_state, todos))
 
     # -- auto-compaction -----------------------------------------------
 
@@ -617,6 +728,441 @@ class ChatScreen(Screen):
 
     # -- screen hooks (plan task 14) -----------------------------------
 
+    def _clear_conversation(self):
+        clear_fn = getattr(self.conversation, "clear_history", None)
+        if callable(clear_fn):
+            clear_fn()
+        self.timeline.clear_cards()
+        self._add_card(SystemCard("Conversation history cleared", level="info"))
+
+    def _open_commit_modal(self):
+        summary = ""
+        try:
+            from neow.tools.git import git_status
+
+            summary = git_status()
+        except Exception:
+            pass
+        self.app.push_screen(
+            CommitModalScreen(
+                changed_files_summary=summary,
+                on_commit=lambda msg: self.dispatch_command(f"/commit {msg}"),
+                on_generate_ai=self._commit_ai,
+            )
+        )
+        return None
+
+    def _open_file_picker(self):
+        self.app.push_screen(
+            FilePickerScreen(on_add=lambda path: self.dispatch_command(f"/add {path}"))
+        )
+        return None
+
+    def _open_context_drop(self):
+        fn = getattr(self.conversation, "list_context_files", None)
+        files = (
+            fn() if callable(fn) else getattr(self.conversation, "context_files", [])
+        )
+        self.app.push_screen(
+            ContextDropScreen(files=files, on_drop=self._drop_context_file)
+        )
+        return None
+
+    def _drop_context_file(self, target: str):
+        if target == "__ALL__":
+            fn = getattr(self.conversation, "list_context_files", None)
+            files = (
+                list(fn())
+                if callable(fn)
+                else list(getattr(self.conversation, "context_files", []))
+            )
+            for f in files:
+                try:
+                    self.conversation.drop_context_file(f)
+                except Exception:
+                    pass
+            self._add_card(SystemCard("已清空全部上下文文件", level="info"))
+        else:
+            self.dispatch_command(f"/drop {target}")
+
+    def _open_context_list(self):
+        fn = getattr(self.conversation, "list_context_files", None)
+        files = (
+            fn() if callable(fn) else getattr(self.conversation, "context_files", [])
+        )
+        self.app.push_screen(
+            ContextListScreen(files=files, on_drop=self._drop_context_file)
+        )
+        return None
+
+    def _open_imgdiff_modal(self):
+        self.app.push_screen(
+            ImgDiffModalScreen(
+                on_compare=lambda a, b: self.dispatch_command(f"/imgdiff {a} {b}")
+            )
+        )
+        return None
+
+    def _open_lint_modal(self):
+        from neow.tools.lint_test import run_lint
+
+        out = run_lint(self.app.config)
+        cmd = (
+            getattr(self.app.config, "lint_test", {}).get("lint_command", "")
+            if getattr(self.app, "config", None)
+            else ""
+        )
+        self.app.push_screen(
+            LintModalScreen(
+                command=cmd,
+                output=out,
+                on_auto_fix=lambda: self.submit_prompt(
+                    "Please analyze and fix the lint issues."
+                ),
+            )
+        )
+        return None
+
+    def _open_test_modal(self):
+        from neow.tools.lint_test import run_test
+
+        out = run_test(self.app.config)
+        cmd = (
+            getattr(self.app.config, "lint_test", {}).get("test_command", "")
+            if getattr(self.app, "config", None)
+            else ""
+        )
+        self.app.push_screen(
+            TestModalScreen(
+                command=cmd,
+                output=out,
+                on_auto_fix=lambda: self.submit_prompt(
+                    "Please analyze and fix the test failures."
+                ),
+            )
+        )
+        return None
+
+    def _open_mode_picker(self):
+        cur = (
+            "architect"
+            if getattr(self.conversation, "architect_mode", False)
+            else "code"
+        )
+        cfg = getattr(self.app, "config", None)
+        planner = (
+            getattr(cfg, "architect", {}).get("planner", "anthropic")
+            if cfg
+            else "anthropic"
+        )
+        executor = (
+            getattr(cfg, "architect", {}).get("executor", "deepseek")
+            if cfg
+            else "deepseek"
+        )
+        self.app.push_screen(
+            ModePickerScreen(
+                current=cur,
+                planner_model=planner,
+                executor_model=executor,
+                on_select=self._set_mode,
+            )
+        )
+        return None
+
+    def _set_mode(self, mode: str):
+        is_arch = mode == "architect"
+        self.conversation.architect_mode = is_arch
+        msg = (
+            "Architect mode enabled. "
+            "The planner model turns each request into a spec before execution."
+            if is_arch
+            else "Code mode enabled."
+        )
+        self._add_card(SystemCard(msg, level="info"))
+
+    def _enter_architect_mode(self):
+        self._set_mode("architect")
+
+    def _enter_code_mode(self):
+        self._set_mode("code")
+
+    def _open_session_save(self):
+        self.app.push_screen(
+            SessionSaveScreen(
+                on_save=lambda name: self.dispatch_command(f"/save {name}")
+            )
+        )
+        return None
+
+    def _open_web_fetch(self):
+        self.app.push_screen(
+            WebFetchScreen(on_fetch=lambda url: self.dispatch_command(f"/web {url}"))
+        )
+        return None
+
+    def _open_think_screen(self):
+        self.app.push_screen(ThinkingDetailScreen(reasoning=self._last_reasoning))
+        return None
+
+    def _open_compaction_picker(self):
+        self.app.push_screen(
+            CompactionPickerScreen(
+                on_select=lambda mode: self.dispatch_command(f"/compact {mode}")
+            )
+        )
+        return None
+
+    def _open_export_picker(self):
+        self.app.push_screen(
+            ExportPickerScreen(
+                on_select=lambda fmt: self.dispatch_command(f"/export {fmt}")
+            )
+        )
+        return None
+
+    def _open_image_picker(self):
+        self.app.push_screen(
+            ImagePickerScreen(
+                on_select=lambda path: self.dispatch_command(f"/image {path}")
+            )
+        )
+        return None
+
+    def _open_approval_picker(self):
+        policy = getattr(self.app, "approval_policy", None)
+        cur = policy.mode.value if policy else "write"
+        overrides = policy.tool_overrides if policy else {}
+        self.app.push_screen(
+            ApprovalModeScreen(
+                current=cur,
+                overrides=overrides,
+                on_select=lambda m: self.dispatch_command(f"/approval {m}"),
+            )
+        )
+        return None
+
+    def _toggle_verbosity(self):
+        cur = getattr(self.conversation, "verbose", False)
+        self._set_verbosity(not cur)
+
+    def _set_verbosity(self, verbose: bool):
+        self.conversation.verbose = verbose
+        status = "on" if verbose else "off"
+        self._add_card(SystemCard(f"Verbose mode: {status}", level="info"))
+
+    def _open_thinking_picker(self):
+        cur = getattr(self, "show_thinking", True)
+        self.app.push_screen(
+            ThinkingPickerScreen(
+                current=cur,
+                on_select=self._handle_thinking_choice,
+            )
+        )
+        return None
+
+    def _handle_thinking_choice(self, choice: str | bool):
+        if choice in (True, "on"):
+            self._set_show_thinking(True)
+        elif choice in (False, "off"):
+            self._set_show_thinking(False)
+        elif choice == "view":
+            self.app.push_screen(ThinkingDetailScreen(reasoning=self._last_reasoning))
+
+    def _set_show_thinking(self, enabled: bool):
+        self.show_thinking = enabled
+        if hasattr(self.app, "show_thinking"):
+            self.app.show_thinking = enabled
+        conv = getattr(self.app, "conversation", None)
+        if conv is not None and hasattr(conv, "show_thinking"):
+            conv.show_thinking = enabled
+        cfg = getattr(self.app, "config", None)
+        if cfg is not None:
+            try:
+                cfg._config.setdefault("tui", {})["show_thinking"] = enabled
+            except Exception:
+                pass
+        status = "开启 (显示)" if enabled else "关闭 (隐藏)"
+        self._add_card(SystemCard(f"思考过程显示已{status}", level="info"))
+
+    def _open_goal_modal(self):
+        active = (
+            self._goal_state
+            if (self._goal_state and self._goal_state.active)
+            else getattr(self.conversation, "goal_state", None)
+        )
+        self.app.push_screen(
+            GoalModalScreen(
+                active_goal=active,
+                on_start=self._start_goal,
+                on_stop=self._stop_goal,
+            )
+        )
+        return None
+
+    def _start_goal(self, goal_text: str) -> None:
+        from neow.core.goal import GoalState, build_goal_initial_prompt
+
+        goal_text = (goal_text or "").strip()
+        if not goal_text:
+            return
+        state = GoalState(goal=goal_text, active=True)
+        self._goal_state = state
+        if self.conversation is not None:
+            self.conversation.goal_state = state
+        self._add_card(
+            SystemCard(
+                f"◆ 已启动目标模式 (最多 {state.max_rounds} 轮): {goal_text}",
+                level="info",
+            )
+        )
+        if not self._can_start_turn():
+            state.active = False
+            return
+        self.submit_prompt(build_goal_initial_prompt(goal_text))
+
+    def _stop_goal(self) -> None:
+        if self._goal_state is not None:
+            self._goal_state.active = False
+        conv_state = (
+            getattr(self.conversation, "goal_state", None)
+            if self.conversation is not None
+            else None
+        )
+        if conv_state is not None:
+            conv_state.active = False
+        self._add_card(SystemCard("◆ 已停止当前目标模式。", level="info"))
+
+    def _open_plan_modal(self):
+        todos = list(getattr(self.conversation, "todos", None) or [])
+        self.app.push_screen(
+            PlanModalScreen(
+                todos=todos,
+                on_approve=self._approve_plan,
+                on_generate=self._generate_plan,
+            )
+        )
+        return None
+
+    def _generate_plan(self, task_text: str) -> None:
+        task_text = (task_text or "").strip()
+        if not task_text:
+            return
+        self._add_card(SystemCard(f"◆ 正在生成执行计划: {task_text}", level="info"))
+        prompt = (
+            "请先为以下任务制定详细的分步执行计划，调用 `todo_write` 记录步骤，"
+            "如有不明确之处请调用 `ask_user` 询问，在用户确认前暂不修改代码：\n\n"
+            f"{task_text}"
+        )
+        self.submit_prompt(prompt)
+
+    def _approve_plan(self, extra_instruction: str = "") -> None:
+        extra = (extra_instruction or "").strip()
+        self._add_card(SystemCard("◆ 已批准计划，开始执行步骤…", level="info"))
+        prompt = "请按照已制定的计划清单 (`todo_write`) 依次执行所有步骤。"
+        if extra:
+            prompt += f"\n补充要求：{extra}"
+        self.submit_prompt(prompt)
+
+    def _open_tasks_modal(self):
+        self.app.push_screen(TasksModalScreen())
+        return None
+
+    def _open_skills_modal(self):
+        self.app.push_screen(SkillsModalScreen(on_load=self._on_skill_loaded))
+        return None
+
+    def _on_skill_loaded(self, name: str, content: str) -> None:
+        if self.conversation is not None:
+            self.conversation.add_message(
+                "user", f'<skill name="{name}">\n{content}\n</skill>'
+            )
+        self._add_card(SystemCard(f"◆ 已加载技能到上下文: {name}", level="info"))
+
+    def _open_memory_screen(self):
+        from neow.core.memory import load_memory
+
+        mem = load_memory(Path.cwd())
+        notes = []
+        if isinstance(mem, dict):
+            for p in mem.get("projects", []):
+                if isinstance(p, dict) and p.get("text"):
+                    notes.append(p["text"])
+                elif isinstance(p, str):
+                    notes.append(p)
+        self.app.push_screen(
+            MemoryScreen(
+                notes=notes,
+                on_add_note=lambda text: self.dispatch_command(f"/memory add {text}"),
+            )
+        )
+        return None
+
+    def _open_mcp_manager(self):
+        mgr = getattr(self.conversation, "mcp", None)
+        servers = getattr(mgr, "servers", {}) if mgr else {}
+        tools = []
+        if mgr and hasattr(mgr, "list_tools"):
+            try:
+                tools = [
+                    t.name if hasattr(t, "name") else str(t) for t in mgr.list_tools()
+                ]
+            except Exception:
+                pass
+        self.app.push_screen(McpManagerScreen(servers=servers, tools=tools))
+        return None
+
+    def _open_rewind_picker(self):
+        store = getattr(self.conversation, "checkpoints", None)
+        turns = store.turns() if store else []
+        self.app.push_screen(
+            RewindPickerScreen(
+                checkpoints=turns,
+                on_rewind=lambda t: self.dispatch_command(f"/rewind {t}"),
+            )
+        )
+        return None
+
+    def _open_effort_picker(self):
+        client = getattr(self.app.conversation, "model_client", None)
+        current = getattr(client, "effort", None) or "off"
+        model_name = (
+            getattr(client, "config_name", None)
+            or getattr(client, "model", None)
+            or "当前模型"
+        )
+        self.app.push_screen(
+            EffortPickerScreen(
+                current=current,
+                model_name=model_name,
+                on_select=self._set_effort,
+            )
+        )
+        return None
+
+    def _set_effort(self, level: str) -> None:
+        client = getattr(self.app.conversation, "model_client", None)
+        if client is None:
+            self._add_card(SystemCard("No model configured", level="error"))
+            return
+        level = level.strip().lower()
+        client.effort = None if level == "off" else level
+        name = getattr(client, "config_name", None)
+        config = getattr(self.app, "config", None)
+        if name and config is not None:
+            try:
+                config.save_model(name, {"effort": level})
+            except Exception as exc:
+                self._add_card(
+                    SystemCard(
+                        f"Set for this session, but failed to persist: {exc}",
+                        level="warn",
+                    )
+                )
+                return
+        self._add_card(SystemCard(f"Effort set to: {level}", level="info"))
+        self.refresh_status()
+
     def _open_help(self):
         self.app.push_screen(HelpScreen())
         return None
@@ -644,6 +1190,7 @@ class ChatScreen(Screen):
                 on_add=self._open_model_editor,
                 on_edit=self._open_model_editor,
                 on_sync=self._sync_magpie_models,
+                on_delete=self._delete_model,
                 message=(
                     MODEL_SETUP_PROMPT
                     if getattr(self.app.conversation, "model_client", None) is None
@@ -652,6 +1199,31 @@ class ChatScreen(Screen):
             )
         )
         return None
+
+    def _delete_model(self, name: str):
+        if self._model_switching:
+            self.notify("正在连接模型，请稍候。", severity="warning")
+            return
+        active = getattr(
+            getattr(self.app.conversation, "model_client", None), "config_name", None
+        )
+        if name == active:
+            self.notify(
+                "无法删除当前正在使用的模型，请先切换到其他模型。", severity="warning"
+            )
+            return
+        config = getattr(self.app, "config", None)
+        if config is None:
+            return
+        if len(config.models) <= 1:
+            self.notify("至少需要保留一个模型配置。", severity="warning")
+            return
+        try:
+            config.delete_model(name)
+            self._refresh_model_picker()
+            self.notify(f"已删除模型配置: {name}")
+        except Exception as exc:
+            self.notify(str(exc), severity="error")
 
     @staticmethod
     def _model_entry_label(name, entry):
@@ -696,15 +1268,21 @@ class ChatScreen(Screen):
         )
 
     def _load_magpie_catalog(self):
-        from neow.models.management import sync_magpie
+        from neow.models.management import get_preferred_magpie_model, sync_magpie
 
         try:
             count = sync_magpie(self.app.config)
+            preferred = get_preferred_magpie_model(self.app.config)
         except Exception as exc:
             self.app.call_from_thread(self.notify, str(exc), severity="error")
             return
         self.app.call_from_thread(self._refresh_model_picker)
-        self.app.call_from_thread(self.notify, f"已同步 {count} 个 Magpie 模型")
+        msg = f"已同步 {count} 个 Magpie 模型"
+        if preferred:
+            msg += f"（推荐: {preferred}）"
+        self.app.call_from_thread(self.notify, msg)
+        if preferred and getattr(self.app.conversation, "model_client", None) is None:
+            self.app.call_from_thread(self._switch_model, preferred)
 
     def _switch_model_command(self, name: str) -> CommandResult:
         self._switch_model(name)

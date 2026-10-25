@@ -9,7 +9,16 @@ import yaml
 
 from neow.core.config import Config, ConfigError
 from neow.models.factory import resolve_api_key
-from neow.models.management import sync_magpie, validate_model_entry
+from neow.models.management import (
+    PROVIDER_PRESETS,
+    auto_discover_magpie,
+    fetch_endpoint_models,
+    get_preferred_magpie_model,
+    get_preset_by_id,
+    sync_gateway_models,
+    sync_magpie,
+    validate_model_entry,
+)
 
 
 def configured(tmp_path, data=None, suffix=".json"):
@@ -146,3 +155,113 @@ def test_invalid_catalog_does_not_write(tmp_path, monkeypatch):
     with pytest.raises(ConfigError):
         sync_magpie(config)
     assert config.source_path.read_text() == original
+
+
+def test_magpie_sync_prunes_deleted_models(tmp_path, monkeypatch):
+    config = configured(tmp_path)
+    res1 = MagicMock()
+    res1.json.return_value = {
+        "data": [
+            {"id": "xiaomi/mimo"},
+            {"id": "deepseek/chat"},
+        ]
+    }
+    monkeypatch.setattr("neow.models.management.requests.get", lambda *a, **k: res1)
+    assert sync_magpie(config) == 2
+    assert "magpie/xiaomi/mimo" in config.models
+    assert "magpie/deepseek/chat" in config.models
+
+    # Turn 2: xiaomi removed from upstream gateway
+    res2 = MagicMock()
+    res2.json.return_value = {
+        "data": [
+            {"id": "deepseek/chat"},
+        ]
+    }
+    monkeypatch.setattr("neow.models.management.requests.get", lambda *a, **k: res2)
+    assert sync_magpie(config) == 1
+    assert "magpie/xiaomi/mimo" not in config.models
+    assert "magpie/deepseek/chat" in config.models
+
+    # Verify persisted on disk as well
+    reloaded = Config(config.source_path)
+    assert "magpie/xiaomi/mimo" not in reloaded.models
+    assert "magpie/deepseek/chat" in reloaded.models
+
+
+def test_provider_presets_and_fetch_endpoint_models(monkeypatch):
+    assert len(PROVIDER_PRESETS) >= 10
+    sf = get_preset_by_id("siliconflow")
+    assert sf is not None
+    assert sf["provider"] == "openai-compatible"
+    assert "siliconflow.cn" in sf["base_url"]
+
+    ollama = get_preset_by_id("ollama")
+    assert ollama is not None
+    assert "11434" in ollama["base_url"]
+
+    res = MagicMock()
+    res.json.return_value = {"data": [{"id": "qwen2.5-coder:7b"}, {"id": "llama3.2"}]}
+    monkeypatch.setattr("neow.models.management.requests.get", lambda *a, **k: res)
+    models = fetch_endpoint_models("http://127.0.0.1:11434/v1")
+    assert [m["id"] for m in models] == ["qwen2.5-coder:7b", "llama3.2"]
+
+
+def test_sync_custom_gateway_and_delete_model(tmp_path, monkeypatch):
+    config = configured(tmp_path)
+    res = MagicMock()
+    res.json.return_value = {"data": [{"id": "deepseek-ai/DeepSeek-V3"}]}
+    monkeypatch.setattr("neow.models.management.requests.get", lambda *a, **k: res)
+    count = sync_gateway_models(
+        config,
+        base_url="https://api.siliconflow.cn/v1",
+        api_key="sf-key",
+        prefix="sf",
+    )
+    assert count == 1
+    assert "sf/deepseek-ai/DeepSeek-V3" in config.models
+    assert config.models["sf/deepseek-ai/DeepSeek-V3"]["source"] == "gateway"
+
+    # Delete model from config and verify persistence
+    config.delete_model("sf/deepseek-ai/DeepSeek-V3")
+    assert "sf/deepseek-ai/DeepSeek-V3" not in config.models
+    reloaded = Config(config.source_path)
+    assert "sf/deepseek-ai/DeepSeek-V3" not in reloaded.models
+
+
+def test_auto_discover_magpie_reads_applied_json(tmp_path, monkeypatch):
+    config = configured(tmp_path)
+    fake_home = tmp_path / "fake_home"
+    magpie_dir = fake_home / ".config" / "magpie"
+    magpie_dir.mkdir(parents=True)
+    (magpie_dir / "applied.json").write_text(
+        json.dumps(
+            {
+                "claude": {
+                    "at": "2026-10-06T18:00:00+08:00",
+                    "fields": {"model": "cursor/auto"},
+                },
+                "codex": {
+                    "at": "2026-10-23T19:00:00+08:00",
+                    "fields": {"model": "gpt20x/gpt-6-astra"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    res = MagicMock()
+    res.json.return_value = {
+        "data": [
+            {"id": "cursor/auto"},
+            {"id": "gpt20x/gpt-6-astra"},
+        ]
+    }
+    monkeypatch.setattr("neow.models.management.requests.get", lambda *a, **k: res)
+
+    discovered = auto_discover_magpie(config, home=fake_home)
+    assert discovered == "magpie/gpt20x/gpt-6-astra"
+    assert config.default_model == "magpie/gpt20x/gpt-6-astra"
+    assert get_preferred_magpie_model(config, home=fake_home) == (
+        "magpie/gpt20x/gpt-6-astra"
+    )

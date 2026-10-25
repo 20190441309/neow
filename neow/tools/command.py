@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 from neow.core.cancellation import current_cancel_token
@@ -18,6 +19,57 @@ class CommandError(Exception):
     """Command execution error."""
 
     pass
+
+
+# Persistent working directory across commands within a session.
+# Remains None until changed via ``cd`` or ``set_session_cwd()``, preserving
+# ``cwd=None`` default behavior for callers that don't change directories.
+_SESSION_CWD: Optional[Path] = None
+
+
+def get_session_cwd() -> Optional[Path]:
+    """Return the persistent session working directory, or None if at default."""
+    return _SESSION_CWD
+
+
+def set_session_cwd(path: Optional[Path | str]) -> Path:
+    """Set the persistent session working directory."""
+    global _SESSION_CWD
+    if path is None:
+        _SESSION_CWD = None
+        return Path.cwd()
+    target = Path(path).expanduser()
+    if not target.is_absolute():
+        base = _SESSION_CWD or Path.cwd()
+        target = (base / target).resolve()
+    else:
+        target = target.resolve()
+    if not target.exists():
+        raise CommandError(f"Directory not found: {path}")
+    if not target.is_dir():
+        raise CommandError(f"Not a directory: {path}")
+    _SESSION_CWD = target
+    return _SESSION_CWD
+
+
+def reset_session_cwd() -> None:
+    """Reset the session working directory back to default."""
+    global _SESSION_CWD
+    _SESSION_CWD = None
+
+
+_CD_ONLY_RE = re.compile(r"^\s*cd(?:\s+(/d\s+)?(.+?))?\s*$", re.IGNORECASE)
+_CD_CHAIN_RE = re.compile(
+    r"^\s*cd\s+(?:/d\s+)?([^;&|]+?)\s*(?:&&|;)\s*(.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _strip_quotes(text: str) -> str:
+    text = text.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+        return text[1:-1]
+    return text
 
 
 # Common Unix commands and their Windows cmd.exe equivalents (fallback only).
@@ -108,8 +160,6 @@ def _translate_for_powershell(command: str) -> str:
         if "i" in flags:
             ps_flags.append("-CaseSensitive:$false")
         if "r" in flags or "R" in flags:
-            # Select-String with -Path needs a recurse approach
-            # Simplify: extract pattern and path from args
             arg_parts = args.split(None, 1)
             pattern = arg_parts[0] if arg_parts else ""
             path = arg_parts[1] if len(arg_parts) > 1 else "."
@@ -164,7 +214,6 @@ def _translate_for_powershell(command: str) -> str:
 
     # ── mkdir → New-Item ────────────────────────────────────────────
     if base == "mkdir":
-        flags = _extract_flags(rest)
         args = _strip_flags(rest)
         cmd = "New-Item -ItemType Directory"
         if args:
@@ -237,19 +286,11 @@ def _translate_for_powershell(command: str) -> str:
     return command
 
 
-# A short flag is a standalone token: ``-x``, ``-la``, ``-rf``.  Requiring the
-# surrounding whitespace matters: ``made-by-shell.txt`` is a file name, not a
-# flag, and a looser pattern silently ate the ``-by`` and ``-shell`` parts
-# (turning ``touch made-by-shell.txt`` into ``New-Item … made.txt``).
 _FLAG_TOKEN = re.compile(r"(?:^|\s)-([a-zA-Z]+)(?=\s|$)")
 
 
 def _extract_flags(rest: str) -> str:
-    """Extract combined short flags like ``-la`` or ``-rn``.
-
-    Returns a string of flag characters without dashes, e.g. ``"la"``.
-    Long flags (``--help``) are not short flags and are skipped.
-    """
+    """Extract combined short flags like ``-la`` or ``-rn``."""
     return "".join(m.group(1) for m in _FLAG_TOKEN.finditer(rest)).lower()
 
 
@@ -259,12 +300,7 @@ def _strip_flags(rest: str) -> str:
 
 
 def _translate_unix_command(command: str) -> str:
-    """Translate a common Unix command to its Windows cmd.exe equivalent.
-
-    Only the *first* word is translated; flags and arguments are left
-    untouched.  This is a best-effort fallback when PowerShell is not
-    available.
-    """
+    """Translate a common Unix command to its Windows cmd.exe equivalent."""
     parts = command.split(None, 1)
     if not parts:
         return command
@@ -298,10 +334,7 @@ def effective_timeout(timeout: Optional[int]) -> int:
 def _spawn(
     command: str, cwd: Optional[str], argv: Optional[list] = None
 ) -> subprocess.Popen:
-    """Start *command* in its own process group so it can be killed whole.
-
-    *argv*, when given, is the sandboxed command line (see ``sandbox``).
-    """
+    """Start *command* in its own process group so it can be killed whole."""
     options = dict(
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -314,15 +347,12 @@ def _spawn(
         options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         shell_path = _get_shell_for_windows()
         if shell_path:
-            # Translate Unix commands to PowerShell cmdlet syntax
             translated = _translate_for_powershell(command)
             logger.debug(f"PowerShell command: {translated}")
             return subprocess.Popen(
                 [shell_path, "-NoProfile", "-Command", translated], **options
             )
-        # Fallback: translate common Unix commands for cmd.exe
         return subprocess.Popen(_translate_unix_command(command), shell=True, **options)
-    # Unix: /bin/sh in a new session (= new process group)
     if argv:
         return subprocess.Popen(argv, start_new_session=True, **options)
     return subprocess.Popen(command, shell=True, start_new_session=True, **options)
@@ -349,7 +379,6 @@ def _terminate(proc: subprocess.Popen) -> None:
             proc.wait(KILL_GRACE)
         except subprocess.TimeoutExpired:
             continue
-    # The shell is gone; make sure nothing it started survives it.
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError):
@@ -374,42 +403,45 @@ def _noted(note: str, result: str) -> str:
 def execute_command(
     command: str, timeout: int = DEFAULT_TIMEOUT, cwd: Optional[str] = None
 ) -> str:
-    """Execute a shell command.
-
-    On Windows, PowerShell is preferred because it ships with aliases for
-    common Unix commands (``ls``, ``cat``, ``grep``, …).  Unix-style
-    commands and flags are automatically translated to native PowerShell
-    cmdlet syntax.  When PowerShell is not available, a best-effort
-    translation table maps Unix commands to their ``cmd.exe`` equivalents.
-
-    The command runs in its own process group.  It is killed, together
-    with everything it started, on timeout or when the current turn's
-    :class:`~neow.core.cancellation.CancelToken` is cancelled (Esc).
-
-    Args:
-        command: Command to execute.
-        timeout: Timeout in seconds (default 120, capped by
-            ``tools.command.max_timeout``).
-        cwd: Working directory (optional).
-
-    Returns:
-        stdout (plus stderr) on success; ``Error: ...`` with the exit code
-        and both streams on failure, timeout or cancellation.
-    """
+    """Execute a shell command, maintaining persistent session CWD on ``cd``."""
     timeout = effective_timeout(timeout)
     token = current_cancel_token()
     logger.debug(f"Executing command: {command}")
-    # Ask the sandbox on every platform: Windows has no sandbox, but plan()
-    # still has to report that so ``strict`` refuses the command and ``auto``
-    # adds its "running without it" note.  The argv it returns is a POSIX
-    # command line, which _spawn cannot use on Windows — it builds its own.
-    argv, note = sandbox.plan(command, cwd)
+
+    # Handle standalone `cd` or `cd <dir> && <cmd>` when explicit cwd is not passed
+    if cwd is None:
+        cd_only = _CD_ONLY_RE.match(command)
+        if cd_only:
+            target_arg = _strip_quotes(cd_only.group(2) or "~")
+            try:
+                new_dir = set_session_cwd(target_arg)
+                return f"Changed directory to {new_dir}"
+            except CommandError as e:
+                return f"Error: {e}"
+
+        cd_chain = _CD_CHAIN_RE.match(command)
+        if cd_chain:
+            target_arg = _strip_quotes(cd_chain.group(1))
+            rest_cmd = cd_chain.group(2).strip()
+            try:
+                set_session_cwd(target_arg)
+                command = rest_cmd
+            except CommandError as e:
+                return f"Error: {e}"
+
+    effective_cwd = (
+        cwd
+        if cwd is not None
+        else (str(_SESSION_CWD) if _SESSION_CWD is not None else None)
+    )
+
+    argv, note = sandbox.plan(command, effective_cwd)
     if sys.platform == "win32":
         argv = None
     if note.startswith("Error:"):
         return note
     try:
-        proc = _spawn(command, cwd, argv)
+        proc = _spawn(command, effective_cwd, argv)
     except Exception as e:
         logger.debug(f"Command execution failed: {e}")
         return f"Error: {e}"

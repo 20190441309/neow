@@ -63,12 +63,13 @@ _BUILTIN_COMMANDS: dict[str, str] = {
     "/test": "Run tests / toggle auto-test",
     "/architect": "Enter architect mode (plan first, then execute)",
     "/code": "Return to normal coding mode",
+    "/goal": "Run autonomous goal-driven mode until goal is achieved",
     "/save": "Save current session",
     "/load": "Load a saved session",
     "/history": "List saved sessions",
     "/cost": "Show token usage and cost",
     "/web": "Fetch web page content into context",
-    "/think": "View last AI thinking/reasoning content",
+    "/thinking": "Toggle thinking display or view trace (/thinking [on|off|view])",
     "/compact": "Summarize conversation to free context window",
     "/export": "Export conversation as Markdown file",
     "/image": "Queue an image for the next message (vision)",
@@ -245,6 +246,7 @@ class REPL:
         self._msg_counter = 0
         self._turns_started = 0
         self.verbose_tools = False  # /verbose toggle: expand tool call parameters
+        self.show_thinking = True  # /thinking toggle: display reasoning process
         self._setup_session()
 
     def _setup_session(self) -> None:
@@ -1000,16 +1002,129 @@ class REPL:
                 except Exception as e:
                     print_error(f"Failed to fetch URL: {e}")
 
-        elif parsed.command == Command.THINK:
-            if self._last_reasoning:
-                from neow.utils.formatter import format_reasoning_expanded
+        elif parsed.command in (Command.THINK, Command.THINKING) and parsed.args:
+            arg = parsed.args.strip().lower()
+            if arg in ("view", "detail", "trace"):
+                if self._last_reasoning:
+                    from neow.utils.formatter import format_reasoning_expanded
 
-                console.print(format_reasoning_expanded(self._last_reasoning))
+                    console.print(format_reasoning_expanded(self._last_reasoning))
+                else:
+                    print_info(
+                        "No thinking content available. Reasoning is captured "
+                        "during AI responses that use thinking mode."
+                    )
+            elif arg in ("on", "1", "true", "show", "enable"):
+                self.show_thinking = True
+                print_info("思考过程显示已开启 (显示)。")
+            elif arg in ("off", "0", "false", "hide", "disable"):
+                self.show_thinking = False
+                print_info("思考过程显示已关闭 (隐藏)。")
             else:
-                print_info(
-                    "No thinking content available. Reasoning is captured "
-                    "during AI responses that use thinking mode."
+                print_info("Usage: /thinking [on|off|view]")
+        elif parsed.command in (Command.THINK, Command.THINKING):
+            self.show_thinking = not getattr(self, "show_thinking", True)
+            state = "开启 (显示)" if self.show_thinking else "关闭 (隐藏)"
+            print_info(f"思考过程显示已{state}。(输入 /thinking view 查看详情)")
+        elif parsed.command == Command.GOAL:
+            from neow.core.goal import (
+                GoalState,
+                build_goal_continuation_prompt,
+                build_goal_initial_prompt,
+                is_goal_achieved,
+            )
+
+            arg = (parsed.args or "").strip()
+            if not arg or arg.lower() == "status":
+                state = getattr(self.conversation, "goal_state", None)
+                if state and state.active:
+                    print_info(
+                        f"正在执行目标 (第 {state.current_round}/{state.max_rounds} 轮): "
+                        f"{state.goal}"
+                    )
+                else:
+                    print_info("Usage: /goal <目标描述> | /goal stop | /goal status")
+                return
+            if arg.lower() in ("stop", "off", "cancel", "clear"):
+                state = getattr(self.conversation, "goal_state", None)
+                if state is not None:
+                    state.active = False
+                print_info("已停止当前目标模式。")
+                return
+            state = GoalState(goal=arg, active=True)
+            self.conversation.goal_state = state
+            print_info(f"◆ 已启动目标模式 (最多 {state.max_rounds} 轮): {arg}")
+            self._process_user_input(build_goal_initial_prompt(arg))
+            while state.active and state.current_round < state.max_rounds:
+                last_msg = next(
+                    (
+                        m.get("content", "")
+                        for m in reversed(self.conversation.messages)
+                        if m.get("role") == "assistant" and m.get("content")
+                    ),
+                    "",
                 )
+                if is_goal_achieved(last_msg, self.conversation.todos):
+                    state.active = False
+                    print_info(
+                        f"◆ 目标已达成 (共 {state.current_round} 轮): {state.goal}"
+                    )
+                    break
+                state.current_round += 1
+                print_info(
+                    f"◆ 目标推进中 (第 {state.current_round}/{state.max_rounds} 轮): "
+                    f"{state.goal}"
+                )
+                self._process_user_input(
+                    build_goal_continuation_prompt(state, self.conversation.todos)
+                )
+
+        elif parsed.command == Command.PLAN:
+            arg = (parsed.args or "").strip()
+            if not arg:
+                print_info("Usage: /plan <任务描述> | /plan approve")
+            elif arg.lower() in ("approve", "run", "go", "execute"):
+                print_info("◆ 已批准计划，开始执行…")
+                self._process_user_input("请按照已制定的计划清单依次执行所有步骤。")
+            else:
+                print_info(f"◆ 正在生成执行计划: {arg}")
+                self._process_user_input(
+                    "请先为以下任务制定详细的分步执行计划，调用 `todo_write` 记录步骤，"
+                    f"如有不明确之处请调用 `ask_user` 询问，在用户确认前暂不修改代码：\n\n{arg}"
+                )
+        elif parsed.command == Command.TASKS:
+            from neow.core.background_tasks import background_task
+
+            arg = (parsed.args or "").strip()
+            parts = arg.split(maxsplit=1)
+            action = parts[0].lower() if parts else "list"
+            rest = parts[1] if len(parts) > 1 else ""
+            if action == "start":
+                print_info(background_task("start", command=rest))
+            elif action in ("stop", "status", "output"):
+                print_info(background_task(action, task_id=rest))
+            else:
+                print_info(background_task("list"))
+        elif parsed.command == Command.SKILLS:
+            from neow.core.skills import discover_skills, load_skill_content
+
+            arg = (parsed.args or "").strip()
+            if arg:
+                content = load_skill_content(arg)
+                if content.startswith("Error:"):
+                    print_error(content)
+                else:
+                    self.conversation.add_message(
+                        "user", f'<skill name="{arg}">\n{content}\n</skill>'
+                    )
+                    print_info(f"◆ 已加载技能到上下文: {arg}")
+            else:
+                skills = discover_skills()
+                if not skills:
+                    print_info("未发现技能文件 (.neow/skills/<name>/SKILL.md)。")
+                else:
+                    for s in skills:
+                        print_info(f"  ◆ {s.name} [{s.scope}] — {s.description}")
         elif parsed.command == Command.COMPACT:
             if parsed.args and parsed.args.strip().startswith("--keep-tokens"):
                 try:
@@ -1538,7 +1653,9 @@ class REPL:
                             if all_reasoning:
                                 full_reasoning = "".join(all_reasoning)
                                 self._last_reasoning = full_reasoning
-                                console.print(format_reasoning_dropdown(full_reasoning))
+                                if getattr(self, "show_thinking", True):
+                                    dropdown = format_reasoning_dropdown(full_reasoning)
+                                    console.print(dropdown)
                                 all_reasoning.clear()
                             content_buffer = ""
                             live = Live(
@@ -1573,7 +1690,8 @@ class REPL:
             if all_reasoning:
                 full_reasoning = "".join(all_reasoning)
                 self._last_reasoning = full_reasoning
-                console.print(format_reasoning_dropdown(full_reasoning))
+                if getattr(self, "show_thinking", True):
+                    console.print(format_reasoning_dropdown(full_reasoning))
         except StopIteration:
             pass
         except Exception:

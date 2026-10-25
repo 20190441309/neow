@@ -1,7 +1,7 @@
 """Command parsing for Neow CLI."""
 
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 from typing import Optional
 
 
@@ -23,6 +23,7 @@ class Command(Enum):
     TEST = "test"
     ARCHITECT = "architect"
     CODE = "code"
+    MODE = "mode"
     SAVE = "save"
     LOAD = "load"
     HISTORY = "history"
@@ -41,6 +42,11 @@ class Command(Enum):
     INIT = "init"
     MCP = "mcp"
     REWIND = "rewind"
+    THINKING = "thinking"
+    GOAL = "goal"
+    PLAN = "plan"
+    TASKS = "tasks"
+    SKILLS = "skills"
 
 
 @dataclass
@@ -86,12 +92,13 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/test": Command.TEST,
         "/architect": Command.ARCHITECT,
         "/code": Command.CODE,
+        "/mode": Command.MODE,
         "/save": Command.SAVE,
         "/load": Command.LOAD,
         "/history": Command.HISTORY,
         "/cost": Command.COST,
         "/web": Command.WEB,
-        "/think": Command.THINK,
+        "/think": Command.THINKING,
         "/compact": Command.COMPACT,
         "/export": Command.EXPORT,
         "/image": Command.IMAGE,
@@ -104,6 +111,11 @@ def parse_command(user_input: str) -> ParsedCommand:
         "/init": Command.INIT,
         "/mcp": Command.MCP,
         "/rewind": Command.REWIND,
+        "/thinking": Command.THINKING,
+        "/goal": Command.GOAL,
+        "/plan": Command.PLAN,
+        "/tasks": Command.TASKS,
+        "/skills": Command.SKILLS,
     }
 
     command = command_map.get(command_str)

@@ -1,0 +1,41 @@
+{
+  "name": "neow-cli",
+  "version": "0.1.2",
+  "description": "Neow — A lightweight, full-featured AI coding agent for the terminal (TUI & CLI)",
+  "license": "MIT",
+  "bin": {
+    "neow": "bin/neow.js",
+    "neow-cli": "bin/neow.js"
+  },
+  "files": [
+    "bin/neow.js",
+    "neow/**/*.py",
+    "neow/**/*.tcss",
+    "pyproject.toml",
+    "requirements.txt",
+    "README.md",
+    "LICENSE",
+    ".neow.json.example"
+  ],
+  "scripts": {
+    "start": "node ./bin/neow.js",
+    "test:bin": "node ./bin/neow.js --help"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "coding-agent",
+    "cli",
+    "tui",
+    "llm",
+    "developer-tools",
+    "neow"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/neow.git"
+  }
+}
