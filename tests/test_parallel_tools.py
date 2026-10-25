@@ -168,3 +168,123 @@ def test_cancel_during_parallel_calls_keeps_history_valid():
     assert results["c1"] == "slow_read:fast"
     assert results["c2"].startswith("Error: cancelled")
     assert validate_history(conv.messages) == []
+
+
+def test_disjoint_write_calls_run_in_parallel():
+    log = []
+
+    def mock_write(file_path: str, content: str = ""):
+        log.append(("start", file_path, time.monotonic()))
+        time.sleep(DELAY)
+        log.append(("end", file_path, time.monotonic()))
+        return f"wrote {file_path}"
+
+    executor = ToolExecutor()
+    executor.register_spec(
+        ToolSpec(
+            name="file_writer",
+            description="file_writer",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["file_path"],
+            },
+            func=mock_write,
+            tier=ApprovalTier.WRITE,
+            read_only=False,
+            mutates_files=True,
+        )
+    )
+    executor.approval_policy = ApprovalPolicy(mode=ApprovalMode.YOLO)
+
+    calls = [
+        _call("c1", "file_writer", file_path="foo.py"),
+        _call("c2", "file_writer", file_path="bar.py"),
+    ]
+    conv, events, _ = _run(calls, executor)
+
+    starts = [t for kind, _, t in log if kind == "start"]
+    ends = [t for kind, _, t in log if kind == "end"]
+    # Disjoint files run concurrently in YOLO mode
+    assert max(starts) < min(ends)
+
+
+def test_conflicting_write_calls_run_sequentially():
+    log = []
+
+    def mock_write(file_path: str, content: str = ""):
+        log.append(("start", file_path, time.monotonic()))
+        time.sleep(DELAY)
+        log.append(("end", file_path, time.monotonic()))
+        return f"wrote {file_path}"
+
+    executor = ToolExecutor()
+    executor.register_spec(
+        ToolSpec(
+            name="file_writer",
+            description="file_writer",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["file_path"],
+            },
+            func=mock_write,
+            tier=ApprovalTier.WRITE,
+            read_only=False,
+            mutates_files=True,
+        )
+    )
+    executor.approval_policy = ApprovalPolicy(mode=ApprovalMode.YOLO)
+
+    # Both target the same file foo.py -> must run sequentially
+    calls = [
+        _call("c1", "file_writer", file_path="foo.py"),
+        _call("c2", "file_writer", file_path="foo.py"),
+    ]
+    conv, events, _ = _run(calls, executor)
+
+    starts = [t for kind, _, t in log if kind == "start"]
+    ends = [t for kind, _, t in log if kind == "end"]
+    assert starts[1] >= ends[0]
+
+
+def test_write_calls_requiring_approval_do_not_run_in_workers():
+    log = []
+
+    def mock_write(file_path: str, content: str = ""):
+        log.append(("start", file_path, time.monotonic()))
+        time.sleep(DELAY)
+        log.append(("end", file_path, time.monotonic()))
+        return f"wrote {file_path}"
+
+    executor = ToolExecutor()
+    executor.register_spec(
+        ToolSpec(
+            name="file_writer",
+            description="file_writer",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string"},
+                },
+                "required": ["file_path"],
+            },
+            func=mock_write,
+            tier=ApprovalTier.WRITE,
+            read_only=False,
+            mutates_files=True,
+        )
+    )
+    # WRITE mode means mutations require approval
+    executor.approval_policy = ApprovalPolicy(mode=ApprovalMode.WRITE)
+    calls = [
+        ("file_writer", {"file_path": "a.py"}),
+        ("file_writer", {"file_path": "b.py"}),
+    ]
+    assert executor.can_batch_run_concurrently(calls) is False

@@ -44,11 +44,16 @@ CI 会自动覆盖到。
 `EvalTask(..., category="regression")`。流程见 `evals/failures/README.md`。目前是
 空的——没有编造案例填充，等真实发生再记。
 
-## 后续（未实现）
+## Live 模式（真实模型评测）
 
-- **Live 模式**：用真实配置好的模型 API 替换 `ScriptedClient`，跑同一套任务集评估
-  真实代码质量。因为有费用、非确定性，不作为默认/CI 路径，计划作为 `--live` 可选
-  flag 单独跑，结果不进 CI gate，只做人工抽查或版本间对比。
+- **Live 模式（已支持）**：通过 `--live`（及可选 `--model <name>`）用真实配置好的模型 API 替换 `ScriptedClient`，跑同一套任务集评估真实代码推理与改写质量：
+  ```bash
+  python -m evals.runner --live
+  python -m evals.runner --live --model claude
+  ```
+  由于调用真实 API 会产生费用且具有非确定性，默认不进 CI 门禁，供版本发布前的人工评测与质量基准抽查。
+
+## 后续规划
 - **tree-sitter repo map 的必要性评估**：等任务集和失败案例库积累到足够规模（尤其
   是大型 monorepo 场景）后，用真实数据判断是否值得引入。
 - **失败案例库**：把实际使用中发现的 bug（prompt + 期望 + 实际）转成新的 `EvalTask`，

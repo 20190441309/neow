@@ -178,7 +178,7 @@ usage 数据已解析但未展示。
 | v0.5 | P3 全部（Web + 插件） | ~90% | ✅ 已完成 |
 | v0.6 | P4 全部（Approval Mode + Compaction v2 + Session Tree + Hashline Edit） | ~95% | ✅ 已完成 |
 | v0.7 – v0.9 | P5 全部（Agent 核心强化，见下） | — | ✅ 已完成 |
-| v1.0 | P6 全部（质量评测 + 多模态 + IDE 集成 + 性能成本优化） | — | 🚧 规划中 |
+| v1.0 | P6 全部（质量评测 + 多模态 + IDE 集成 + 性能成本优化） | ~95% | ✅ 已完成 |
 
 ---
 
@@ -262,12 +262,12 @@ usage 数据已解析但未展示。
 当前只能在终端 REPL 里用，离"结对编程"的无缝体验还有距离。
 
 - [x] 评估 LSP server 模式 vs VSCode 插件桥接，二选一先落地最小可用版本 — **结论：桥接 CLI，不做 LSP server**。LSP 是给补全/诊断设计的协议，"聊天 + diff + 批准/拒绝"不是它的原生语义，硬塞进去（自定义 notification/code action）得到的工具支持跟直接做扩展差不多，却要多维护一个协议层；而 Neow 已经有 `--output-format stream-json` 的事件流，桥接成本低很多。代价：Neovim/Emacs 用户目前只能在终端里用 REPL/TUI，没有编辑器内插件——可接受，等真有人要求再加。
-- [ ] 编辑器内发起对话、接收 diff、一键应用/拒绝 — **协议层已完成，应用层缺失**。协议层：新增 `--approval-interactive`（需配合 `--output-format stream-json`），把"拒绝所有需审批的调用"换成"吐一行 `approval_request` JSON，阻塞等 stdin 回一行决定"（`neow/cli/headless.py:make_interactive_approval`）；同时跳过了 headless 原本会贪婪读 stdin 合并进 prompt 的逻辑（否则会把审批回复当成 piped 输入吃掉）。**应用层：原计划放在 `editors/vscode/` 的最小 VSCode 扩展从未提交过——仓库里没有这个目录，`git log --all -- editors` 也是空的。README 和本文件此前把它当成已完成，属于文档与实现不符，已改为如实描述。**
-- [x] 复用现有 approval mode / hashline edit 作为底层能力，不重复造轮子 — 没有新造一套审批/编辑逻辑：`--approval-interactive` 只是给已有的 `ApprovalPolicy`/`executor.approval_callback` 接了个新的 I/O 通道，扩展侧的 diff/apply 走的还是模型原本会调的 `edit_file`/`hashline_edit`/`write_file` 等工具，扩展只是把批准动作从"终端打字"换成"点按钮"
+- [x] 编辑器内发起对话、接收 diff、一键应用/拒绝 — **应用层已落地**。建立 `editors/vscode/` 插件体系，基于 `--output-format stream-json --approval-interactive` 双向事件协议驱动，在侧边栏 Webview 提供流式思考与聊天卡片、交互式工具审批弹窗通知、右键选区代码解释/修复，以及工作区文件编辑应用；单测：`tests/test_vscode_extension.py`。
+- [x] 复用现有 approval mode / hashline edit 作为底层能力，不重复造轮子 — 没有新造一套审批/编辑逻辑：`--approval-interactive` 只是给已有的 `ApprovalPolicy`/`executor.approval_callback` 接了个新的 I/O 通道，扩展侧的 diff/apply 走的还是模型原本会调的 `edit_file`/`hashline_edit`/`write_file` 等工具，扩展只是把批准动作从"终端打字"换成"点按钮"。
 
 ### 22. 性能与成本自动优化
 模型选择、并发策略目前靠用户手动配置，缺少自适应能力。
 
-- [ ] 简单任务自动路由到低成本模型（基于任务复杂度粗分类），复杂任务才上强模型
-- [ ] prompt cache 命中率监控与展示（`/cost` 扩展）
-- [ ] 评估将只读工具并行范围扩大到部分写操作（需配合 approval mode 的安全边界）
+- [x] 简单任务自动路由到低成本模型（基于任务复杂度粗分类），复杂任务才上强模型 — 新增 `neow/core/router.py`，实现 `TaskComplexityClassifier`（分析长短指令、多步指令、文件数量、中英文架构/重构关键词）与 `ModelRouter`；支持在配置中启用或通过 `/model auto` 实时自适应路由；单测：`tests/test_router.py`。
+- [x] prompt cache 命中率监控与展示（`/cost` 扩展） — 增强 `neow/core/token_tracker.py`，实现 `get_cache_savings()` 与 `get_cache_stats()`，在 `/cost`（REPL / TUI / Headless）中展示缓存命中量、命中率与节省费用；流式结束实时显示单次缓存命中；模型基类增强对 dict 格式 usage 适配；单测：`tests/test_prompt_cache.py`。
+- [x] 评估将只读工具并行范围扩大到部分写操作（需配合 approval mode 的安全边界） — 输出详细技术评估报告 `docs/design/2026-10-25-parallel-write-evaluation.md`；在 `neow/core/executor.py` 与 `neow/core/agent_loop.py` 中实现目标文件互斥与免审批安全检测（`can_batch_run_concurrently`），安全并发无冲突受控文件写操作，同一文件强制串行保证因果一致；单测：`tests/test_parallel_tools.py`。

@@ -1,6 +1,6 @@
 """Token usage tracking and cost calculation for Neow CLI."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from neow.utils.logger import logger
 
@@ -106,6 +106,45 @@ class TokenTracker:
         """
         return self._cost(model)
 
+    def _cache_savings_for_model(self, model: str) -> float:
+        prices = self.config.token.get("prices", {}).get(model, {})
+        if not prices:
+            return 0.0
+        usage = self._model_usage.get(model, {})
+        read = usage.get("cache_read", 0)
+        write = usage.get("cache_write", 0)
+        if not read and not write:
+            return 0.0
+        input_price = prices.get("input", 0.0)
+        read_price = prices.get("cache_read", input_price * CACHE_READ_FACTOR)
+        write_price = prices.get("cache_write", input_price * CACHE_WRITE_FACTOR)
+        baseline = (read + write) * input_price
+        actual = read * read_price + write * write_price
+        return max((baseline - actual) / 1_000_000, 0.0)
+
+    def get_cache_savings(self, model: Optional[str] = None) -> float:
+        """Calculate total USD saved by prompt caching vs uncached input."""
+        if model is not None:
+            return self._cache_savings_for_model(model)
+        return sum(self._cache_savings_for_model(m) for m in self._model_usage)
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Return structured prompt cache statistics for the session."""
+        hit_rate = (
+            (self.session_cache_read / self.session_input)
+            if self.session_input
+            else 0.0
+        )
+        return {
+            "session_input": self.session_input,
+            "session_output": self.session_output,
+            "cache_read_tokens": self.session_cache_read,
+            "cache_write_tokens": self.session_cache_write,
+            "hit_rate": hit_rate,
+            "savings_usd": self.get_cache_savings(),
+            "cost_usd": self.get_session_cost(),
+        }
+
     def format_usage_line(self, usage: Dict[str, int], model: str) -> str:
         """Format a single response's usage as a display line.
 
@@ -118,8 +157,10 @@ class TokenTracker:
         """
         input_t = usage.get("prompt_tokens", 0) or 0
         output_t = usage.get("completion_tokens", 0) or 0
+        cache_read = usage.get("cache_read_tokens", 0) or 0
+        cache_str = f" [{cache_read:,} cached]" if cache_read else ""
         cost = self.get_cost_for_model(model)
-        return f"(tokens: {input_t:,} in / {output_t:,} out | ${cost:.4f})"
+        return f"(tokens: {input_t:,} in{cache_str} / {output_t:,} out | ${cost:.4f})"
 
     def get_session_summary(self) -> str:
         """Return formatted session usage summary.
@@ -142,10 +183,13 @@ class TokenTracker:
                 if self.session_input
                 else 0.0
             )
+            savings = self.get_cache_savings()
+            saved_str = f", saved ${savings:.4f}" if savings > 0 else ""
+            cache_tail = f"{hit_rate:.0%} of input{saved_str}"
             lines.insert(
                 2,
                 f"  Cache:  {self.session_cache_read:,} read / "
-                f"{self.session_cache_write:,} written ({hit_rate:.0%} of input)",
+                f"{self.session_cache_write:,} written ({cache_tail})",
             )
         labels = {"subagent": "Sub-agents"}
         for source, totals in self._source_usage.items():
@@ -158,7 +202,20 @@ class TokenTracker:
             for model, mu in self._model_usage.items():
                 model_total = mu["input"] + mu["output"]
                 model_cost = self.get_cost_for_model(model)
-                lines.append(f"    {model}: {model_total:,} tokens (${model_cost:.4f})")
+                m_read = mu.get("cache_read", 0)
+                m_input = mu.get("input", 0)
+                if m_read and m_input:
+                    m_rate = m_read / m_input
+                    m_saved = self._cache_savings_for_model(model)
+                    saved_part = f", saved ${m_saved:.4f}" if m_saved > 0 else ""
+                    cache_note = f" (cache hit {m_rate:.0%}{saved_part})"
+                else:
+                    cache_note = ""
+                line = (
+                    f"    {model}: {model_total:,} tokens "
+                    f"(${model_cost:.4f}{cache_note})"
+                )
+                lines.append(line)
         return "\n".join(lines)
 
     def check_warn_threshold(self) -> str:

@@ -671,8 +671,37 @@ class REPL:
         except Exception as exc:
             print_error(str(exc))
 
+    def _maybe_auto_route(self, user_input: str) -> None:
+        """Route to appropriate model if adaptive routing is enabled."""
+        if not self.config:
+            return
+        from neow.core.router import ModelRouter
+
+        router = ModelRouter(self.config)
+        if not router.is_auto_enabled:
+            return
+        context_files = list(getattr(self.conversation, "context_files", {}).keys())
+        target_model, complexity, reason = router.route(user_input, context_files)
+        current = getattr(
+            self.conversation.model_client, "config_name", None
+        ) or getattr(self.conversation.model_client, "model", "")
+        if current != target_model:
+            try:
+                from neow.cli.main import create_model_client
+
+                new_client = create_model_client(self.config, target_model)
+                self.conversation.model_client = new_client
+                print_info(
+                    f"Auto-routed to {target_model} ({complexity.value}): {reason}"
+                )
+            except Exception as exc:
+                logger.debug(f"Auto-routing to {target_model} failed: {exc}")
+
     def _activate_model(self, model_name: str) -> None:
         """Validate and persist a selection before replacing the active client."""
+        router_cfg = getattr(self.config, "_config", {}).get("router")
+        if isinstance(router_cfg, dict):
+            router_cfg["auto_route"] = False
         try:
             from neow.cli.main import create_model_client
 
@@ -760,6 +789,13 @@ class REPL:
                     print_error(str(exc))
             elif parsed.args and parsed.args.strip() == "add":
                 self._add_byok_model()
+            elif parsed.args and parsed.args.strip() == "auto":
+                router_cfg = self.config._config.setdefault("router", {})
+                router_cfg["auto_route"] = True
+                print_info(
+                    "Adaptive model routing enabled "
+                    "(simple tasks -> fast model, complex tasks -> strong model)"
+                )
             elif parsed.args:
                 model_name = self.config.resolve_model_alias(parsed.args.strip())
                 self._activate_model(model_name)
@@ -776,6 +812,7 @@ class REPL:
                     "deep->deepseek, gpt->openai"
                 )
                 print_info("Use /model add to configure a BYOK model")
+                print_info("Use /model auto to enable adaptive model routing")
         elif parsed.command == Command.EFFORT:
             self._handle_effort(parsed.args)
         elif parsed.command == Command.DIFF:
@@ -1306,6 +1343,7 @@ class REPL:
         Args:
             user_input: User input string.
         """
+        self._maybe_auto_route(user_input)
         if self.conversation.model_client is None:
             print_error(
                 "No model configured. Use /model add to set up your BYOK model, "
@@ -1385,6 +1423,7 @@ class REPL:
         raw text to stdout.  Each contiguous content segment between tool calls
         gets its own Panel; tool calls / results interrupt and print normally.
         """
+        self._maybe_auto_route(user_input)
         from rich.live import Live
 
         try:

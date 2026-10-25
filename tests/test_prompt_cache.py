@@ -228,3 +228,67 @@ def test_tracker_counts_cached_tokens():
         "custom",
     )
     assert round(tracker.get_cost_for_model("custom"), 4) == 0.5
+
+
+def test_tracker_cache_savings_and_stats():
+    config = MagicMock()
+    config.token = {
+        "prices": {
+            "claude": {"input": 3.0, "output": 15.0},
+        }
+    }
+    tracker = TokenTracker(config)
+    tracker.record(
+        {
+            "prompt_tokens": 1_000_000,
+            "completion_tokens": 10_000,
+            "cache_read_tokens": 800_000,
+            "cache_write_tokens": 100_000,
+        },
+        "claude",
+    )
+    savings = tracker.get_cache_savings()
+    assert round(savings, 4) == round(2.085, 4)
+    stats = tracker.get_cache_stats()
+    assert stats["cache_read_tokens"] == 800_000
+    assert stats["hit_rate"] == 0.8
+    assert round(stats["savings_usd"], 4) == 2.085
+    summary = tracker.get_session_summary()
+    assert "saved $2.0850" in summary
+    line = tracker.format_usage_line(
+        {"prompt_tokens": 1000, "completion_tokens": 50, "cache_read_tokens": 600},
+        "claude",
+    )
+    assert "[600 cached]" in line
+
+
+def test_openai_and_anthropic_usage_from_dicts():
+    from neow.models.base import anthropic_usage
+
+    raw_openai = {
+        "prompt_tokens": 1000,
+        "completion_tokens": 50,
+        "prompt_tokens_details": {"cached_tokens": 400},
+    }
+    u1 = openai_usage(raw_openai)
+    assert u1["prompt_tokens"] == 1000
+    assert u1["cache_read_tokens"] == 400
+
+    raw_deepseek = {
+        "prompt_tokens": 500,
+        "completion_tokens": 20,
+        "prompt_cache_hit_tokens": 300,
+    }
+    u2 = openai_usage(raw_deepseek)
+    assert u2["cache_read_tokens"] == 300
+
+    raw_anthropic = {
+        "input_tokens": 200,
+        "output_tokens": 30,
+        "cache_read_input_tokens": 500,
+        "cache_creation_input_tokens": 50,
+    }
+    u3 = anthropic_usage(raw_anthropic)
+    assert u3["prompt_tokens"] == 750
+    assert u3["cache_read_tokens"] == 500
+    assert u3["cache_write_tokens"] == 50

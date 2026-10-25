@@ -97,6 +97,12 @@ class Config:
             "subagent_max_turns": 25,
             "subagent_approval": "inherit",
         },
+        "router": {
+            "enabled": False,
+            "auto_route": False,
+            "fast_model": "deepseek",
+            "strong_model": "anthropic",
+        },
     }
 
     def __init__(self, config_path: Optional[Path] = None):
@@ -217,6 +223,19 @@ class Config:
     def mcp(self) -> Dict[str, Any]:
         """MCP client configuration (``servers``: name -> server entry)."""
         return self._config.get("mcp") or {}
+
+    @property
+    def router(self) -> Dict[str, Any]:
+        """Get model routing configuration."""
+        return self._config.get(
+            "router",
+            {
+                "enabled": False,
+                "auto_route": False,
+                "fast_model": "deepseek",
+                "strong_model": "anthropic",
+            },
+        )
 
     @property
     def architect(self) -> Dict[str, Any]:

@@ -19,10 +19,10 @@ import subprocess
 import sys
 import tempfile
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterator, List
+from typing import Iterator, List, Optional
 from unittest import mock
 
 from click.testing import CliRunner
@@ -51,31 +51,40 @@ class _FakeClient(ScriptedClient):
 
 
 @contextmanager
-def _sandbox(home: Path, work: Path, client: _FakeClient) -> Iterator[None]:
-    """Isolate one run: scratch HOME/cwd, a scripted model, no real network."""
+def _sandbox(
+    home: Path, work: Path, client: Optional[_FakeClient] = None, live: bool = False
+) -> Iterator[None]:
+    """Isolate one run: scratch HOME/cwd, optional mock client, clean console."""
     from neow.core import checkpoints
     from neow.utils import formatter
 
     cwd = os.getcwd()
-    # USERPROFILE as well as HOME: ``Path.home()`` reads the former on Windows,
-    # so without it a run would write sessions/checkpoints into the real profile.
-    # console._file too: headless mode points the module-level console at stderr
-    # and never points it back, which otherwise leaks into every later test
-    # (pytest's capsys no longer sees anything the console prints).
-    with (
+    patches = [
         mock.patch.dict(os.environ, {"HOME": str(home), "USERPROFILE": str(home)}),
         mock.patch.object(checkpoints, "ROOT", home / "checkpoints"),
-        mock.patch.object(cli, "create_model_client", lambda cfg, name: client),
         mock.patch.object(formatter.console, "_file", None),
-    ):
-        try:
-            os.chdir(work)
-            yield
-        finally:
-            os.chdir(cwd)
+    ]
+    if not live and client is not None:
+        patches.append(
+            mock.patch.object(cli, "create_model_client", lambda cfg, name: client)
+        )
+
+    with patches[0], patches[1], patches[2]:
+        ctx = patches[3] if len(patches) > 3 else nullcontext()
+        with ctx:
+            try:
+                os.chdir(work)
+                yield
+            finally:
+                os.chdir(cwd)
 
 
-def run_task(task: EvalTask, base_dir: Path) -> EvalResult:
+def run_task(
+    task: EvalTask,
+    base_dir: Path,
+    live: bool = False,
+    model: Optional[str] = None,
+) -> EvalResult:
     home, work = base_dir / "home", base_dir / "work"
     home.mkdir(parents=True)
     work.mkdir(parents=True)
@@ -84,7 +93,6 @@ def run_task(task: EvalTask, base_dir: Path) -> EvalResult:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content)
 
-    # A real repo so the git auto-commit path runs (not a warning-and-skip).
     subprocess.run(["git", "init", "-q"], cwd=work, check=True)
     subprocess.run(
         ["git", "config", "user.email", "eval@neow.local"], cwd=work, check=True
@@ -94,14 +102,14 @@ def run_task(task: EvalTask, base_dir: Path) -> EvalResult:
         subprocess.run(["git", "add", "-A"], cwd=work, check=True)
         subprocess.run(["git", "commit", "-q", "-m", "setup"], cwd=work, check=True)
 
-    client = _FakeClient(list(task.replies))
+    client = None if live else _FakeClient(list(task.replies))
     started = time.monotonic()
-    with _sandbox(home, work, client):
-        result = CliRunner().invoke(
-            cli.main,
-            ["-p", task.prompt, "--output-format", "json", "--approval", "yolo"],
-            catch_exceptions=False,
-        )
+    cli_args = ["-p", task.prompt, "--output-format", "json", "--approval", "yolo"]
+    if live and model:
+        cli_args.extend(["--model", model])
+
+    with _sandbox(home, work, client, live=live):
+        result = CliRunner().invoke(cli.main, cli_args, catch_exceptions=False)
     duration_ms = int((time.monotonic() - started) * 1000)
 
     if result.exit_code != 0:
@@ -124,11 +132,15 @@ def run_task(task: EvalTask, base_dir: Path) -> EvalResult:
     return EvalResult(task.id, task.category, ok, message, duration_ms)
 
 
-def run_all(tasks: List[EvalTask] = TASKS) -> List[EvalResult]:
+def run_all(
+    tasks: List[EvalTask] = TASKS,
+    live: bool = False,
+    model: Optional[str] = None,
+) -> List[EvalResult]:
     results = []
     for task in tasks:
         with tempfile.TemporaryDirectory(prefix="neow-eval-") as tmp:
-            results.append(run_task(task, Path(tmp)))
+            results.append(run_task(task, Path(tmp), live=live, model=model))
     return results
 
 
@@ -137,9 +149,20 @@ def main(argv: List[str] = None) -> int:
     parser.add_argument(
         "--json", action="store_true", help="print a JSON report instead of a table"
     )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="drive tasks with the real configured model instead of scripted replies",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="model override for --live runs (e.g. claude, deepseek, gpt)",
+    )
     args = parser.parse_args(argv)
 
-    results = run_all()
+    results = run_all(live=args.live, model=args.model)
 
     if args.json:
         print(json.dumps([asdict(r) for r in results], ensure_ascii=False, indent=2))
@@ -147,9 +170,8 @@ def main(argv: List[str] = None) -> int:
         width = max(len(r.id) for r in results)
         for r in results:
             mark = "PASS" if r.passed else "FAIL"
-            print(
-                f"[{mark}] {r.id.ljust(width)}  ({r.category})  {r.duration_ms:>5}ms  {r.message}"
-            )
+            msg = f"[{mark}] {r.id.ljust(width)}  ({r.category})  {r.duration_ms:>5}ms"
+            print(f"{msg}  {r.message}")
         passed = sum(r.passed for r in results)
         print(f"\n{passed}/{len(results)} passed")
 

@@ -334,13 +334,22 @@ class AgentLoop:
         calls = [self._prepare(call) for call in tool_calls]
         executor = self.conversation.tool_executor
         can_parallel = getattr(executor, "can_run_concurrently", None)
-        if (
-            len(calls) > 1
-            and can_parallel is not None
-            and all(c.error or can_parallel(c.name, c.arguments) is True for c in calls)
-        ):
-            yield from self._run_in_workers(calls, cancel)
-            return
+        can_batch = getattr(executor, "can_batch_run_concurrently", None)
+        if len(calls) > 1:
+            valid = [c for c in calls if not c.error]
+            if len(valid) == len(calls) and can_batch is not None:
+                tuples = [
+                    (c.name, c.arguments if isinstance(c.arguments, dict) else {})
+                    for c in calls
+                ]
+                if can_batch(tuples):
+                    yield from self._run_in_workers(calls, cancel)
+                    return
+            if can_parallel is not None and all(
+                c.error or can_parallel(c.name, c.arguments) is True for c in calls
+            ):
+                yield from self._run_in_workers(calls, cancel)
+                return
         in_worker = getattr(executor, "runs_in_worker", None)
         for call in calls:
             if cancel.cancelled():

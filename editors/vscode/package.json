@@ -1,0 +1,106 @@
+{
+  "name": "neow-vscode",
+  "displayName": "Neow - AI Pair Programmer",
+  "description": "Terminal and IDE AI pair programmer with surgical edits, Git awareness, and interactive approvals.",
+  "version": "0.1.0",
+  "publisher": "neow",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Snippets"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:neow.chatView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "neow-sidebar",
+          "title": "Neow",
+          "icon": "$(sparkle)"
+        }
+      ]
+    },
+    "views": {
+      "neow-sidebar": [
+        {
+          "type": "webview",
+          "id": "neow.chatView",
+          "name": "Neow Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "neow.openChat",
+        "title": "Neow: Focus Chat Panel",
+        "category": "Neow"
+      },
+      {
+        "command": "neow.explainSelection",
+        "title": "Neow: Explain Selected Code",
+        "category": "Neow"
+      },
+      {
+        "command": "neow.fixSelection",
+        "title": "Neow: Fix Selected Code",
+        "category": "Neow"
+      },
+      {
+        "command": "neow.applyDiff",
+        "title": "Neow: Apply Diff to Workspace",
+        "category": "Neow"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "neow.explainSelection",
+          "when": "editorHasSelection",
+          "group": "neow@1"
+        },
+        {
+          "command": "neow.fixSelection",
+          "when": "editorHasSelection",
+          "group": "neow@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Neow",
+      "properties": {
+        "neow.executablePath": {
+          "type": "string",
+          "default": "neow",
+          "description": "Path to the Neow CLI executable."
+        },
+        "neow.approvalMode": {
+          "type": "string",
+          "enum": ["interactive", "yolo"],
+          "default": "interactive",
+          "description": "Approval mode for tool executions. 'interactive' prompts via dialogs; 'yolo' auto-approves."
+        },
+        "neow.model": {
+          "type": "string",
+          "default": "",
+          "description": "Optional model override (e.g. claude, deepseek, gpt, or auto)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.3.0"
+  }
+}

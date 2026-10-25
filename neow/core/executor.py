@@ -2,7 +2,7 @@
 
 import inspect
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from neow.core.approval import ApprovalTier
 from neow.core.tools_registry import ToolRegistry, ToolSpec
@@ -309,6 +309,48 @@ class ToolExecutor:
             )
             if check.needs_approval:
                 return False
+        return True
+
+    def can_batch_run_concurrently(
+        self, calls: List[Tuple[str, Dict[str, Any]]]
+    ) -> bool:
+        """True if the batch of calls can safely run in parallel.
+
+        Allows concurrent execution for:
+        1. Read-only calls without approval gates.
+        2. Mutating file tools touching completely disjoint target files
+           when pre-approved (e.g. YOLO mode or allowed by policy).
+        """
+        if len(calls) <= 1:
+            return False
+
+        mutating_targets: List[str] = []
+        for name, args in calls:
+            spec = self.registry.get(name)
+            if spec is None or not isinstance(args, dict):
+                return False
+            if self.approval_policy:
+                check = self.approval_policy.check_approval(name, args, tier=spec.tier)
+                if check.needs_approval:
+                    return False
+
+            if spec.read_only or (spec.parallel_when and spec.parallel_when(args)):
+                continue
+            elif spec.mutates_files:
+                path = args.get("file_path") or args.get("path")
+                if not isinstance(path, str) or not path.strip():
+                    return False
+                try:
+                    norm = str(Path(path).resolve())
+                except Exception:
+                    norm = path.strip()
+                mutating_targets.append(norm)
+            else:
+                return False
+
+        if mutating_targets and len(mutating_targets) != len(set(mutating_targets)):
+            return False
+
         return True
 
     def _checkpoint(self, spec: ToolSpec, parameters: Dict[str, Any]) -> None:

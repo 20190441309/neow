@@ -48,7 +48,7 @@ Most AI CLI wrappers stop at "send prompt, print reply." Neow is a full agent lo
 
 **Neow** isn't just another chatbot wrapper. It's a full-featured coding agent designed to seamlessly integrate into your workflow.
 
-- **Multi-Model Support** — switch effortlessly between **DeepSeek**, **Anthropic Claude**, **OpenAI GPT**, and any OpenAI-compatible endpoint.
+- **Multi-Model Support & Adaptive Routing** — switch effortlessly between **DeepSeek**, **Anthropic Claude**, **OpenAI GPT**, and any OpenAI-compatible endpoint, or use `/model auto` to adaptively route simple tasks to fast models and complex refactoring to strong models.
 - **Intelligent Code Editing**
   - Standard file creation, overwrite and deletion.
   - **Hashline Editing** — a surgical editing system using content-addressable hashing. Make precise changes to specific lines without rewriting entire files, with stale-anchor recovery if the file moved under you.
@@ -76,7 +76,7 @@ Most AI CLI wrappers stop at "send prompt, print reply." Neow is a full agent lo
   - Tree-structured, JSONL-backed sessions — `/tree`, `/branch`, `/save`, `/load`, `/history`.
   - Incremental, auto-triggered **compaction** so long sessions never blow the context window.
   - `/cost` — live token usage, cache-hit savings, and per-model pricing.
-- **Rich UI** — beautiful, syntax-highlighted terminal output powered by `rich`, plus a full Textual TUI.
+- **Rich UI & IDE Integration** — beautiful, syntax-highlighted terminal output powered by `rich`, a full Textual TUI, and an official VS Code extension (`editors/vscode`) for in-editor pair programming.
 
 ---
 
