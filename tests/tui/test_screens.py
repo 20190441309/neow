@@ -735,3 +735,31 @@ async def test_goal_modal_screen_starts_and_stops():
         await pilot2.click("#stop-goal-btn")
         await pilot2.pause()
         assert stopped == [True]
+
+
+async def test_model_picker_buttons_remain_visible_with_many_magpie_models(tmp_path):
+    config = Config(tmp_path / "config.json")
+    for idx in range(50):
+        config.models[f"magpie/cursor/model-{idx}"] = {
+            "provider": "openai-compatible",
+            "model": f"cursor/model-{idx}",
+            "base_url": "http://127.0.0.1:3425/v1",
+            "source": "magpie",
+            "display_name": f"Model {idx} · Cursor",
+            "api_key": "magpie",
+        }
+    app = _chat_app(FakeConversation(), config=config)
+    async with app.run_test(size=(100, 26)) as pilot:
+        app.screen._open_model_picker()
+        await pilot.pause()
+        picker = app.screen
+        for btn_id in ("#model-add", "#model-edit", "#model-sync", "#model-delete"):
+            btn = picker.query_one(btn_id)
+            assert (
+                0 <= btn.region.y < btn.region.bottom <= 26
+            ), f"{btn_id} clipped out of viewport: {btn.region}"
+        await pilot.click("#model-add")
+        await pilot.pause()
+        editor = app.screen
+        preset = editor.query_one("#model-preset")
+        assert 0 <= preset.region.y < preset.region.bottom <= 26

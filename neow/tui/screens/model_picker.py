@@ -19,12 +19,17 @@ class ModelPickerScreen(ModalScreen):
     DEFAULT_CLASSES = "dialog-backdrop"
     BINDINGS = [
         ("escape", "app.pop_screen", "返回"),
+        ("ctrl+n", "add_model", "添加/预设"),
+        ("ctrl+e", "edit_selected", "编辑"),
+        ("ctrl+r", "sync_models", "同步"),
         ("ctrl+d", "delete_selected", "删除"),
     ]
     DEFAULT_CSS = """
+    ModelPickerScreen .dialog { width: 88; }
     ModelPickerScreen #model-search { margin-bottom: 1; }
+    ModelPickerScreen .dialog #model-list { max-height: 10; }
     ModelPickerScreen .model-actions { height: 1; margin-top: 1; }
-    ModelPickerScreen Button { margin-right: 1; min-width: 12; }
+    ModelPickerScreen Button { margin-right: 1; min-width: 11; }
     ModelPickerScreen #model-message { height: auto; }
     """
 
@@ -56,7 +61,10 @@ class ModelPickerScreen(ModalScreen):
     def compose(self):
         box = Vertical(classes="dialog")
         box.border_title = "◆ 选择 / 管理模型"
-        box.border_subtitle = "↑↓ 选择 · enter 切换 · ctrl+d 删除 · esc 返回"
+        box.border_subtitle = (
+            "↑↓ 选择 · enter 切换 · ctrl+n 添加/预设 "
+            "· ctrl+r 同步 · ctrl+d 删除 · esc 返回"
+        )
         with box:
             yield Input(placeholder="搜索模型名称、厂商或协议...", id="model-search")
             yield OptionList(
@@ -66,7 +74,9 @@ class ModelPickerScreen(ModalScreen):
             yield Static(self.message, id="model-message", markup=False)
             with Horizontal(classes="model-actions"):
                 if self.on_add:
-                    yield Button("+ 添加 / BYOK", id="model-add")
+                    yield Button(
+                        "+ 添加 / 预设 (BYOK)", id="model-add", variant="primary"
+                    )
                 if self.on_edit:
                     yield Button("编辑", id="model-edit")
                 if self.on_sync:
@@ -146,6 +156,20 @@ class ModelPickerScreen(ModalScreen):
         if index is not None and 0 <= index < len(self.visible_models):
             return self.visible_models[index]
         return None
+
+    def action_add_model(self) -> None:
+        if self.on_add:
+            self.on_add()
+
+    def action_edit_selected(self) -> None:
+        if self.on_edit:
+            target = self._selected_model_name()
+            if target:
+                self.on_edit(target)
+
+    def action_sync_models(self) -> None:
+        if self.on_sync:
+            self.on_sync()
 
     def action_delete_selected(self) -> None:
         if self.on_delete:

@@ -272,6 +272,18 @@ def setup_tools(executor: ToolExecutor) -> None:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging")
 @click.option("--plain", is_flag=True, help="Use the classic line REPL")
 @click.option("--tui", is_flag=True, help="Force the full-screen TUI")
+@click.option("--web", is_flag=True, help="Launch Neow Web Studio in the browser")
+@click.option(
+    "--port",
+    type=int,
+    default=0,
+    help="Port for Neow Web Studio (default: auto-select from 7860)",
+)
+@click.option(
+    "--no-browser",
+    is_flag=True,
+    help="Do not automatically open a browser when starting --web",
+)
 @click.option(
     "--print",
     "-p",
@@ -327,6 +339,9 @@ def main(
     verbose,
     plain,
     tui,
+    web,
+    port,
+    no_browser,
     print_prompt,
     output_format,
     allowed_tools,
@@ -392,7 +407,7 @@ def main(
         model_name = model or cfg.default_model
 
         # Interactive users can configure BYOK before making any model request.
-        interactive = (
+        interactive = bool(web) or (
             stdin_is_tty
             and sys.stdout.isatty()
             and not (headless or prompt or message_file)
@@ -593,6 +608,23 @@ def main(
             sys.exit(0)
 
         session_manager = SessionManager(Path.home() / ".neow" / "sessions")
+
+        if web:
+            from neow.web import run_web_server
+
+            run_web_server(
+                conversation,
+                config=cfg,
+                token_tracker=token_tracker,
+                approval_policy=approval_policy,
+                event_bus=event_bus,
+                port=port,
+                open_browser=not no_browser,
+                on_ready=lambda url: print_info(
+                    f"◆ Neow Web Studio running at {url} (Press Ctrl+C to stop)"
+                ),
+            )
+            return
 
         # Full-screen TUI (default on a TTY).  If Textual is unavailable we
         # warn and fall through to the classic REPL (spec §10).

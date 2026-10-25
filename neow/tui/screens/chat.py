@@ -1228,6 +1228,8 @@ class ChatScreen(Screen):
     @staticmethod
     def _model_entry_label(name, entry):
         display = entry.get("display_name") or entry.get("model") or name
+        if entry.get("source") == "magpie" or name.startswith("magpie/"):
+            return f"{display} [Magpie]"
         provider = entry.get("provider") or "auto"
         endpoint = entry.get("base_url") or "official"
         return f"{display} ({provider} @ {endpoint})"

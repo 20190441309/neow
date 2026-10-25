@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neow Web Studio — AI Coding Agent</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand">
+          <span class="brand-diamond">◆</span>
+          <span class="brand-name">NEOW</span>
+          <span class="brand-badge">WEB STUDIO</span>
+        </div>
+        <div class="workspace-meta">
+          <span id="meta-cwd" class="meta-pill" title="当前工作目录">...</span>
+          <span id="meta-branch" class="meta-pill branch-pill" title="Git 分支">git:main</span>
+        </div>
+      </div>
+
+      <div class="topbar-center">
+        <button id="btn-open-models" class="model-pill" title="点击切换或管理模型 (11大预设 / Magpie同步 / BYOK)">
+          <span class="status-dot" id="model-status-dot"></span>
+          <span id="active-model-label">加载模型中...</span>
+          <span class="pill-caret">▾</span>
+        </button>
+
+        <div class="control-group" title="工具执行审批模式">
+          <label>审批</label>
+          <select id="select-approval-mode">
+            <option value="always-ask">Always Ask (全询问)</option>
+            <option value="write" selected>Write (写操作询问)</option>
+            <option value="yolo">YOLO (全自动)</option>
+          </select>
+        </div>
+
+        <div class="control-group" title="模型思考深度 (Effort)">
+          <label>思考</label>
+          <select id="select-effort">
+            <option value="off">Off</option>
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <div class="telemetry" id="telemetry-bar" title="本会话 Token 与费用统计">
+          <span id="stat-tokens">↑ 0 · ↓ 0</span>
+          <span class="stat-sep">·</span>
+          <span id="stat-cost">$0.0000</span>
+        </div>
+        <button id="btn-theme-toggle" class="icon-btn" title="切换暗色/亮色主题">◐</button>
+      </div>
+    </header>
+
+    <!-- Main 3-Column Body -->
+    <div class="workspace-body">
+      <!-- Left Sidebar: Actions, Files, Skills -->
+      <aside class="left-sidebar">
+        <div class="sidebar-section">
+          <div class="section-header">快捷工作流</div>
+          <div class="quick-actions">
+            <button id="act-new-chat" class="action-btn">
+              <span class="act-icon">✦</span> 新建 / 清空对话
+            </button>
+            <button id="act-open-plan" class="action-btn">
+              <span class="act-icon">📋</span> /plan 架构规划
+            </button>
+            <button id="act-open-goal" class="action-btn">
+              <span class="act-icon">🎯</span> /goal 自主巡航
+            </button>
+            <button id="act-compact" class="action-btn">
+              <span class="act-icon">🗜️</span> /compact 压缩上下文
+            </button>
+            <button id="act-git-diff" class="action-btn">
+              <span class="act-icon">🔀</span> 查看 Git 变更 Diff
+            </button>
+          </div>
+        </div>
+
+        <div class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="files">工作区文件</button>
+          <button class="tab-btn" data-tab="skills">技能 (Skills)</button>
+        </div>
+
+        <div id="tab-files" class="sidebar-pane active">
+          <div class="pane-search">
+            <input type="text" id="file-search-input" placeholder="过滤文件名 (点击预览 / @引用)..." />
+          </div>
+          <div id="file-tree-list" class="item-list"></div>
+        </div>
+
+        <div id="tab-skills" class="sidebar-pane">
+          <div id="skills-list" class="item-list"></div>
+        </div>
+      </aside>
+
+      <!-- Center Main Stage: Chat Timeline + Interactive Banners + Input Dock -->
+      <main class="center-stage">
+        <!-- Active Plan / Goal Banner -->
+        <div id="plan-banner" class="interactive-banner hidden">
+          <div class="banner-header">
+            <span>📋 架构实施计划 (待确认后执行)</span>
+            <div class="banner-actions">
+              <button id="btn-approve-plan" class="btn-primary btn-sm">✅ 批准并执行计划</button>
+              <button id="btn-close-plan" class="btn-ghost btn-sm">关闭</button>
+            </div>
+          </div>
+          <textarea id="plan-editor-textarea" rows="8"></textarea>
+        </div>
+
+        <!-- Timeline Scroll -->
+        <div id="timeline" class="timeline-scroll">
+          <div id="welcome-hero" class="welcome-card">
+            <div class="welcome-title">◆ Neow Web Studio</div>
+            <div class="welcome-sub">
+              全功能 AI 编程智能体工作台 · 支持 AST 代码感知、实时 Diff 预览、11 大厂商预设与本地 Magpie 网关同步
+            </div>
+            <div class="starter-chips">
+              <button class="chip" data-prompt="帮我梳理当前项目的架构和核心模块职责">🔍 梳理项目架构</button>
+              <button class="chip" data-prompt="检查当前代码库是否有潜在 Bug 或未处理的异常">🛡️ 代码审查与排错</button>
+              <button class="chip" data-prompt="查看当前 git status 并总结最近的代码改动">📊 总结 Git 变更</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Interactive Overlay Queue (Approval / ask_user) -->
+        <div id="interactive-queue" class="interactive-queue"></div>
+
+        <!-- Input Dock -->
+        <div class="input-dock">
+          <div class="input-toolbar">
+            <div class="toolbar-hints">
+              <span class="hint-tag" id="btn-insert-at">@ 引用文件</span>
+              <span class="hint-tag" id="btn-open-models-bottom">⚙ 模型与网关配置</span>
+              <span id="busy-indicator" class="busy-pill hidden">
+                <span class="spinner"></span> AI 正在思考与执行工具...
+              </span>
+            </div>
+          </div>
+          <div class="input-row">
+            <textarea
+              id="prompt-input"
+              rows="2"
+              placeholder="输入开发任务或问题 (Enter 发送, Shift+Enter 换行, 支持 /plan, /goal, /model, /clear)..."
+            ></textarea>
+            <div class="input-buttons">
+              <button id="btn-send" class="btn-primary">发送 ↵</button>
+              <button id="btn-stop" class="btn-danger hidden">⏹ 停止</button>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- Right Inspector: Todos, Goal Monitor, Background Tasks -->
+      <aside class="right-inspector">
+        <!-- Todo Progress -->
+        <div class="inspector-card">
+          <div class="card-header">
+            <span>✅ 任务清单 (Todos)</span>
+            <span id="todo-count-badge" class="badge">0/0</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div id="todo-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <div id="todo-list" class="inspector-list">
+            <div class="empty-hint">多步骤任务时 Agent 会自动拆解并更新进度</div>
+          </div>
+        </div>
+
+        <!-- Goal Autonomous Mode -->
+        <div class="inspector-card">
+          <div class="card-header">
+            <span>🎯 自主巡航 (/goal)</span>
+            <span id="goal-status-badge" class="badge">待机</span>
+          </div>
+          <div id="goal-panel-body" class="goal-body">
+            <div id="goal-inactive-view">
+              <input type="text" id="goal-quick-input" placeholder="输入持续目标，自动多轮推进直到完成..." />
+              <button id="btn-start-goal" class="btn-primary btn-sm full-width">启动自主巡航</button>
+            </div>
+            <div id="goal-active-view" class="hidden">
+              <div id="goal-active-text" class="goal-text"></div>
+              <div id="goal-round-info" class="goal-round">Round 1 / 8</div>
+              <button id="btn-stop-goal" class="btn-danger btn-sm full-width">⏹ 停止自主巡航</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Background Tasks -->
+        <div class="inspector-card flex-grow">
+          <div class="card-header">
+            <span>⚡ 后台进程 (/tasks)</span>
+            <button id="btn-refresh-tasks" class="btn-ghost btn-xs">刷新</button>
+          </div>
+          <div id="tasks-list" class="inspector-list">
+            <div class="empty-hint">暂无后台长进程</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Modal: Model & Gateway Studio -->
+  <div id="modal-models" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-header">
+        <div>
+          <h3>◆ 模型与网关管理中心 (BYOK & Presets)</h3>
+          <p class="modal-sub">支持 11 大主流厂商预设一键填入、在线拉取 /models 列表、以及本地 Magpie 网关同步</p>
+        </div>
+        <button class="modal-close" data-close="modal-models">✕</button>
+      </div>
+
+      <div class="modal-body split-modal-body">
+        <!-- Left: Configured Models List -->
+        <div class="models-list-col">
+          <div class="col-toolbar">
+            <input type="text" id="model-filter-input" placeholder="搜索已配置模型..." />
+            <button id="btn-sync-magpie" class="btn-secondary btn-sm" title="从本地 Magpie (127.0.0.1:3425) 或已配置网关同步全部模型">
+              🔄 网关/Magpie 同步
+            </button>
+          </div>
+          <div id="configured-models-list" class="models-scroll-list"></div>
+        </div>
+
+        <!-- Right: Add / Edit Model Form with 11 Presets -->
+        <div class="model-editor-col">
+          <div class="editor-header">
+            <h4 id="editor-form-title">+ 添加 / 自定义模型</h4>
+            <button id="btn-reset-editor" class="btn-ghost btn-xs">重置为新建</button>
+          </div>
+
+          <div class="form-group">
+            <label>1. 快速预设模板 (选择常见厂商一键填入地址与协议)</label>
+            <select id="editor-preset-select"></select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>配置名称 (唯一标识)</label>
+              <input type="text" id="editor-name" placeholder="例如: deepseek / siliconflow / ollama" />
+            </div>
+            <div class="form-group">
+              <label>API 协议</label>
+              <select id="editor-provider">
+                <option value="openai-compatible">openai-compatible</option>
+                <option value="deepseek">deepseek</option>
+                <option value="openai">openai</option>
+                <option value="anthropic">anthropic</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>API 地址 (Base URL)</label>
+            <input type="text" id="editor-url" placeholder="https://api.example.com/v1 (本地支持 http://127.0.0.1:...)" />
+          </div>
+
+          <div class="form-group">
+            <label>
+              <span>模型 ID (Model ID)</span>
+              <button type="button" id="btn-fetch-remote-models" class="btn-link">🔍 从当前地址在线拉取模型列表</button>
+            </label>
+            <input type="text" id="editor-model-id" placeholder="例如: deepseek-chat / gpt-4o / qwen-max" />
+            <select id="editor-fetched-models" class="hidden" style="margin-top: 6px;"></select>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>API Key (本地 Ollama/Magpie 可留空)</label>
+              <input type="password" id="editor-api-key" placeholder="粘贴 API Key (不回显已存密钥)" />
+            </div>
+            <div class="form-group">
+              <label>或读取环境变量名 (可选)</label>
+              <input type="text" id="editor-key-env" placeholder="例如: DEEPSEEK_API_KEY" />
+            </div>
+          </div>
+
+          <div id="editor-status-msg" class="editor-status"></div>
+
+          <div class="editor-actions">
+            <button id="btn-save-model" class="btn-primary">💾 保存并启用</button>
+            <button id="btn-test-model" class="btn-secondary">🔌 测试连接</button>
+            <button id="btn-import-gateway" class="btn-secondary" title="将该网关 /models 下的所有模型批量导入列表">
+              📦 批量导入该网关全部模型
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: File / Diff Preview -->
+  <div id="modal-preview" class="modal-backdrop hidden">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3 id="preview-modal-title">文件预览</h3>
+        <div class="modal-header-actions">
+          <button id="btn-insert-file-ref" class="btn-secondary btn-sm">@ 插入到输入框</button>
+          <button class="modal-close" data-close="modal-preview">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <pre id="preview-modal-content" class="code-preview-box"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Architect /plan Generator -->
+  <div id="modal-plan-prompt" class="modal-backdrop hidden">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>📋 生成架构实施计划 (/plan)</h3>
+        <button class="modal-close" data-close="modal-plan-prompt">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-sub">AI 将以只读架构师模式分析需求并生成分步实施计划，经你确认后再开始修改代码。</p>
+        <textarea id="plan-task-input" rows="4" placeholder="描述你想实现的功能或重构目标..."></textarea>
+        <div class="editor-actions" style="margin-top: 12px;">
+          <button id="btn-submit-plan-task" class="btn-primary">生成实施计划</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

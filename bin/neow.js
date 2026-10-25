@@ -146,6 +146,9 @@ function main() {
     env: {
       ...process.env,
       PYTHONUTF8: "1",
+      PYTHONPATH: process.env.PYTHONPATH
+        ? `${PKG_ROOT}${path.delimiter}${process.env.PYTHONPATH}`
+        : PKG_ROOT,
     },
   });
 

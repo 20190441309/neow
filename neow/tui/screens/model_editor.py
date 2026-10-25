@@ -25,7 +25,7 @@ class ModelEditorScreen(ModalScreen):
     BINDINGS = [("escape", "app.pop_screen", "返回")]
     DEFAULT_CSS = """
     ModelEditorScreen .dialog { width: 88; }
-    ModelEditorScreen Label { margin-top: 1; }
+    ModelEditorScreen Label { margin-top: 0; }
     ModelEditorScreen Input, ModelEditorScreen Select { width: 100%; }
     ModelEditorScreen .model-actions { height: 1; margin-top: 1; }
     ModelEditorScreen Button { margin-right: 1; }

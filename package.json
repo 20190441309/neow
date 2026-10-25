@@ -1,6 +1,6 @@
 {
   "name": "neow-cli",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Neow — A lightweight, full-featured AI coding agent for the terminal (TUI & CLI)",
   "license": "MIT",
   "bin": {
@@ -11,6 +11,7 @@
     "bin/neow.js",
     "neow/**/*.py",
     "neow/**/*.tcss",
+    "neow/web/static/**",
     "pyproject.toml",
     "requirements.txt",
     "README.md",
