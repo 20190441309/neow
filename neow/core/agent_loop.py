@@ -192,6 +192,8 @@ class AgentLoop:
         if conv.model_client is None:
             raise ModelNotConfiguredError()
         cancel = cancel or CancelToken()
+        if cancel.cancelled():
+            return
         hooks = self._turn_hooks()
         if hooks:
             outcome = hooks.run("user_prompt_submit", prompt=user_input)
@@ -213,6 +215,8 @@ class AgentLoop:
         reason = CANCELLED_RESULT
         try:
             for request_number in range(1, self.max_turns + 1):
+                if cancel.cancelled():
+                    break
                 self.requests = request_number
                 response = yield from self._request(user_input, stream)
                 if cancel.cancelled():
@@ -500,7 +504,12 @@ class AgentLoop:
                         call, "Error: cancelled", "error", record=False
                     )
         finally:
-            pool.shutdown(wait=False, cancel_futures=True)
+            # A Web session can change the process cwd. It must not release its
+            # workspace reservation while cancelled tools still use that cwd.
+            pool.shutdown(
+                wait=bool(getattr(self.conversation, "wait_for_tool_workers", False)),
+                cancel_futures=True,
+            )
             # Calls still running after a cancel are answered by repair_history.
             for call in calls:
                 if call.id in done:

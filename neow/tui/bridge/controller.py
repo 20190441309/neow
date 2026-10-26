@@ -87,12 +87,16 @@ class ChatController:
         self._cancel.set()
         self._token.cancel()
 
-    def run_turn(self, user_input: str) -> None:
+    def run_turn(
+        self, user_input: str, *, cancel_token: Optional[CancelToken] = None
+    ) -> None:
         """Consume the conversation stream; blocking (call from a worker)."""
 
         self._busy = True
         self._cancel.clear()
-        self._token = CancelToken()
+        # Web callers reserve a token before starting the worker so early Stop
+        # requests are not lost during initialization.
+        self._token = cancel_token if cancel_token is not None else CancelToken()
         self._content = ""
         self._reasoning = ""
         self._pending_content = ""
@@ -100,9 +104,15 @@ class ChatController:
         self._turn_start = self._time_fn()
         self._last_flush = self._turn_start
         try:
+            if self._token.cancelled():
+                self._emit(TurnCompleted(content="", usage=None, cancelled=True))
+                return
             if getattr(self._conversation, "model_client", None) is None:
                 raise ModelNotConfiguredError()
             self._prelude(user_input)
+            if self._token.cancelled():
+                self._emit(TurnCompleted(content="", usage=None, cancelled=True))
+                return
             if self._token_tracker and self._token_tracker.check_max_tokens():
                 self._emit(
                     TurnFailed(
@@ -122,7 +132,7 @@ class ChatController:
             usage: Optional[Dict[str, int]] = None
             try:
                 for chunk in stream:
-                    if self._cancel.is_set():
+                    if self._cancel.is_set() or self._token.cancelled():
                         cancelled = True
                         try:
                             stream.close()
@@ -135,7 +145,11 @@ class ChatController:
             finally:
                 self._flush_all()
             self._emit(
-                TurnCompleted(content=self._content, usage=usage, cancelled=cancelled)
+                TurnCompleted(
+                    content=self._content,
+                    usage=usage,
+                    cancelled=cancelled or self._token.cancelled(),
+                )
             )
         except Exception as exc:  # noqa: BLE001 - surfaced as a UI event
             self._emit(TurnFailed(str(exc)))

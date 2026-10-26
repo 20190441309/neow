@@ -1,335 +1,997 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Neow Web Studio — AI Coding Agent</title>
-  <link rel="stylesheet" href="/styles.css" />
-</head>
-<body>
-  <div class="app-shell">
-    <!-- Topbar -->
-    <header class="topbar">
-      <div class="topbar-left">
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8fafc" />
+    <meta
+      name="description"
+      content="Neow Web Studio — 专注对话与代码的本地工作区。"
+    />
+    <title>Neow Web Studio</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234a65ce'/%3E%3Cpath d='M8 24V8h4l8 16h4V8' fill='none' stroke='%23fff' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <script>
+      try {
+        const theme = localStorage.getItem("neow-theme");
+        if (theme === "dark" || theme === "light")
+          document.documentElement.dataset.theme = theme;
+      } catch (_) {}
+    </script>
+    <link
+      rel="preload"
+      href="/space-grotesk-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <svg
+      class="svg-definitions"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <symbol id="i-plus" viewBox="0 0 24 24">
+          <path d="M12 5v14M5 12h14" />
+        </symbol>
+        <symbol id="i-arrow" viewBox="0 0 24 24">
+          <path d="M7 17 17 7M7 7h10v10" />
+        </symbol>
+        <symbol id="i-send" viewBox="0 0 24 24">
+          <path d="m6 12 6-6 6 6M12 6v13" />
+        </symbol>
+        <symbol id="i-grid" viewBox="0 0 24 24">
+          <rect x="4" y="4" width="6" height="6" rx="1" />
+          <rect x="14" y="4" width="6" height="6" rx="1" />
+          <rect x="4" y="14" width="6" height="6" rx="1" />
+          <rect x="14" y="14" width="6" height="6" rx="1" />
+        </symbol>
+        <symbol id="i-layers" viewBox="0 0 24 24">
+          <path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" />
+        </symbol>
+        <symbol id="i-target" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="8" />
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+        </symbol>
+        <symbol id="i-compact" viewBox="0 0 24 24">
+          <path
+            d="M4 4h6v6M20 20h-6v-6M10 10 3 3m11 11 7 7M14 4h6v6M10 20H4v-6"
+          />
+        </symbol>
+        <symbol id="i-branch" viewBox="0 0 24 24">
+          <circle cx="6" cy="5" r="2" />
+          <circle cx="6" cy="19" r="2" />
+          <circle cx="18" cy="6" r="2" />
+          <path d="M6 7v10m0-4h5a7 7 0 0 0 7-5" />
+        </symbol>
+        <symbol id="i-folder" viewBox="0 0 24 24">
+          <path
+            d="M3 7V5a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7Z"
+          />
+        </symbol>
+        <symbol id="i-search" viewBox="0 0 24 24">
+          <circle cx="10.5" cy="10.5" r="6.5" />
+          <path d="m16 16 5 5" />
+        </symbol>
+        <symbol id="i-code" viewBox="0 0 24 24">
+          <path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18" />
+        </symbol>
+        <symbol id="i-shield" viewBox="0 0 24 24">
+          <path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z" />
+          <path d="m8 12 3 3 5-6" />
+        </symbol>
+        <symbol id="i-sliders" viewBox="0 0 24 24">
+          <path d="M4 7h8m4 0h4M4 17h3m4 0h9" />
+          <circle cx="14" cy="7" r="2" />
+          <circle cx="9" cy="17" r="2" />
+        </symbol>
+        <symbol id="i-sidebar" viewBox="0 0 24 24">
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M9 4v16" />
+        </symbol>
+        <symbol id="i-sun" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="4" />
+          <path
+            d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"
+          />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+          <path d="M20 7v5h-5M4 17v-5h5" />
+          <path d="M6 6a8 8 0 0 1 13 2M5 16a8 8 0 0 0 13 2" />
+        </symbol>
+        <symbol id="i-close" viewBox="0 0 24 24">
+          <path d="m6 6 12 12M6 18 18 6" />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path d="m5 12 4 4L19 6" />
+        </symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24">
+          <path d="m8 10 4 4 4-4" />
+        </symbol>
+        <symbol id="i-terminal" viewBox="0 0 24 24">
+          <path d="m4 6 6 6-6 6m9 0h7" />
+        </symbol>
+        <symbol id="i-message" viewBox="0 0 24 24">
+          <path
+            d="M20 11a7 7 0 0 1-7 7H8l-5 3V9a6 6 0 0 1 6-6h4a7 7 0 0 1 7 8Z"
+          />
+          <path d="M7 8h9M7 12h6" />
+        </symbol>
+        <symbol id="i-more" viewBox="0 0 24 24">
+          <circle cx="5" cy="12" r="1" />
+          <circle cx="12" cy="12" r="1" />
+          <circle cx="19" cy="12" r="1" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <a class="skip-link" href="#prompt-input">跳转到任务输入</a>
+    <div class="app-shell">
+      <header class="topbar">
         <div class="brand">
-          <span class="brand-diamond">◆</span>
-          <span class="brand-name">NEOW</span>
-          <span class="brand-badge">WEB STUDIO</span>
+          <svg
+            class="brand-mark"
+            viewBox="0 0 32 32"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M5 25V7h6l10 18h6V7M5 7l22 18"
+              stroke="currentColor"
+              stroke-width="4"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span class="brand-name">neow</span>
         </div>
-        <div class="workspace-meta">
-          <span id="meta-cwd" class="meta-pill" title="当前工作目录">...</span>
-          <span id="meta-branch" class="meta-pill branch-pill" title="Git 分支">git:main</span>
-        </div>
-      </div>
-
-      <div class="topbar-center">
-        <button id="btn-open-models" class="model-pill" title="点击切换或管理模型 (11大预设 / Magpie同步 / BYOK)">
-          <span class="status-dot" id="model-status-dot"></span>
-          <span id="active-model-label">加载模型中...</span>
-          <span class="pill-caret">▾</span>
-        </button>
-
-        <div class="control-group" title="工具执行审批模式">
-          <label>审批</label>
-          <select id="select-approval-mode">
-            <option value="always-ask">Always Ask (全询问)</option>
-            <option value="write" selected>Write (写操作询问)</option>
-            <option value="yolo">YOLO (全自动)</option>
-          </select>
-        </div>
-
-        <div class="control-group" title="模型思考深度 (Effort)">
-          <label>思考</label>
-          <select id="select-effort">
-            <option value="off">Off</option>
-            <option value="low">Low</option>
-            <option value="medium" selected>Medium</option>
-            <option value="high">High</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="topbar-right">
-        <div class="telemetry" id="telemetry-bar" title="本会话 Token 与费用统计">
-          <span id="stat-tokens">↑ 0 · ↓ 0</span>
-          <span class="stat-sep">·</span>
-          <span id="stat-cost">$0.0000</span>
-        </div>
-        <button id="btn-theme-toggle" class="icon-btn" title="切换暗色/亮色主题">◐</button>
-      </div>
-    </header>
-
-    <!-- Main 3-Column Body -->
-    <div class="workspace-body">
-      <!-- Left Sidebar: Actions, Files, Skills -->
-      <aside class="left-sidebar">
-        <div class="sidebar-section">
-          <div class="section-header">快捷工作流</div>
-          <div class="quick-actions">
-            <button id="act-new-chat" class="action-btn">
-              <span class="act-icon">✦</span> 新建 / 清空对话
+        <div class="topbar-main">
+          <div class="topbar-left">
+            <button
+              id="btn-toggle-sidebar"
+              class="icon-btn mobile-sidebar-toggle"
+              aria-label="打开工作区侧栏"
+              aria-controls="workspace-sidebar"
+              aria-expanded="false"
+              title="工作区侧栏"
+            >
+              <svg class="icon" aria-hidden="true">
+                <use href="#i-sidebar" />
+              </svg>
             </button>
-            <button id="act-open-plan" class="action-btn">
-              <span class="act-icon">📋</span> /plan 架构规划
-            </button>
-            <button id="act-open-goal" class="action-btn">
-              <span class="act-icon">🎯</span> /goal 自主巡航
-            </button>
-            <button id="act-compact" class="action-btn">
-              <span class="act-icon">🗜️</span> /compact 压缩上下文
-            </button>
-            <button id="act-git-diff" class="action-btn">
-              <span class="act-icon">🔀</span> 查看 Git 变更 Diff
+            <span class="conversation-title">对话</span>
+            <span id="session-status" class="session-status">准备就绪</span>
+          </div>
+          <div class="topbar-right">
+            <span class="connection-state" role="status"
+              ><span id="connection-dot" class="status-dot connecting"></span
+              ><span id="connection-label">正在连接</span></span
+            >
+            <button
+              id="btn-toggle-inspector"
+              class="panel-toggle"
+              aria-label="打开任务面板"
+              aria-controls="workspace-inspector"
+              aria-expanded="false"
+              title="任务面板"
+            >
+              <svg class="icon" aria-hidden="true">
+                <use href="#i-layers" /></svg
+              ><span>任务</span>
             </button>
           </div>
         </div>
+      </header>
 
-        <div class="sidebar-tabs">
-          <button class="tab-btn active" data-tab="files">工作区文件</button>
-          <button class="tab-btn" data-tab="skills">技能 (Skills)</button>
-        </div>
-
-        <div id="tab-files" class="sidebar-pane active">
-          <div class="pane-search">
-            <input type="text" id="file-search-input" placeholder="过滤文件名 (点击预览 / @引用)..." />
+      <div class="workspace-body">
+        <button
+          id="panel-backdrop"
+          class="panel-backdrop"
+          aria-label="关闭侧栏"
+          tabindex="-1"
+        ></button>
+        <aside
+          id="workspace-sidebar"
+          class="left-sidebar"
+          aria-label="工作区导航"
+        >
+          <div class="sidebar-section">
+            <button id="act-new-chat" class="new-chat-btn">
+              <svg class="icon" aria-hidden="true"><use href="#i-plus" /></svg
+              ><span>新对话</span>
+            </button>
+            <nav class="sidebar-nav" aria-label="工作区">
+              <button
+                id="btn-show-conversation"
+                class="nav-item active"
+                aria-label="返回当前对话"
+              >
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-message" /></svg
+                ><span>当前对话</span>
+              </button>
+              <button
+                id="btn-toggle-library"
+                class="nav-item"
+                aria-controls="workspace-library"
+                aria-expanded="false"
+              >
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-folder" /></svg
+                ><span>项目资源</span
+                ><svg class="icon nav-chevron" aria-hidden="true">
+                  <use href="#i-chevron" />
+                </svg>
+              </button>
+            </nav>
           </div>
-          <div id="file-tree-list" class="item-list"></div>
-        </div>
 
-        <div id="tab-skills" class="sidebar-pane">
-          <div id="skills-list" class="item-list"></div>
-        </div>
-      </aside>
-
-      <!-- Center Main Stage: Chat Timeline + Interactive Banners + Input Dock -->
-      <main class="center-stage">
-        <!-- Active Plan / Goal Banner -->
-        <div id="plan-banner" class="interactive-banner hidden">
-          <div class="banner-header">
-            <span>📋 架构实施计划 (待确认后执行)</span>
-            <div class="banner-actions">
-              <button id="btn-approve-plan" class="btn-primary btn-sm">✅ 批准并执行计划</button>
-              <button id="btn-close-plan" class="btn-ghost btn-sm">关闭</button>
+          <section
+            id="workspace-library"
+            class="resource-browser hidden"
+            aria-label="项目文件与技能"
+          >
+            <div class="sidebar-tabs" role="tablist" aria-label="工作区内容">
+              <button
+                id="files-tab"
+                class="tab-btn active"
+                data-tab="files"
+                role="tab"
+                aria-controls="tab-files"
+                aria-selected="true"
+              >
+                项目文件 <span id="file-count" class="count-label">—</span>
+              </button>
+              <button
+                id="skills-tab"
+                class="tab-btn"
+                data-tab="skills"
+                role="tab"
+                aria-controls="tab-skills"
+                aria-selected="false"
+                tabindex="-1"
+              >
+                技能库
+              </button>
             </div>
-          </div>
-          <textarea id="plan-editor-textarea" rows="8"></textarea>
-        </div>
-
-        <!-- Timeline Scroll -->
-        <div id="timeline" class="timeline-scroll">
-          <div id="welcome-hero" class="welcome-card">
-            <div class="welcome-title">◆ Neow Web Studio</div>
-            <div class="welcome-sub">
-              全功能 AI 编程智能体工作台 · 支持 AST 代码感知、实时 Diff 预览、11 大厂商预设与本地 Magpie 网关同步
+            <div
+              id="tab-files"
+              class="sidebar-pane active"
+              role="tabpanel"
+              aria-labelledby="files-tab"
+            >
+              <div class="pane-search">
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-search" /></svg
+                ><input
+                  type="search"
+                  id="file-search-input"
+                  placeholder="搜索项目文件..."
+                  aria-label="搜索项目文件"
+                  autocomplete="off"
+                />
+              </div>
+              <div id="file-tree-list" class="item-list">
+                <div class="empty-hint">正在读取工作区...</div>
+              </div>
+              <div class="pane-footnote">
+                点击文件夹展开 <span>·</span> <kbd>@</kbd> 引用文件
+              </div>
             </div>
-            <div class="starter-chips">
-              <button class="chip" data-prompt="帮我梳理当前项目的架构和核心模块职责">🔍 梳理项目架构</button>
-              <button class="chip" data-prompt="检查当前代码库是否有潜在 Bug 或未处理的异常">🛡️ 代码审查与排错</button>
-              <button class="chip" data-prompt="查看当前 git status 并总结最近的代码改动">📊 总结 Git 变更</button>
+            <div
+              id="tab-skills"
+              class="sidebar-pane"
+              role="tabpanel"
+              aria-labelledby="skills-tab"
+            >
+              <div id="skills-list" class="item-list"></div>
             </div>
-          </div>
-        </div>
+          </section>
 
-        <!-- Live Interactive Overlay Queue (Approval / ask_user) -->
-        <div id="interactive-queue" class="interactive-queue"></div>
-
-        <!-- Input Dock -->
-        <div class="input-dock">
-          <div class="input-toolbar">
-            <div class="toolbar-hints">
-              <span class="hint-tag" id="btn-insert-at">@ 引用文件</span>
-              <span class="hint-tag" id="btn-open-models-bottom">⚙ 模型与网关配置</span>
-              <span id="busy-indicator" class="busy-pill hidden">
-                <span class="spinner"></span> AI 正在思考与执行工具...
+          <div class="sidebar-bottom">
+            <div class="sidebar-utilities">
+              <details id="workflow-menu" class="workflow-menu" data-popover>
+                <summary class="nav-item">
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-more" /></svg
+                  ><span>更多</span>
+                </summary>
+                <nav class="popover workflow-popover" aria-label="更多操作">
+                  <button id="act-open-plan" class="action-btn">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-layers" /></svg
+                    ><span>规划任务</span>
+                  </button>
+                  <button id="act-open-goal" class="action-btn">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-target" /></svg
+                    ><span>自主任务</span>
+                  </button>
+                  <button id="act-git-diff" class="action-btn">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-branch" /></svg
+                    ><span>查看代码变更</span>
+                  </button>
+                  <button id="act-compact" class="action-btn">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-compact" /></svg
+                    ><span>整理上下文</span>
+                  </button>
+                  <button
+                    id="btn-focus-prompt"
+                    class="action-btn"
+                    title="聚焦任务输入 (Ctrl / ⌘ K)"
+                  >
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-terminal" /></svg
+                    ><span>任务输入</span><kbd>Ctrl K</kbd>
+                  </button>
+                </nav>
+              </details>
+              <button
+                id="btn-theme-toggle"
+                class="icon-btn"
+                title="切换明暗主题"
+                aria-label="切换明暗主题"
+              >
+                <svg class="icon" aria-hidden="true"><use href="#i-sun" /></svg>
+              </button>
+            </div>
+            <button
+              id="btn-open-workspace"
+              class="workspace-card"
+              type="button"
+              aria-haspopup="dialog"
+              aria-controls="modal-workspace"
+              title="切换项目工作区"
+            >
+              <span class="workspace-avatar">
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-folder" />
+                </svg>
               </span>
-            </div>
+              <span class="workspace-details">
+                <strong id="workspace-name">当前项目</strong
+                ><span id="meta-cwd" title="当前工作目录">正在读取路径...</span>
+              </span>
+              <svg class="icon workspace-switch-icon" aria-hidden="true">
+                <use href="#i-chevron" />
+              </svg>
+            </button>
           </div>
-          <div class="input-row">
+        </aside>
+
+        <main class="center-stage" aria-label="Neow 对话工作台">
+          <div id="plan-banner" class="interactive-banner hidden">
+            <div class="banner-header">
+              <span>架构实施计划 <small>确认后开始执行</small></span>
+              <div class="banner-actions">
+                <button id="btn-approve-plan" class="btn-primary btn-sm">
+                  批准并执行</button
+                ><button id="btn-close-plan" class="btn-ghost btn-sm">
+                  收起
+                </button>
+              </div>
+            </div>
             <textarea
-              id="prompt-input"
-              rows="2"
-              placeholder="输入开发任务或问题 (Enter 发送, Shift+Enter 换行, 支持 /plan, /goal, /model, /clear)..."
+              id="plan-editor-textarea"
+              rows="8"
+              aria-label="编辑架构实施计划"
             ></textarea>
-            <div class="input-buttons">
-              <button id="btn-send" class="btn-primary">发送 ↵</button>
-              <button id="btn-stop" class="btn-danger hidden">⏹ 停止</button>
+          </div>
+
+          <div
+            id="timeline"
+            class="timeline-scroll"
+            role="region"
+            aria-label="对话记录"
+            tabindex="0"
+          >
+            <section
+              id="welcome-hero"
+              class="welcome-card"
+              aria-labelledby="welcome-title"
+            >
+              <div class="welcome-mark" aria-hidden="true">
+                <svg viewBox="0 0 32 32" fill="none">
+                  <path
+                    d="M6 25V7h5l10 18h5V7"
+                    stroke="currentColor"
+                    stroke-width="3.5"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+              <h1 id="welcome-title">从一个问题开始</h1>
+              <p class="welcome-sub">读代码、改问题，或实现一个新想法。</p>
+              <div class="starter-chips" aria-label="试试这些问题">
+                <button
+                  class="chip"
+                  data-prompt="帮我梳理当前项目的架构和核心模块职责"
+                >
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-code" /></svg
+                  >了解项目
+                </button>
+                <button
+                  class="chip"
+                  data-prompt="检查当前代码库是否有潜在 Bug 或未处理的异常"
+                >
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-shield" /></svg
+                  >检查问题
+                </button>
+                <button
+                  class="chip"
+                  data-prompt="查看当前 git status 并总结最近的代码改动"
+                >
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-branch" /></svg
+                  >总结改动
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <div
+            id="interactive-queue"
+            class="interactive-queue"
+            aria-live="polite"
+          ></div>
+
+          <div class="input-dock">
+            <div class="composer-status">
+              <span id="busy-indicator" class="busy-pill hidden" role="status"
+                ><span class="spinner"></span>正在处理...</span
+              >
             </div>
-          </div>
-        </div>
-      </main>
-
-      <!-- Right Inspector: Todos, Goal Monitor, Background Tasks -->
-      <aside class="right-inspector">
-        <!-- Todo Progress -->
-        <div class="inspector-card">
-          <div class="card-header">
-            <span>✅ 任务清单 (Todos)</span>
-            <span id="todo-count-badge" class="badge">0/0</span>
-          </div>
-          <div class="progress-bar-wrap">
-            <div id="todo-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
-          </div>
-          <div id="todo-list" class="inspector-list">
-            <div class="empty-hint">多步骤任务时 Agent 会自动拆解并更新进度</div>
-          </div>
-        </div>
-
-        <!-- Goal Autonomous Mode -->
-        <div class="inspector-card">
-          <div class="card-header">
-            <span>🎯 自主巡航 (/goal)</span>
-            <span id="goal-status-badge" class="badge">待机</span>
-          </div>
-          <div id="goal-panel-body" class="goal-body">
-            <div id="goal-inactive-view">
-              <input type="text" id="goal-quick-input" placeholder="输入持续目标，自动多轮推进直到完成..." />
-              <button id="btn-start-goal" class="btn-primary btn-sm full-width">启动自主巡航</button>
+            <div class="composer">
+              <textarea
+                id="prompt-input"
+                rows="2"
+                placeholder="给 Neow 发消息，@ 引用项目文件"
+                aria-label="开发任务或问题"
+                aria-describedby="composer-help"
+              ></textarea>
+              <div class="composer-bottom">
+                <div class="composer-tools">
+                  <button
+                    id="btn-insert-at"
+                    class="icon-btn reference-btn"
+                    title="引用项目文件"
+                    aria-label="引用项目文件"
+                  >
+                    @
+                  </button>
+                  <details
+                    id="composer-options"
+                    class="composer-options"
+                    data-popover
+                  >
+                    <summary
+                      id="composer-options-trigger"
+                      class="composer-options-trigger"
+                      title="审批与思考设置"
+                    >
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-shield" /></svg
+                      ><span id="approval-mode-label">写入前询问</span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </summary>
+                    <div class="popover composer-options-popover">
+                      <div class="control-group">
+                        <label for="select-approval-mode">执行权限</label
+                        ><select id="select-approval-mode">
+                          <option value="always-ask">所有操作询问</option>
+                          <option value="write" selected>写入前询问</option>
+                          <option value="yolo">全自动执行</option>
+                        </select>
+                      </div>
+                      <div class="control-group">
+                        <label for="select-effort">思考深度</label
+                        ><select id="select-effort">
+                          <option value="off">关闭</option>
+                          <option value="low">轻量</option>
+                          <option value="medium" selected>均衡</option>
+                          <option value="high">深入</option>
+                        </select>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+                <div class="input-buttons">
+                  <button
+                    id="btn-open-models"
+                    class="model-pill"
+                    title="切换模型或管理网关"
+                  >
+                    <span
+                      class="status-dot unconfigured"
+                      id="model-status-dot"
+                    ></span
+                    ><span id="active-model-label">选择模型</span
+                    ><svg class="icon" aria-hidden="true">
+                      <use href="#i-chevron" />
+                    </svg>
+                  </button>
+                  <button
+                    id="btn-send"
+                    class="btn-primary send-button"
+                    title="发送任务 (Enter)"
+                    aria-label="发送任务"
+                  >
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-send" />
+                    </svg>
+                  </button>
+                  <button
+                    id="btn-stop"
+                    class="btn-danger hidden"
+                    aria-label="停止生成"
+                  >
+                    停止
+                  </button>
+                </div>
+              </div>
             </div>
-            <div id="goal-active-view" class="hidden">
-              <div id="goal-active-text" class="goal-text"></div>
-              <div id="goal-round-info" class="goal-round">Round 1 / 8</div>
-              <button id="btn-stop-goal" class="btn-danger btn-sm full-width">⏹ 停止自主巡航</button>
-            </div>
+            <span id="composer-help" class="sr-only"
+              >Enter 发送，Shift + Enter 换行，Ctrl + K 聚焦输入。</span
+            >
           </div>
-        </div>
+        </main>
 
-        <!-- Background Tasks -->
-        <div class="inspector-card flex-grow">
-          <div class="card-header">
-            <span>⚡ 后台进程 (/tasks)</span>
-            <button id="btn-refresh-tasks" class="btn-ghost btn-xs">刷新</button>
-          </div>
-          <div id="tasks-list" class="inspector-list">
-            <div class="empty-hint">暂无后台长进程</div>
-          </div>
-        </div>
-      </aside>
-    </div>
-  </div>
-
-  <!-- Modal: Model & Gateway Studio -->
-  <div id="modal-models" class="modal-backdrop hidden">
-    <div class="modal-dialog modal-xl">
-      <div class="modal-header">
-        <div>
-          <h3>◆ 模型与网关管理中心 (BYOK & Presets)</h3>
-          <p class="modal-sub">支持 11 大主流厂商预设一键填入、在线拉取 /models 列表、以及本地 Magpie 网关同步</p>
-        </div>
-        <button class="modal-close" data-close="modal-models">✕</button>
-      </div>
-
-      <div class="modal-body split-modal-body">
-        <!-- Left: Configured Models List -->
-        <div class="models-list-col">
-          <div class="col-toolbar">
-            <input type="text" id="model-filter-input" placeholder="搜索已配置模型..." />
-            <button id="btn-sync-magpie" class="btn-secondary btn-sm" title="从本地 Magpie (127.0.0.1:3425) 或已配置网关同步全部模型">
-              🔄 网关/Magpie 同步
+        <aside
+          id="workspace-inspector"
+          class="right-inspector"
+          aria-label="任务与执行状态"
+        >
+          <div class="inspector-heading">
+            <h2>任务与用量</h2>
+            <button
+              id="btn-close-inspector"
+              class="icon-btn"
+              aria-label="关闭任务面板"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
             </button>
           </div>
-          <div id="configured-models-list" class="models-scroll-list"></div>
+          <section class="inspector-card todo-card">
+            <div class="card-header">
+              <span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-check" /></svg
+                >任务进度</span
+              ><span id="todo-count-badge" class="badge">0/0</span>
+            </div>
+            <div class="progress-meta">
+              <span>完成进度</span><span id="todo-percent">0%</span>
+            </div>
+            <div
+              class="progress-bar-wrap"
+              role="progressbar"
+              aria-label="任务完成进度"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <div
+                id="todo-progress-bar"
+                class="progress-bar-fill"
+                style="width: 0%"
+              ></div>
+            </div>
+            <div id="todo-list" class="inspector-list">
+              <div class="empty-hint">
+                开始多步骤任务后，<br />这里会展示实时进展。
+              </div>
+            </div>
+          </section>
+
+          <section class="inspector-card goal-card">
+            <div class="card-header">
+              <span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-target" /></svg
+                >自主任务</span
+              ><span id="goal-status-badge" class="badge neutral-badge"
+                >待机</span
+              >
+            </div>
+            <p class="card-caption">设定一个目标，余下的交给 Agent。</p>
+            <div id="goal-panel-body" class="goal-body">
+              <div id="goal-inactive-view">
+                <label class="sr-only" for="goal-quick-input"
+                  >持续推进的目标</label
+                ><input
+                  type="text"
+                  id="goal-quick-input"
+                  placeholder="你想达成什么？"
+                /><button
+                  id="btn-start-goal"
+                  class="btn-secondary goal-start full-width"
+                >
+                  <span>开始自主推进</span
+                  ><svg class="icon" aria-hidden="true">
+                    <use href="#i-arrow" />
+                  </svg>
+                </button>
+              </div>
+              <div id="goal-active-view" class="hidden">
+                <div id="goal-active-text" class="goal-text"></div>
+                <div id="goal-round-info" class="goal-round">Round 1 / 8</div>
+                <button id="btn-stop-goal" class="btn-danger btn-sm full-width">
+                  停止自主任务
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="inspector-card tasks-card">
+            <div class="card-header">
+              <span
+                ><svg class="icon" aria-hidden="true">
+                  <use href="#i-terminal" /></svg
+                >后台进程
+                <span id="task-count" class="task-count">0</span></span
+              ><button
+                id="btn-refresh-tasks"
+                class="icon-btn btn-xs"
+                title="刷新后台进程"
+                aria-label="刷新后台进程"
+              >
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-refresh" />
+                </svg>
+              </button>
+            </div>
+            <div id="tasks-list" class="inspector-list">
+              <div class="empty-hint">暂无后台进程</div>
+            </div>
+          </section>
+
+          <div class="inspector-bottom">
+            <div class="usage-section">
+              <div class="section-header">
+                <span>会话用量</span><span class="usage-mark">↗</span>
+              </div>
+              <div class="usage-cost" id="stat-cost">$0.0000</div>
+              <div
+                class="telemetry"
+                id="telemetry-bar"
+                title="本会话输入与输出 Token"
+              >
+                <span>Token 消耗</span><span id="stat-tokens">↑ 0 · ↓ 0</span>
+              </div>
+            </div>
+            <div class="git-status">
+              <svg class="icon" aria-hidden="true"><use href="#i-branch" /></svg
+              ><span id="meta-branch">读取分支...</span><span>LOCAL</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="modal-workspace" class="modal-backdrop hidden">
+      <div
+        class="modal-dialog modal-lg workspace-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="workspace-modal-title"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <div>
+            <h2 id="workspace-modal-title">切换项目</h2>
+            <p class="modal-sub">浏览本机文件夹，或输入项目的完整路径。</p>
+          </div>
+          <button
+            class="modal-close icon-btn"
+            data-close="modal-workspace"
+            aria-label="关闭工作区选择"
+          >
+            <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
         </div>
-
-        <!-- Right: Add / Edit Model Form with 11 Presets -->
-        <div class="model-editor-col">
-          <div class="editor-header">
-            <h4 id="editor-form-title">+ 添加 / 自定义模型</h4>
-            <button id="btn-reset-editor" class="btn-ghost btn-xs">重置为新建</button>
+        <div class="modal-body">
+          <div class="workspace-current">
+            <span>当前项目</span
+            ><code id="workspace-current-path">正在读取...</code>
           </div>
-
-          <div class="form-group">
-            <label>1. 快速预设模板 (选择常见厂商一键填入地址与协议)</label>
-            <select id="editor-preset-select"></select>
+          <label for="workspace-path-input" class="workspace-path-label"
+            >项目文件夹路径</label
+          >
+          <div class="workspace-path-row">
+            <input
+              id="workspace-path-input"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="例如 D:\projects\my-app"
+            /><button
+              id="btn-browse-workspace"
+              type="button"
+              class="btn-secondary"
+            >
+              浏览
+            </button>
           </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>配置名称 (唯一标识)</label>
-              <input type="text" id="editor-name" placeholder="例如: deepseek / siliconflow / ollama" />
+          <div class="workspace-picker-grid">
+            <div class="workspace-locations">
+              <h3>最近使用</h3>
+              <div id="workspace-recent-list"></div>
+              <h3>本机位置</h3>
+              <div id="workspace-roots-list"></div>
             </div>
-            <div class="form-group">
-              <label>API 协议</label>
-              <select id="editor-provider">
-                <option value="openai-compatible">openai-compatible</option>
-                <option value="deepseek">deepseek</option>
-                <option value="openai">openai</option>
-                <option value="anthropic">anthropic</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label>API 地址 (Base URL)</label>
-            <input type="text" id="editor-url" placeholder="https://api.example.com/v1 (本地支持 http://127.0.0.1:...)" />
-          </div>
-
-          <div class="form-group">
-            <label>
-              <span>模型 ID (Model ID)</span>
-              <button type="button" id="btn-fetch-remote-models" class="btn-link">🔍 从当前地址在线拉取模型列表</button>
-            </label>
-            <input type="text" id="editor-model-id" placeholder="例如: deepseek-chat / gpt-4o / qwen-max" />
-            <select id="editor-fetched-models" class="hidden" style="margin-top: 6px;"></select>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label>API Key (本地 Ollama/Magpie 可留空)</label>
-              <input type="password" id="editor-api-key" placeholder="粘贴 API Key (不回显已存密钥)" />
-            </div>
-            <div class="form-group">
-              <label>或读取环境变量名 (可选)</label>
-              <input type="text" id="editor-key-env" placeholder="例如: DEEPSEEK_API_KEY" />
+            <div class="workspace-directory-panel">
+              <div class="workspace-directory-header">
+                <span id="workspace-browse-path">文件夹</span
+                ><button
+                  id="btn-workspace-parent"
+                  type="button"
+                  class="btn-ghost btn-xs"
+                  disabled
+                >
+                  上一级
+                </button>
+              </div>
+              <div
+                id="workspace-directory-list"
+                class="workspace-directory-list"
+              >
+                <div class="empty-hint">正在读取文件夹...</div>
+              </div>
             </div>
           </div>
-
-          <div id="editor-status-msg" class="editor-status"></div>
-
-          <div class="editor-actions">
-            <button id="btn-save-model" class="btn-primary">💾 保存并启用</button>
-            <button id="btn-test-model" class="btn-secondary">🔌 测试连接</button>
-            <button id="btn-import-gateway" class="btn-secondary" title="将该网关 /models 下的所有模型批量导入列表">
-              📦 批量导入该网关全部模型
+          <p class="workspace-switch-warning">
+            切换会归档当前对话并开启新会话；所有连接此服务的页面都会一起切换。磁盘文件不会删除，模型保持不变，新项目的模型配置不会自动加载。
+          </p>
+          <div id="workspace-status" class="editor-status" role="status"></div>
+          <div class="workspace-switch-actions">
+            <span id="workspace-switch-note"
+              >任务或后台进程运行时，请先停止再切换。</span
+            ><button
+              id="btn-switch-workspace"
+              type="button"
+              class="btn-primary"
+              disabled
+            >
+              切换到此项目 <span aria-hidden="true">↗</span>
             </button>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Modal: File / Diff Preview -->
-  <div id="modal-preview" class="modal-backdrop hidden">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-header">
-        <h3 id="preview-modal-title">文件预览</h3>
-        <div class="modal-header-actions">
-          <button id="btn-insert-file-ref" class="btn-secondary btn-sm">@ 插入到输入框</button>
-          <button class="modal-close" data-close="modal-preview">✕</button>
+    <div id="modal-models" class="modal-backdrop hidden">
+      <div
+        class="modal-dialog modal-xl"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="models-modal-title"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <div>
+            <h2 id="models-modal-title">模型与网关</h2>
+            <p class="modal-sub">
+              主流厂商预设、自定义模型与本地网关，在一个地方管理。
+            </p>
+          </div>
+          <button
+            class="modal-close icon-btn"
+            data-close="modal-models"
+            aria-label="关闭模型设置"
+          >
+            <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
+        </div>
+        <div class="modal-body split-modal-body">
+          <div class="models-list-col">
+            <div class="col-toolbar">
+              <input
+                type="search"
+                id="model-filter-input"
+                placeholder="搜索已配置的模型..."
+                aria-label="搜索已配置模型"
+              /><button
+                id="btn-sync-magpie"
+                class="btn-secondary btn-sm"
+                title="从本地 Magpie 或默认网关同步模型"
+              >
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-refresh" /></svg
+                >同步网关
+              </button>
+            </div>
+            <div id="configured-models-list" class="models-scroll-list"></div>
+          </div>
+          <div class="model-editor-col">
+            <div class="editor-header">
+              <h3 id="editor-form-title">添加 / 自定义模型</h3>
+              <button id="btn-reset-editor" class="btn-ghost btn-xs">
+                重置为新建
+              </button>
+            </div>
+            <div class="form-group">
+              <label for="editor-preset-select">快速预设</label
+              ><select id="editor-preset-select"></select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editor-name">配置名称</label
+                ><input
+                  type="text"
+                  id="editor-name"
+                  placeholder="例如 deepseek"
+                />
+              </div>
+              <div class="form-group">
+                <label for="editor-provider">API 协议</label
+                ><select id="editor-provider">
+                  <option value="openai-compatible">OpenAI Compatible</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="editor-url">Base URL</label
+              ><input
+                type="url"
+                id="editor-url"
+                placeholder="https://api.example.com/v1"
+              />
+            </div>
+            <div class="form-group">
+              <div class="form-label-row">
+                <label for="editor-model-id">模型 ID</label
+                ><button
+                  type="button"
+                  id="btn-fetch-remote-models"
+                  class="btn-link"
+                >
+                  获取可用模型 ↗
+                </button>
+              </div>
+              <input
+                type="text"
+                id="editor-model-id"
+                placeholder="例如 deepseek-chat / gpt-4o"
+              /><select
+                id="editor-fetched-models"
+                class="hidden"
+                aria-label="选择远端模型"
+              ></select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="editor-api-key">API Key</label
+                ><input
+                  type="password"
+                  id="editor-api-key"
+                  placeholder="本地模型可留空"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="form-group">
+                <label for="editor-key-env"
+                  >环境变量 <span class="optional-label">可选</span></label
+                ><input
+                  type="text"
+                  id="editor-key-env"
+                  placeholder="例如 OPENAI_API_KEY"
+                />
+              </div>
+            </div>
+            <div
+              id="editor-status-msg"
+              class="editor-status"
+              role="status"
+            ></div>
+            <div class="editor-actions">
+              <button id="btn-save-model" class="btn-primary">
+                保存并启用 <span>↗</span></button
+              ><button id="btn-test-model" class="btn-secondary">
+                测试连接</button
+              ><button
+                id="btn-import-gateway"
+                class="btn-ghost"
+                title="批量导入该网关的全部模型"
+              >
+                批量导入
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="modal-body">
-        <pre id="preview-modal-content" class="code-preview-box"></pre>
-      </div>
     </div>
-  </div>
 
-  <!-- Modal: Architect /plan Generator -->
-  <div id="modal-plan-prompt" class="modal-backdrop hidden">
-    <div class="modal-dialog">
-      <div class="modal-header">
-        <h3>📋 生成架构实施计划 (/plan)</h3>
-        <button class="modal-close" data-close="modal-plan-prompt">✕</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-sub">AI 将以只读架构师模式分析需求并生成分步实施计划，经你确认后再开始修改代码。</p>
-        <textarea id="plan-task-input" rows="4" placeholder="描述你想实现的功能或重构目标..."></textarea>
-        <div class="editor-actions" style="margin-top: 12px;">
-          <button id="btn-submit-plan-task" class="btn-primary">生成实施计划</button>
+    <div id="modal-preview" class="modal-backdrop hidden">
+      <div
+        class="modal-dialog modal-lg"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-modal-title"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <h2 id="preview-modal-title">文件预览</h2>
+          <div class="modal-header-actions">
+            <button id="btn-insert-file-ref" class="btn-secondary btn-sm">
+              @ 加入上下文</button
+            ><button
+              class="modal-close icon-btn"
+              data-close="modal-preview"
+              aria-label="关闭文件预览"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
+            </button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <p
+            id="preview-truncation-notice"
+            class="preview-notice hidden"
+            role="status"
+          >
+            文件较大，当前仅展示前 50,000 个字符。
+          </p>
+          <pre
+            id="preview-modal-content"
+            class="code-preview-box"
+            tabindex="0"
+          ></pre>
         </div>
       </div>
     </div>
-  </div>
 
-  <script src="/app.js"></script>
-</body>
+    <div id="modal-plan-prompt" class="modal-backdrop hidden">
+      <div
+        class="modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="plan-modal-title"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <div>
+            <h2 id="plan-modal-title">规划任务</h2>
+          </div>
+          <button
+            class="modal-close icon-btn"
+            data-close="modal-plan-prompt"
+            aria-label="关闭架构规划"
+          >
+            <svg class="icon" aria-hidden="true"><use href="#i-close" /></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-sub plan-description">
+            Neow 会先以只读模式理解需求，生成分步实施计划。<br />在你确认之前，不会修改任何代码。
+          </p>
+          <textarea
+            id="plan-task-input"
+            rows="5"
+            placeholder="描述你想实现的功能，或需要重构的地方..."
+            aria-label="架构规划需求"
+          ></textarea>
+          <div class="editor-actions plan-actions">
+            <button id="btn-submit-plan-task" class="btn-primary">
+              生成实施计划 ↗
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
 </html>

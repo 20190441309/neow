@@ -112,6 +112,44 @@ Animation modes via `.neow.json` (defaults to `full`):
 
 ---
 
+## Web Studio
+
+Prefer a browser workspace? Launch the same agent with the Studio interface:
+
+```bash
+neow --web
+neow --web --no-browser --port 7860
+```
+
+On Windows, the repository virtual environment can launch it directly:
+
+```powershell
+.\.venv\Scripts\neow.exe --web --no-browser --port 7860
+```
+
+Open `http://127.0.0.1:7860` when using the explicit port. Studio keeps file
+previews, `@` references, model and gateway management, approval prompts, plans,
+autonomous goals, task progress, and streaming conversations in one workspace.
+
+- A conversation-first layout with quiet blue accents and a saved light/dark
+  preference, inspired by dsh-web's navigation and composer structure.
+- Files and skills expand on demand; planning, goals, diffs, and compaction live
+  under More. Task details open in a drawer instead of a permanent third column.
+- Project files use a collapsible, folder-first directory tree with lazy loading
+  and per-folder pagination. Search expands matching paths without losing the
+  normal tree's expanded folders; previews and `@` references keep full paths.
+- Responsive workspace and task drawers; no tools disappear on small screens.
+- `Ctrl+K` / `Cmd+K` focuses the composer; `Enter` sends, `Shift+Enter` adds a line,
+  and `Escape` closes a dialog or drawer.
+- Small starter suggestions prepare an editable prompt without running it.
+- Self-hosted fonts and dependency-free HTML/CSS/JavaScript: no frontend build
+  step or external asset service is required.
+
+See [the Studio design notes](docs/design/2026-10-25-web-studio.md) for references
+and frontend verification commands.
+
+---
+
 ## 🛠️ Installation
 
 Get up and running in seconds.

@@ -77,6 +77,7 @@ class SubAgent:
         conv.tool_provider = executor.get_tool_definitions
         conv.memory = parent.memory
         conv.hooks = parent.hooks  # tool hooks guard sub-agents too
+        conv.wait_for_tool_workers = getattr(parent, "wait_for_tool_workers", False)
         conv.max_turns = max_turns
         conv.max_tool_output_chars = parent.max_tool_output_chars
         conv.set_system_prompt(

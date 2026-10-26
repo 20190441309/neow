@@ -1,6 +1,7 @@
 """Tests for the unified agent loop (plan task 0.2)."""
 
 import json
+from types import SimpleNamespace
 from typing import Any, Dict, List
 
 import pytest
@@ -135,6 +136,42 @@ def test_cancel_mid_tools_repairs_history():
     results = [m["content"] for m in conv.messages if m["role"] == "tool"]
     assert results[0] == "read_file ok"
     assert "cancelled" in results[1].lower()
+
+
+def test_precancelled_turn_never_runs_hooks_or_requests_model():
+    conv, client = _conversation(TWO_TOOL_SCRIPT)
+    hooks = []
+    checkpoints = []
+    conv.hooks = SimpleNamespace(run=lambda *args, **kwargs: hooks.append(args))
+    conv.checkpoints = SimpleNamespace(
+        begin_turn=lambda *args: checkpoints.append(args)
+    )
+    token = CancelToken()
+    token.cancel()
+
+    assert list(conv.get_response_stream("already stopped", cancel=token)) == []
+    assert hooks == []
+    assert checkpoints == []
+    assert client.requests == []
+    assert conv.messages == []
+
+
+def test_cancel_during_context_build_never_requests_model(monkeypatch):
+    conv, client = _conversation(TWO_TOOL_SCRIPT)
+    token = CancelToken()
+    built = []
+
+    def build_context(prompt):
+        built.append(prompt)
+        token.cancel()
+        return {"role": "system", "content": "context prepared before stop"}
+
+    monkeypatch.setattr(conv, "build_context_message", build_context)
+    list(conv.get_response_stream("stop while reading context", cancel=token))
+
+    assert built == ["stop while reading context"]
+    assert client.requests == []
+    assert validate_history(conv.messages) == []
 
 
 def test_generator_close_repairs_history():
